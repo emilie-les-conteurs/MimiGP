@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function applyClientTheme(client) {
     if (!client) return;
     const key = getClientColorKey(client);
-    const theme = CLIENT_THEMES[key] || CLIENT_THEMES.blue;
+    const theme = key.startsWith('#') ? getCustomTheme(key) : (CLIENT_THEMES[key] || CLIENT_THEMES.blue);
 
     const navbarHeader = document.getElementById('navbar-header');
     const rootElement = document.getElementById('main-client-view');
@@ -99,10 +99,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getCustomTheme(hex) {
+    const accent = hex;
+    const hover = darkenHex(hex, 15);
+    const light = hex + '12'; // ~7% opacity
+    const lightHover = hex + '25'; // ~15% opacity
+    return {
+      name: 'Personnalisé',
+      accent: accent,
+      hover: hover,
+      light: light,
+      lightHover: lightHover,
+      dotColor: hex,
+      badgeClass: ''
+    };
+  }
+
+  function darkenHex(hex, percent) {
+    let num = parseInt(hex.replace("#",""), 16),
+    amt = Math.round(2.55 * percent),
+    R = (num >> 16) - amt,
+    G = (num >> 8 & 0x00FF) - amt,
+    B = (num & 0x0000FF) - amt;
+    return "#" + (0x1000000 + (R<0?0:R>255?255:R)*0x10000 + (G<0?0:G>255?255:G)*0x100 + (B<0?0:B>255?255:B)).toString(16).slice(1);
+  }
+
+  function getClientBadgeStyle(clientId) {
+    const client = clients.find(c => c.id === clientId);
+    const key = getClientColorKey(client || { id: clientId });
+    const theme = key.startsWith('#') ? getCustomTheme(key) : (CLIENT_THEMES[key] || CLIENT_THEMES.blue);
+    return `background-color: ${theme.light}; color: ${theme.accent}; border: 1px solid ${theme.accent}40;`;
+  }
+
   function clientColor(clientId) {
     const client = clients.find(c => c.id === clientId);
     const key = getClientColorKey(client || { id: clientId });
-    return CLIENT_THEMES[key].badgeClass;
+    if (key.startsWith('#')) return '';
+    return CLIENT_THEMES[key]?.badgeClass || CLIENT_THEMES.blue.badgeClass;
   }
 
   // ─── DOM REFERENCES ─────────────────────────────────────────────
@@ -243,6 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const personName           = document.getElementById('person-name');
   const personColor          = document.getElementById('person-color');
   const personColorHex       = document.getElementById('person-color-hex');
+  const personClientColorsGrid = document.getElementById('person-client-colors-grid');
 
   // ─── ROUTAGE SYNCHRONISÉ ────────────────────────────────────────
   function showScreen(authActive) {
@@ -494,6 +528,33 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       newClientColors.appendChild(dot);
     });
+
+    // Ajouter l'option roue des couleurs personnalisée
+    const customInput = document.createElement('input');
+    customInput.type = 'color';
+    customInput.className = 'hidden';
+    customInput.value = '#3b82f6';
+    
+    const customDot = document.createElement('div');
+    customDot.className = 'color-dot flex items-center justify-center border border-slate-200 transition hover:scale-105';
+    customDot.style.background = 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)';
+    customDot.title = 'Couleur personnalisée...';
+    
+    customDot.addEventListener('click', () => {
+      customInput.click();
+    });
+    
+    customInput.addEventListener('input', () => {
+      const hex = customInput.value;
+      selectedNewClientColor = hex;
+      newClientColors.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+      customDot.classList.add('active');
+      const tempTheme = getCustomTheme(hex);
+      newClientColors.style.setProperty('--client-accent', tempTheme.accent);
+    });
+
+    newClientColors.appendChild(customInput);
+    newClientColors.appendChild(customDot);
     newClientColors.style.setProperty('--client-accent', CLIENT_THEMES.blue.accent);
 
     newClientModal.classList.remove('hidden');
@@ -594,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     globalMessages.forEach((msg, i) => {
       const client = msg.clients;
-      const color  = clientColor(msg.client_id);
+      const badgeStyle = getClientBadgeStyle(msg.client_id);
       const date   = new Date(msg.created_at);
       const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
@@ -605,10 +666,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let attachHTML = '';
       if (msg.file_url && msg.file_name) {
+        const pinned = isPinned(msg.id);
         attachHTML = `
           <div class="mt-1.5 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs w-fit max-w-full shadow-sm">
             <i data-lucide="file" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
-            <span class="truncate font-medium text-slate-700 max-w-[200px] cursor-pointer hover:underline hover:text-blue-600 file-name-link" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            <span class="truncate font-medium text-slate-700 max-w-[160px] cursor-pointer hover:underline hover:text-blue-600 file-name-link" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            
+            <button class="pin-btn text-slate-300 hover:text-amber-500 transition ${pinned ? 'text-amber-500' : ''}" data-id="${msg.id}" title="${pinned ? 'Désépingler' : 'Épingler'}">
+              <i data-lucide="pin" class="w-3.5 h-3.5 ${pinned ? 'fill-amber-500 text-amber-500' : ''}"></i>
+            </button>
+            <button class="rename-btn text-slate-300 hover:text-blue-600 transition" data-id="${msg.id}" data-name="${msg.file_name}" title="Renommer">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+            </button>
             <button class="download-btn text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
               <i data-lucide="download" class="w-3.5 h-3.5"></i>
             </button>
@@ -619,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="flex-1 bg-white rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition">
           <div class="flex items-center justify-between gap-2 mb-1.5 w-full">
             <div class="flex items-center gap-2">
-              <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full ${color} hover:opacity-80 transition" data-id="${msg.client_id}">${client?.name || '—'}</button>
+              <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-80 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
               <span class="text-xs text-slate-400">${dateStr} à ${timeStr}</span>
             </div>
             <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
@@ -653,6 +722,20 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.addEventListener('click', e => {
         e.preventDefault();
         deleteMessage(btn.dataset.id);
+      });
+    });
+    globalFeed.querySelectorAll('.pin-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePinFile(btn.dataset.id);
+      });
+    });
+    globalFeed.querySelectorAll('.rename-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        renameFile(btn.dataset.id, btn.dataset.name);
       });
     });
 
@@ -944,10 +1027,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
       let attachHTML = '';
       if (msg.file_url && msg.file_name) {
+        const pinned = isPinned(msg.id);
         attachHTML = `
           <div class="mt-2 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-sm w-fit max-w-full">
             <i data-lucide="file" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
-            <span class="truncate font-medium text-slate-700 max-w-[180px] cursor-pointer hover:underline hover:text-blue-600 file-name-link" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            <span class="truncate font-medium text-slate-700 max-w-[150px] cursor-pointer hover:underline hover:text-blue-600 file-name-link" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            
+            <button class="pin-btn text-slate-300 hover:text-amber-500 transition ${pinned ? 'text-amber-500' : ''}" data-id="${msg.id}" title="${pinned ? 'Désépingler' : 'Épingler'}">
+              <i data-lucide="pin" class="w-3.5 h-3.5 ${pinned ? 'fill-amber-500 text-amber-500' : ''}"></i>
+            </button>
+            <button class="rename-btn text-slate-300 hover:text-blue-600 transition" data-id="${msg.id}" data-name="${msg.file_name}" title="Renommer">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+            </button>
             <button class="download-btn text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
               <i data-lucide="download" class="w-3.5 h-3.5"></i>
             </button>
@@ -989,6 +1080,22 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.addEventListener('click', e => {
         e.preventDefault();
         deleteMessage(btn.dataset.id);
+      });
+    });
+
+    clientChatMessages.querySelectorAll('.pin-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePinFile(btn.dataset.id);
+      });
+    });
+
+    clientChatMessages.querySelectorAll('.rename-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        renameFile(btn.dataset.id, btn.dataset.name);
       });
     });
 
@@ -1095,23 +1202,41 @@ document.addEventListener('DOMContentLoaded', () => {
       filesList.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucun fichier partagé.</p>';
       return;
     }
+
+    // Trier les fichiers : épinglés en premier, puis par date de création décroissante
+    fileMessages.sort((a, b) => {
+      const aPinned = isPinned(a.id) ? 1 : 0;
+      const bPinned = isPinned(b.id) ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
     fileMessages.forEach((msg, i) => {
+      const pinned = isPinned(msg.id);
       const date = new Date(msg.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
       const div = document.createElement('div');
-      div.className = 'flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 hover:border-blue-300 transition animate-fade-in-up text-xs';
+      div.className = `flex items-center gap-2 p-2 rounded-lg border transition animate-fade-in-up text-xs ${pinned ? 'bg-amber-50/50 border-amber-200' : 'border-slate-100 hover:bg-slate-50 hover:border-blue-300'}`;
       div.style.animationDelay = `${i * 30}ms`;
       div.innerHTML = `
         <i data-lucide="file" class="w-4 h-4 text-blue-500 shrink-0"></i>
         <div class="flex-1 min-w-0">
           <p class="font-semibold text-slate-800 truncate cursor-pointer hover:underline hover:text-blue-600" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</p>
-          <p class="text-slate-400 text-[10px]">${date}</p>
+          <p class="text-slate-400 text-[10px]">${date} ${pinned ? '• 📌 Épinglé' : ''}</p>
         </div>
+        
+        <button class="pin-btn p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-amber-500 transition" data-id="${msg.id}" title="${pinned ? 'Désépingler' : 'Épingler'}">
+          <i data-lucide="pin" class="w-3.5 h-3.5 ${pinned ? 'fill-amber-500 text-amber-500' : ''}"></i>
+        </button>
+        <button class="rename-btn p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-blue-600 transition" data-id="${msg.id}" data-name="${msg.file_name}" title="Renommer">
+          <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+        </button>
         <button class="download-btn p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
           <i data-lucide="download" class="w-3.5 h-3.5"></i>
         </button>
       `;
       filesList.appendChild(div);
     });
+
     filesList.querySelectorAll('[data-path]').forEach(el => {
       el.addEventListener('click', e => {
         e.preventDefault();
@@ -1125,6 +1250,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     });
+
+    filesList.querySelectorAll('.pin-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePinFile(btn.dataset.id);
+      });
+    });
+
+    filesList.querySelectorAll('.rename-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        renameFile(btn.dataset.id, btn.dataset.name);
+      });
+    });
+
     lucide.createIcons();
   }
 
@@ -1443,7 +1585,39 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       settingsClientColors.appendChild(dot);
     });
-    clientSettingsModalPanel.style.setProperty('--client-accent', CLIENT_THEMES[selectedSettingsColor].accent);
+
+    // Ajouter l'option roue des couleurs personnalisée
+    const customInput = document.createElement('input');
+    customInput.type = 'color';
+    customInput.className = 'hidden';
+    customInput.value = selectedSettingsColor.startsWith('#') ? selectedSettingsColor : '#3b82f6';
+    
+    const customDot = document.createElement('div');
+    const isCustomActive = selectedSettingsColor.startsWith('#');
+    customDot.className = `color-dot ${isCustomActive ? 'active' : ''}`;
+    customDot.style.background = 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)';
+    customDot.title = 'Couleur personnalisée...';
+    
+    customDot.addEventListener('click', () => {
+      customInput.click();
+    });
+    
+    customInput.addEventListener('input', () => {
+      const hex = customInput.value;
+      selectedSettingsColor = hex;
+      settingsClientColors.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+      customDot.classList.add('active');
+      const tempTheme = getCustomTheme(hex);
+      clientSettingsModalPanel.style.setProperty('--client-accent', tempTheme.accent);
+    });
+
+    settingsClientColors.appendChild(customInput);
+    settingsClientColors.appendChild(customDot);
+
+    const activeAccent = selectedSettingsColor.startsWith('#')
+      ? getCustomTheme(selectedSettingsColor).accent
+      : (CLIENT_THEMES[selectedSettingsColor]?.accent || CLIENT_THEMES.blue.accent);
+    clientSettingsModalPanel.style.setProperty('--client-accent', activeAccent);
 
     clientSettingsModal.classList.remove('hidden');
     setTimeout(() => {
@@ -1624,8 +1798,30 @@ document.addEventListener('DOMContentLoaded', () => {
   function openPersonModal() {
     personName.value = '';
     personColor.value = '#3b82f6';
-    personColorHex.textContent = '#3b82f6';
+    personColorHex.textContent = '#3B82F6';
     
+    // Rendre les couleurs des clients existants
+    personClientColorsGrid.innerHTML = '';
+    if (clients.length === 0) {
+      personClientColorsGrid.innerHTML = '<span class="text-xs text-slate-400">Aucun client configuré</span>';
+    } else {
+      clients.forEach(c => {
+        const colorKey = getClientColorKey(c);
+        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+        
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-7 h-7 rounded-full border border-slate-200 shadow-sm transition hover:scale-110 shrink-0';
+        btn.style.backgroundColor = theme.dotColor;
+        btn.title = `${c.name} (${theme.dotColor})`;
+        btn.addEventListener('click', () => {
+          personColor.value = theme.dotColor;
+          personColorHex.textContent = theme.dotColor.toUpperCase();
+        });
+        personClientColorsGrid.appendChild(btn);
+      });
+    }
+
     personModal.classList.remove('hidden');
     setTimeout(() => {
       personModalPanel.classList.remove('scale-95', 'opacity-0');
@@ -1710,5 +1906,49 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  // ─── GESTION DES FICHIERS (RENOMMAGE ET ÉPINGLAGE) ─────────────────
+  async function renameFile(msgId, oldName) {
+    const newName = prompt("Entrez le nouveau nom de fichier :", oldName);
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed) { alert("Le nom du fichier ne peut pas être vide."); return; }
+
+    const { error } = await sb.from('messages').update({ file_name: trimmed }).eq('id', msgId);
+    if (error) { alert(`Erreur de renommage: ${error.message}`); return; }
+
+    if (activeClientId) {
+      await loadClientMessages();
+      renderFilesList();
+    } else {
+      await loadGlobalFeed();
+    }
+  }
+
+  function togglePinFile(msgId) {
+    const pinned = JSON.parse(localStorage.getItem('mimi_pinned_files') || '[]');
+    const idStr = String(msgId);
+    const idx = pinned.indexOf(idStr);
+    
+    if (idx !== -1) {
+      pinned.splice(idx, 1);
+    } else {
+      pinned.push(idStr);
+    }
+    
+    localStorage.setItem('mimi_pinned_files', JSON.stringify(pinned));
+    
+    if (activeClientId) {
+      loadClientMessages();
+      renderFilesList();
+    } else {
+      loadGlobalFeed();
+    }
+  }
+
+  function isPinned(msgId) {
+    const pinned = JSON.parse(localStorage.getItem('mimi_pinned_files') || '[]');
+    return pinned.includes(String(msgId));
   }
 });
