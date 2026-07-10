@@ -674,6 +674,15 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGlobalFeed();
   }
 
+  function formatDateHeader(dateStr) {
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    if (dateStr === today) return "Aujourd'hui";
+    if (dateStr === yesterday) return "Hier";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
   function renderGlobalFeed() {
     globalFeed.innerHTML = '';
     if (globalMessages.length === 0) {
@@ -686,12 +695,26 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    let lastDateStr = null;
+
     globalMessages.forEach((msg, i) => {
       const client = msg.clients;
       const badgeStyle = getClientBadgeStyle(msg.client_id);
       const date   = new Date(msg.created_at);
       const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      const dateStr = date.toISOString().split('T')[0];
+
+      // Séparateur de date collant
+      if (dateStr !== lastDateStr) {
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'sticky-date-header animate-fade-in-up';
+        headerDiv.innerHTML = `
+          <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
+          <span>${formatDateHeader(dateStr)}</span>
+        `;
+        globalFeed.appendChild(headerDiv);
+        lastDateStr = dateStr;
+      }
 
       const div = document.createElement('div');
       div.className = 'flex items-start gap-3 animate-fade-in-up';
@@ -722,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="flex items-center justify-between gap-2 mb-1.5 w-full">
             <div class="flex items-center gap-2">
               <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-80 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
-              <span class="text-xs text-slate-400">${dateStr} à ${timeStr}</span>
+              <span class="text-xs text-slate-400 font-semibold">${timeStr}</span>
             </div>
             <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
@@ -1056,10 +1079,25 @@ document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       return;
     }
+    let lastDateStr = null;
+
     msgs.forEach((msg, i) => {
       const date = new Date(msg.created_at);
       const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      const dateStr = date.toISOString().split('T')[0];
+
+      // Séparateur de date collant
+      if (dateStr !== lastDateStr) {
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'sticky-date-header animate-fade-in-up';
+        headerDiv.innerHTML = `
+          <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
+          <span>${formatDateHeader(dateStr)}</span>
+        `;
+        clientChatMessages.appendChild(headerDiv);
+        lastDateStr = dateStr;
+      }
+
       let attachHTML = '';
       if (msg.file_url && msg.file_name) {
         const pinned = isPinned(msg.id);
@@ -1084,7 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
       div.style.animationDelay = `${Math.min(i * 20, 300)}ms`;
       div.innerHTML = `
         <div class="flex items-center justify-between gap-4 mb-0.5 w-full">
-          <span class="text-[10px] text-slate-400 font-semibold">${dateStr} à ${timeStr}</span>
+          <span class="text-[10px] text-slate-400 font-bold tracking-tight">${timeStr}</span>
           <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
             <i data-lucide="trash-2" class="w-3 h-3"></i>
           </button>
