@@ -94,9 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const clientViewBadge = document.getElementById('client-view-name');
     if (clientViewBadge) {
-      clientViewBadge.style.borderColor = theme.accent;
-      clientViewBadge.style.color = theme.accent;
-      clientViewBadge.style.backgroundColor = theme.light;
+      clientViewBadge.removeAttribute('style'); // Let CSS handle it cleanly
     }
   }
 
@@ -669,7 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadGlobalFeed() {
     const { data } = await sb
       .from('messages')
-      .select('*, clients(name)')
+      .select('*, clients(*)')
       .order('created_at', { ascending: true });
     globalMessages = data || [];
     renderGlobalFeed();
@@ -1710,6 +1708,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Mettre à jour l'interface active
     clientViewName.textContent = newName;
     applyClientTheme(client);
+    renderClientMessages(); // Refresh highlights if a linked person uses this client's color
   });
 
   // ─── PARAMÈTRES DU CLIENT (Fin) et fonctions utilitaires additionnelles ──────

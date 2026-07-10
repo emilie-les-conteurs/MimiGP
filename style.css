@@ -48,9 +48,11 @@ body.auth-body {
   border-color: rgba(255, 255, 255, 0.2) !important;
 }
 #navbar-header.client-mode #client-view-name {
-  background-color: rgba(255, 255, 255, 0.15) !important;
+  background-color: transparent !important;
   color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border: none !important;
+  font-size: 1.125rem !important; /* text-lg */
+  font-weight: 900 !important;
 }
 #navbar-header.client-mode #user-display-name {
   color: #ffffff !important;
