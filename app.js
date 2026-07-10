@@ -1,782 +1,785 @@
-// Gestion complète du portail MimiGP (Authentification, Clients, Notes & Widgets)
-
+// MimiGP Portal — Logique principale réorganisée
 document.addEventListener('DOMContentLoaded', () => {
-  // Vérification de la configuration Supabase
   if (typeof SUPABASE_URL === 'undefined' || typeof SUPABASE_ANON_KEY === 'undefined') {
-    console.error("Supabase config is missing. Please ensure config.js is loaded.");
+    console.error('Supabase config manquante.');
     return;
   }
 
-  // Initialisation du client Supabase
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // --- VARIABLES D'ÉTAT GLOBALES ---
-  let currentSession = null;
-  let clients = [];
-  let activeClientId = null;
-  let activeClientMessages = [];
-  let selectedDateFilter = null; // format YYYY-MM-DD
-  let currentCalendarDate = new Date(); // Date pour l'affichage du calendrier
-  let selectedFileToUpload = null;
+  // ─── ÉTAT GLOBAL ────────────────────────────────────────────────
+  let currentSession   = null;
+  let clients          = [];          // liste complète des clients
+  let globalMessages   = [];          // tous les messages (dashboard)
+  let clientMessages   = [];          // messages du client actif (vue client)
+  let activeClientId   = null;        // client affiché dans la vue client
+  let selectedDateFilter = null;      // filtre date calendrier (YYYY-MM-DD)
+  let calendarDate     = new Date();  // mois affiché dans le calendrier
+  let pendingClientId  = null;        // client ciblé par le `/` dans le chat global
+  let globalFile       = null;        // fichier sélectionné (chat global)
+  let clientFile       = null;        // fichier sélectionné (chat client)
+  let filesWidgetOpen  = true;
+  let autocompleteCreateName = '';    // nom saisi après `/` pour créer un client
 
-  // --- ÉLÉMENTS DU DOM ---
-  // Écrans
-  const registerScreen = document.getElementById('register-screen');
-  const loginScreen = document.getElementById('login-screen');
-  const mainContent = document.getElementById('main-content');
-
-  // Formulaires d'Auth
-  const registerForm = document.getElementById('register-form');
-  const loginForm = document.getElementById('login-form');
-  const logoutBtn = document.getElementById('logout-btn');
-  const userDisplayName = document.getElementById('user-display-name');
-  const userDisplayPosition = document.getElementById('user-display-position');
-
-  // Navigation Auth
-  const goToLogin = document.getElementById('go-to-login');
-  const goToRegister = document.getElementById('go-to-register');
-
-  // Messages Auth
-  const registerError = document.getElementById('register-error');
-  const registerSuccess = document.getElementById('register-success');
-  const loginError = document.getElementById('login-error');
-
-  // Client DOM Elements
-  const addClientBtn = document.getElementById('add-client-btn');
-  const newClientModal = document.getElementById('new-client-modal');
-  const closeModalBtn = document.getElementById('close-modal-btn');
-  const cancelClientBtn = document.getElementById('cancel-client-btn');
-  const newClientForm = document.getElementById('new-client-form');
-  const newClientNameInput = document.getElementById('new-client-name');
-  const clientsListContainer = document.getElementById('clients-list');
-  const searchClientInput = document.getElementById('search-client');
-
-  // Chat DOM Elements
-  const activeClientNameHeader = document.getElementById('active-client-name');
-  const chatMessagesContainer = document.getElementById('chat-messages-container');
-  const chatInputForm = document.getElementById('chat-input-form');
-  const chatMessageInput = document.getElementById('chat-message-input');
-  const attachmentBtn = document.getElementById('attachment-btn');
-  const fileUploadInput = document.getElementById('file-upload-input');
-  const filePreviewBar = document.getElementById('file-preview-bar');
-  const selectedFileNameSpan = document.getElementById('selected-file-name');
-  const removeFileBtn = document.getElementById('remove-file-btn');
-  
-  // Date Filter UI
-  const dateFilterIndicator = document.getElementById('date-filter-indicator');
-  const filteredDateText = document.getElementById('filtered-date-text');
-  const clearDateFilterBtn = document.getElementById('clear-date-filter');
-
-  // Calendar DOM Elements
-  const prevMonthBtn = document.getElementById('prev-month-btn');
-  const nextMonthBtn = document.getElementById('next-month-btn');
-  const calendarMonthYearSpan = document.getElementById('calendar-month-year');
-  const calendarDaysContainer = document.getElementById('calendar-days');
-
-  // Files DOM Elements
-  const filesListContainer = document.getElementById('files-list');
-  const filesWidgetToggle = document.getElementById('files-widget-toggle');
-  const filesListWrapper = document.getElementById('files-list-wrapper');
-  const filesChevron = document.getElementById('files-chevron');
-
-  // --- WIDGET FICHIERS : TOGGLE ACCORDÉON ---
-  let filesWidgetOpen = true;
-
-  filesWidgetToggle.addEventListener('click', () => {
-    filesWidgetOpen = !filesWidgetOpen;
-
-    if (filesWidgetOpen) {
-      filesListWrapper.style.maxHeight = filesListWrapper.scrollHeight + 'px';
-      filesListWrapper.classList.remove('overflow-hidden');
-      filesListWrapper.style.opacity = '1';
-      filesChevron.style.transform = 'rotate(0deg)';
-    } else {
-      filesListWrapper.style.maxHeight = '0px';
-      filesListWrapper.classList.add('overflow-hidden');
-      filesListWrapper.style.opacity = '0';
-      filesChevron.style.transform = 'rotate(-90deg)';
+  // Palette de couleurs pour les badges clients
+  const CLIENT_COLORS = [
+    'bg-violet-100 text-violet-700',
+    'bg-emerald-100 text-emerald-700',
+    'bg-amber-100 text-amber-700',
+    'bg-rose-100 text-rose-700',
+    'bg-cyan-100 text-cyan-700',
+    'bg-fuchsia-100 text-fuchsia-700',
+    'bg-lime-100 text-lime-700',
+    'bg-orange-100 text-orange-700',
+  ];
+  const clientColorMap = {};
+  function clientColor(clientId) {
+    if (!clientColorMap[clientId]) {
+      const idx = Object.keys(clientColorMap).length % CLIENT_COLORS.length;
+      clientColorMap[clientId] = CLIENT_COLORS[idx];
     }
-  });
-
-  // Initialiser le wrapper avec transition CSS
-  filesListWrapper.style.transition = 'max-height 250ms ease-out, opacity 200ms ease-out';
-  filesListWrapper.style.maxHeight = '9999px'; // ouvert par défaut
-
-  // --- UTILS & ROUTAGE ---
-  function showScreen(screen) {
-    registerScreen.classList.add('hidden');
-    loginScreen.classList.add('hidden');
-    mainContent.classList.add('hidden');
-    screen.classList.remove('hidden');
+    return clientColorMap[clientId];
   }
 
-  function applyRoute() {
-    const hash = window.location.hash;
-    if (currentSession && currentSession.user) {
-      if (hash !== '#dashboard') {
-        window.location.hash = '#dashboard';
-        return;
-      }
-      showScreen(mainContent);
-      // Charger les données à la connexion
-      loadDashboardData();
+  // ─── DOM REFERENCES ─────────────────────────────────────────────
+  // Auth
+  const registerScreen = document.getElementById('register-screen');
+  const loginScreen    = document.getElementById('login-screen');
+  const registerForm   = document.getElementById('register-form');
+  const loginForm      = document.getElementById('login-form');
+  const registerError  = document.getElementById('register-error');
+  const registerSuccess = document.getElementById('register-success');
+  const loginError     = document.getElementById('login-error');
+  const goToLogin      = document.getElementById('go-to-login');
+  const goToRegister   = document.getElementById('go-to-register');
+
+  // Vues conteneurs principaux
+  const dashboardView  = document.getElementById('dashboard-view');
+  const mainGlobalView = document.getElementById('main-global-view');
+  const mainClientView = document.getElementById('main-client-view');
+
+  // Navbar Éléments Dynamiques
+  const logoHome            = document.getElementById('logo-home');
+  const backToDashboard     = document.getElementById('back-to-dashboard');
+  const backSeparator       = document.getElementById('back-separator');
+  const activeClientHeader  = document.getElementById('active-client-header');
+  const clientViewName      = document.getElementById('client-view-name');
+  const userDisplayName     = document.getElementById('user-display-name');
+  const userDisplayPosition = document.getElementById('user-display-position');
+  const logoutBtn           = document.getElementById('logout-btn');
+
+  // Sidebar Clients
+  const clientsList         = document.getElementById('clients-list');
+  const searchClient        = document.getElementById('search-client');
+  const addClientBtn        = document.getElementById('add-client-btn');
+
+  // Chat Global (Vue Accueil)
+  const globalFeed          = document.getElementById('global-feed');
+  const globalChatForm      = document.getElementById('global-chat-form');
+  const globalChatInput     = document.getElementById('global-chat-input');
+  const globalAttachBtn     = document.getElementById('global-attach-btn');
+  const globalFileInput     = document.getElementById('global-file-input');
+  const globalFilePreview   = document.getElementById('global-file-preview');
+  const globalFileName      = document.getElementById('global-file-name');
+  const globalRemoveFile    = document.getElementById('global-remove-file');
+  const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
+  const autocompleteList    = document.getElementById('autocomplete-list');
+  const autocompleteCreate  = document.getElementById('autocomplete-create');
+  const autocompleteCreateLabel = document.getElementById('autocomplete-create-label');
+
+  // Chat Dédié (Vue Client)
+  const clientChatMessages  = document.getElementById('client-chat-messages');
+  const clientChatForm      = document.getElementById('client-chat-form');
+  const clientChatInput     = document.getElementById('client-chat-input');
+  const clientAttachBtn     = document.getElementById('client-attach-btn');
+  const clientFileInput     = document.getElementById('client-file-input');
+  const clientFilePreview   = document.getElementById('client-file-preview');
+  const clientFileName      = document.getElementById('client-file-name');
+  const clientRemoveFile    = document.getElementById('client-remove-file');
+  
+  // Widgets Sidebar Droite
+  const filesList           = document.getElementById('files-list');
+  const filesWidgetToggle   = document.getElementById('files-widget-toggle');
+  const filesListWrapper    = document.getElementById('files-list-wrapper');
+  const filesChevron        = document.getElementById('files-chevron');
+  const prevMonthBtn        = document.getElementById('prev-month-btn');
+  const nextMonthBtn        = document.getElementById('next-month-btn');
+  const calMonthYear        = document.getElementById('calendar-month-year');
+  const calDays             = document.getElementById('calendar-days');
+  const dateFilterIndicator = document.getElementById('date-filter-indicator');
+  const filteredDateText    = document.getElementById('filtered-date-text');
+  const clearDateFilter     = document.getElementById('clear-date-filter');
+  const dateFilterChat      = document.getElementById('date-filter-indicator-chat');
+  const filteredDateChat    = document.getElementById('filtered-date-text-chat');
+  const clearDateFilterChat = document.getElementById('clear-date-filter-chat');
+
+  // Modal nouveau client
+  const newClientModal      = document.getElementById('new-client-modal');
+  const newClientModalPanel = document.getElementById('new-client-modal-panel');
+  const closeModalBtn       = document.getElementById('close-modal-btn');
+  const cancelClientBtn     = document.getElementById('cancel-client-btn');
+  const newClientForm       = document.getElementById('new-client-form');
+  const newClientName       = document.getElementById('new-client-name');
+
+  // ─── ROUTAGE SYNCHRONISÉ ────────────────────────────────────────
+  function showScreen(authActive) {
+    if (authActive) {
+      registerScreen.classList.add('hidden');
+      loginScreen.classList.add('hidden');
+      dashboardView.classList.remove('hidden');
     } else {
+      dashboardView.classList.add('hidden');
+      const hash = window.location.hash;
       if (hash === '#register') {
-        showScreen(registerScreen);
+        registerScreen.classList.remove('hidden');
+        loginScreen.classList.add('hidden');
       } else {
-        if (hash !== '#login') {
-          window.location.hash = '#login';
-          return;
-        }
-        showScreen(loginScreen);
+        loginScreen.classList.remove('hidden');
+        registerScreen.classList.add('hidden');
       }
     }
     setTimeout(() => lucide.createIcons(), 50);
   }
 
-  // --- CHARGEMENT DU DASHBOARD ---
-  async function loadDashboardData() {
-    // 1. Profil utilisateur
+  async function applyRoute() {
+    const hash = window.location.hash;
+
+    if (!currentSession) {
+      showScreen(false);
+      return;
+    }
+
+    showScreen(true);
+
+    // Charger les infos de l'utilisateur
     const metadata = currentSession.user.user_metadata || {};
-    userDisplayName.textContent = `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim() || currentSession.user.email;
-    userDisplayPosition.textContent = metadata.position || 'Utilisateur';
+    const fullName = `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim() || currentSession.user.email;
+    const position = metadata.position || '';
+    userDisplayName.textContent = fullName;
+    userDisplayPosition.textContent = position;
 
-    // 2. Charger les clients
-    await fetchClients();
-    renderCalendar();
-  }
+    // Toujours charger la liste de gauche à jour
+    await loadClients();
 
-  // --- ACTIONS CLIENTS (SUPABASE) ---
-  async function fetchClients() {
-    try {
-      const { data, error } = await supabaseClient
-        .from('clients')
-        .select('*')
-        .order('name', { ascending: true });
+    if (hash.startsWith('#client/')) {
+      const id = hash.replace('#client/', '');
+      activeClientId = id;
 
-      if (error) throw error;
-      clients = data || [];
-      renderClientsList();
-    } catch (err) {
-      console.error("Erreur chargement clients:", err.message);
-    }
-  }
+      // Afficher/Masquer les sous-panneaux UI
+      mainGlobalView.classList.add('hidden');
+      mainClientView.classList.remove('hidden');
 
-  function renderClientsList(filterQuery = '') {
-    clientsListContainer.innerHTML = '';
-    const filtered = clients.filter(c => c.name.toLowerCase().includes(filterQuery.toLowerCase()));
+      // Configurer la navbar en mode "Client actif"
+      backToDashboard.classList.remove('hidden');
+      backToDashboard.classList.add('flex');
+      backSeparator.classList.remove('hidden');
+      activeClientHeader.classList.remove('hidden');
+      activeClientHeader.classList.add('flex');
 
-    if (filtered.length === 0) {
-      clientsListContainer.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">Aucun client trouvé.</p>`;
-      return;
-    }
-
-    filtered.forEach((client, index) => {
-      const item = document.createElement('button');
-      item.className = `w-full text-left px-3 py-2.5 rounded-lg text-sm transition flex items-center justify-between border ${
-        activeClientId === client.id 
-          ? 'bg-blue-600 text-white border-blue-600 font-semibold' 
-          : 'bg-white text-slate-700 border-slate-100 hover:bg-slate-50 hover:border-slate-200'
-      } animate-fade-in-up`;
-      item.style.animationDelay = `${index * 50}ms`;
-      item.innerHTML = `
-        <span class="truncate pr-2">${client.name}</span>
-        <i data-lucide="chevron-right" class="w-4 h-4 ${activeClientId === client.id ? 'text-white' : 'text-slate-400'}"></i>
-      `;
+      const client = clients.find(c => c.id === id);
+      clientViewName.textContent = client ? client.name : 'Client';
       
-      item.addEventListener('click', () => selectClient(client.id));
-      clientsListContainer.appendChild(item);
-    });
-
-    lucide.createIcons();
-  }
-
-  async function selectClient(clientId) {
-    activeClientId = clientId;
-    const client = clients.find(c => c.id === clientId);
-    activeClientNameHeader.innerHTML = `
-      <i data-lucide="folder" class="w-5 h-5 text-blue-600"></i>
-      <span>${client ? client.name : 'Client'}</span>
-    `;
-    
-    // Rendre l'input de chat visible
-    chatInputForm.classList.remove('hidden');
-
-    // Réinitialiser le filtre de date
-    selectedDateFilter = null;
-    updateDateFilterUI();
-
-    // Recharger la liste de clients pour mettre à jour la sélection visuelle
-    renderClientsList(searchClientInput.value);
-
-    // Charger les notes (messages) de ce client
-    await fetchMessages();
-  }
-
-  // --- ACTIONS CHAT & NOTES (SUPABASE) ---
-  async function fetchMessages() {
-    if (!activeClientId) return;
-    
-    chatMessagesContainer.innerHTML = `
-      <div class="flex-1 flex items-center justify-center text-slate-400">
-        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
-        <p class="text-sm font-medium">Chargement des notes...</p>
-      </div>
-    `;
-
-    try {
-      const { data, error } = await supabaseClient
-        .from('messages')
-        .select('*')
-        .eq('client_id', activeClientId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      activeClientMessages = data || [];
-
-      renderChatMessages();
-      renderCalendar(); // Mettre à jour les indicateurs du calendrier
-      renderFilesList(); // Mettre à jour la liste des fichiers
-    } catch (err) {
-      console.error("Erreur chargement messages:", err.message);
-      chatMessagesContainer.innerHTML = `<p class="text-xs text-rose-500 text-center py-4">Erreur lors de la récupération des notes.</p>`;
-    }
-  }
-
-  function renderChatMessages() {
-    chatMessagesContainer.innerHTML = '';
-    
-    // Appliquer le filtre de date si actif
-    let messagesToDisplay = activeClientMessages;
-    if (selectedDateFilter) {
-      messagesToDisplay = activeClientMessages.filter(msg => {
-        const msgDate = new Date(msg.created_at).toISOString().split('T')[0];
-        return msgDate === selectedDateFilter;
-      });
-    }
-
-    if (messagesToDisplay.length === 0) {
-      chatMessagesContainer.innerHTML = `
-        <div class="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-2">
-          <i data-lucide="message-square" class="w-10 h-10 text-slate-300"></i>
-          <p class="text-sm font-medium">Aucune note pour ${selectedDateFilter ? 'ce jour' : 'ce client'}.</p>
-        </div>
-      `;
-      lucide.createIcons();
-      return;
-    }
-
-    messagesToDisplay.forEach((msg, index) => {
-      const dateObj = new Date(msg.created_at);
-      const timeStr = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-
-      const msgDiv = document.createElement('div');
-      msgDiv.className = "flex flex-col space-y-1 max-w-[85%] animate-fade-in-up";
-      msgDiv.style.animationDelay = `${index * 30}ms`;
-
-      // Déterminer s'il y a un fichier joint
-      let attachmentHTML = '';
-      if (msg.file_url && msg.file_name) {
-        attachmentHTML = `
-          <div class="mt-2 p-3 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-3 text-slate-700 shadow-sm hover:border-blue-400 transition">
-            <div class="flex items-center space-x-2 truncate">
-              <i data-lucide="file" class="w-4 h-4 text-blue-500 shrink-0"></i>
-              <span class="text-xs font-semibold truncate cursor-pointer hover:underline text-blue-600" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
-            </div>
-            <button type="button" class="download-file-btn p-1 hover:bg-slate-100 rounded-md text-slate-500 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
-              <i data-lucide="download" class="w-4 h-4"></i>
-            </button>
-          </div>
-        `;
-      }
-
-      msgDiv.innerHTML = `
-        <div class="flex items-baseline space-x-2">
-          <span class="text-xs font-bold text-slate-900">MimiGP Portal</span>
-          <span class="text-[10px] text-slate-400">${dateStr} à ${timeStr}</span>
-        </div>
-        <div class="bg-white px-4 py-3 rounded-2xl rounded-tl-none border border-slate-200 text-slate-800 text-sm shadow-sm">
-          <p class="whitespace-pre-line">${msg.content || ''}</p>
-          ${attachmentHTML}
-        </div>
-      `;
-
-      chatMessagesContainer.appendChild(msgDiv);
-    });
-
-    // Ajouter des écouteurs pour les fichiers
-    chatMessagesContainer.querySelectorAll('.download-file-btn, [data-path]').forEach(el => {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        const path = el.getAttribute('data-path');
-        const name = el.getAttribute('data-name');
-        downloadPrivateFile(path, name);
-      });
-    });
-
-    // Scroll tout en bas
-    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
-    lucide.createIcons();
-  }
-
-  // --- ACTIONS D'ENVOI DE MESSAGES & UPLOAD (STORAGE) ---
-  attachmentBtn.addEventListener('click', () => fileUploadInput.click());
-
-  fileUploadInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-      selectedFileToUpload = e.target.files[0];
-      selectedFileNameSpan.textContent = selectedFileToUpload.name;
-      filePreviewBar.classList.remove('hidden');
-    }
-  });
-
-  removeFileBtn.addEventListener('click', () => {
-    selectedFileToUpload = null;
-    fileUploadInput.value = '';
-    filePreviewBar.classList.add('hidden');
-  });
-
-  chatInputForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const content = chatMessageInput.value.trim();
-
-    if (!content && !selectedFileToUpload) return;
-    if (!activeClientId) return;
-
-    let fileUrl = null;
-    let fileName = null;
-
-    try {
-      if (selectedFileToUpload) {
-        fileName = selectedFileToUpload.name;
-        // Créer un nom de fichier unique et sécurisé (userId/clientId/timestamp-filename)
-        const timestamp = Date.now();
-        const path = `${currentSession.user.id}/${activeClientId}/${timestamp}_${fileName}`;
-
-        // Upload vers le Storage Privé Supabase
-        const { data: uploadData, error: uploadError } = await supabaseClient.storage
-          .from('client-files')
-          .upload(path, selectedFileToUpload);
-
-        if (uploadError) throw uploadError;
-        fileUrl = path; // Sauvegarde le chemin d'accès privé dans la table messages
-      }
-
-      // Insérer le message dans la base
-      const { error: msgError } = await supabaseClient
-        .from('messages')
-        .insert({
-          client_id: activeClientId,
-          user_id: currentSession.user.id,
-          content: content,
-          file_url: fileUrl,
-          file_name: fileName
-        });
-
-      if (msgError) throw msgError;
-
-      // Nettoyer les inputs
-      chatMessageInput.value = '';
-      selectedFileToUpload = null;
-      fileUploadInput.value = '';
-      filePreviewBar.classList.add('hidden');
-
-      // Recharger
-      await fetchMessages();
-    } catch (err) {
-      console.error("Erreur envoi message/fichier:", err.message);
-      alert(`Erreur d'envoi : ${err.message}`);
-    }
-  });
-
-  // Téléchargement sécurisé via Signed URL
-  async function downloadPrivateFile(path, filename) {
-    try {
-      const { data, error } = await supabaseClient.storage
-        .from('client-files')
-        .createSignedUrl(path, 300); // URL valide 5 minutes
-
-      if (error) throw error;
-      
-      // Ouvrir ou télécharger le fichier
-      const a = document.createElement('a');
-      a.href = data.signedUrl;
-      a.target = '_blank';
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (err) {
-      console.error("Erreur de téléchargement sécurisé:", err.message);
-      alert("Impossible d'accéder au fichier sécurisé.");
-    }
-  }
-
-  // --- WIDGET FICHIERS ---
-  function renderFilesList() {
-    filesListContainer.innerHTML = '';
-    
-    // Filtrer les messages du client actif qui possèdent un fichier joint
-    const fileMessages = activeClientMessages.filter(msg => msg.file_url && msg.file_name);
-
-    if (fileMessages.length === 0) {
-      filesListContainer.innerHTML = `
-        <div class="flex-1 flex flex-col items-center justify-center text-slate-400 py-8">
-          <i data-lucide="folder-open" class="w-8 h-8 text-slate-300 mb-1"></i>
-          <p class="text-xs text-center">Aucun fichier partagé pour le moment.</p>
-        </div>
-      `;
-      lucide.createIcons();
-      return;
-    }
-
-    fileMessages.forEach((msg, index) => {
-      const dateObj = new Date(msg.created_at);
-      const dateStr = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-
-      const fileItem = document.createElement('div');
-      fileItem.className = "p-2 rounded-lg border border-slate-100 bg-slate-50 hover:bg-white hover:border-blue-400 hover:shadow-sm flex items-center justify-between text-xs transition animate-fade-in-up";
-      fileItem.style.animationDelay = `${index * 40}ms`;
-      fileItem.innerHTML = `
-        <div class="flex items-center space-x-2 truncate flex-1">
-          <i data-lucide="file" class="w-4 h-4 text-blue-500 shrink-0"></i>
-          <div class="truncate">
-            <p class="font-semibold text-slate-800 truncate cursor-pointer hover:underline hover:text-blue-600" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</p>
-            <p class="text-[10px] text-slate-400">Ajouté le ${dateStr}</p>
-          </div>
-        </div>
-        <button type="button" class="download-widget-file p-1.5 hover:bg-slate-100 rounded-md text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
-          <i data-lucide="download" class="w-3.5 h-3.5"></i>
-        </button>
-      `;
-
-      filesListContainer.appendChild(fileItem);
-    });
-
-    // Ajouter les écouteurs de téléchargement pour le widget fichiers
-    filesListContainer.querySelectorAll('.download-widget-file, [data-path]').forEach(el => {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        const path = el.getAttribute('data-path');
-        const name = el.getAttribute('data-name');
-        downloadPrivateFile(path, name);
-      });
-    });
-
-    lucide.createIcons();
-  }
-
-  // --- WIDGET CALENDRIER ---
-  function renderCalendar() {
-    const year = currentCalendarDate.getFullYear();
-    const month = currentCalendarDate.getMonth();
-
-    // Rendre l'en-tête du calendrier (ex: Juillet 2026)
-    const options = { month: 'long', year: 'numeric' };
-    calendarMonthYearSpan.textContent = currentCalendarDate.toLocaleDateString('fr-FR', options);
-
-    // Calculer le premier jour du mois et le nombre de jours
-    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Dimanche, 1 = Lundi
-    // Convertir de Dimanche=0 à Lundi=0 pour correspondre à notre en-tête (Lu, Ma, Me...)
-    const startOffset = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
-    const totalDays = new Date(year, month + 1, 0).getDate();
-
-    calendarDaysContainer.innerHTML = '';
-
-    // Trouver tous les jours contenant des messages pour ce mois et ce client
-    const daysWithNotes = new Set();
-    if (activeClientId) {
-      activeClientMessages.forEach(msg => {
-        const msgDate = new Date(msg.created_at);
-        if (msgDate.getFullYear() === year && msgDate.getMonth() === month) {
-          daysWithNotes.add(msgDate.getDate());
-        }
-      });
-    }
-
-    // 1. Rendre les cases vides du début
-    for (let i = 0; i < startOffset; i++) {
-      const emptyCell = document.createElement('div');
-      emptyCell.className = "calendar-day-cell empty-cell";
-      calendarDaysContainer.appendChild(emptyCell);
-    }
-
-    // 2. Rendre les jours du mois
-    for (let day = 1; day <= totalDays; day++) {
-      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const hasNotes = daysWithNotes.has(day);
-
-      const dayCell = document.createElement('div');
-      dayCell.className = "calendar-day-cell";
-      dayCell.textContent = day;
-
-      if (hasNotes) dayCell.classList.add('has-notes');
-      
-      // Sélectionner si c'est la date de filtrage active
-      if (selectedDateFilter === dateString) {
-        dayCell.classList.add('selected-day');
-      }
-
-      dayCell.addEventListener('click', () => {
-        if (!activeClientId) return;
-        
-        if (selectedDateFilter === dateString) {
-          // Désélectionner si déjà cliqué
-          selectedDateFilter = null;
-        } else {
-          selectedDateFilter = dateString;
-        }
-        updateDateFilterUI();
-        renderChatMessages();
-        renderCalendar(); // Mettre à jour l'état visuel sélectionné
-      });
-
-      calendarDaysContainer.appendChild(dayCell);
-    }
-  }
-
-  // Changer de mois sur le calendrier
-  prevMonthBtn.addEventListener('click', () => {
-    currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
-    renderCalendar();
-  });
-
-  nextMonthBtn.addEventListener('click', () => {
-    currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
-    renderCalendar();
-  });
-
-  // --- FILTRE PAR DATE UI ---
-  function updateDateFilterUI() {
-    if (selectedDateFilter) {
-      const dateObj = new Date(selectedDateFilter);
-      const options = { day: 'numeric', month: 'long', year: 'numeric' };
-      filteredDateText.textContent = dateObj.toLocaleDateString('fr-FR', options);
-      dateFilterIndicator.classList.remove('hidden');
+      selectedDateFilter = null;
+      updateDateFilterUI();
+      await loadClientMessages();
+      renderCalendar();
     } else {
-      dateFilterIndicator.classList.add('hidden');
-    }
-  }
+      // Mode Dashboard Accueil Global
+      activeClientId = null;
+      mainClientView.classList.add('hidden');
+      mainGlobalView.classList.remove('hidden');
 
-  clearDateFilterBtn.addEventListener('click', () => {
-    selectedDateFilter = null;
-    updateDateFilterUI();
-    renderChatMessages();
-    renderCalendar();
-  });
+      // Configurer la navbar en mode "Accueil globale"
+      backToDashboard.classList.add('hidden');
+      backToDashboard.classList.remove('flex');
+      backSeparator.classList.add('hidden');
+      activeClientHeader.classList.add('hidden');
+      activeClientHeader.classList.remove('flex');
 
-  // --- BOÎTE MODALE CLIENTS ---
-  addClientBtn.addEventListener('click', () => {
-    newClientModal.classList.remove('hidden');
-    // Forcer le trigger d'animation en cascade
-    setTimeout(() => {
-      newClientModal.classList.remove('opacity-0');
-      newClientModal.querySelector('.transform').classList.remove('scale-95');
-    }, 20);
-  });
-
-  function closeModal() {
-    newClientModal.classList.add('opacity-0');
-    newClientModal.querySelector('.transform').classList.add('scale-95');
-    setTimeout(() => {
-      newClientModal.classList.add('hidden');
-      newClientNameInput.value = '';
-    }, 200);
-  }
-
-  closeModalBtn.addEventListener('click', closeModal);
-  cancelClientBtn.addEventListener('click', closeModal);
-
-  newClientForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = newClientNameInput.value.trim();
-
-    if (!name) return;
-
-    try {
-      const { data, error } = await supabaseClient
-        .from('clients')
-        .insert({
-          name: name,
-          user_id: currentSession.user.id
-        })
-        .select();
-
-      if (error) throw error;
-      
-      closeModal();
-      await fetchClients();
-
-      // Sélectionner automatiquement le client créé
-      if (data && data.length > 0) {
-        selectClient(data[0].id);
+      if (!hash || hash === '#dashboard') {
+        window.history.replaceState(null, '', '#dashboard');
       }
-    } catch (err) {
-      console.error("Erreur création client:", err.message);
-      alert(`Erreur : ${err.message}`);
+      await loadGlobalFeed();
     }
-  });
+  }
 
-  // Barre de recherche de clients
-  searchClientInput.addEventListener('input', (e) => {
-    renderClientsList(e.target.value);
-  });
+  window.addEventListener('hashchange', applyRoute);
 
-  // --- ACTIONS D'AUTHENTIFICATION DE BASE ---
-  // Écouteur d'état d'authentification
-  supabaseClient.auth.onAuthStateChange((event, session) => {
-    console.log("Auth event (Dashboard):", event, session);
+  // Liens de redirection directs dans la navbar
+  logoHome.addEventListener('click', () => { window.location.hash = '#dashboard'; });
+  backToDashboard.addEventListener('click', () => { window.location.hash = '#dashboard'; });
+
+  // ─── AUTH : ÉCOUTEUR ────────────────────────────────────────────
+  sb.auth.onAuthStateChange((event, session) => {
     currentSession = session;
-
     if (event === 'SIGNED_IN') {
-      setTimeout(() => {
-        applyRoute();
-      }, 500);
+      setTimeout(applyRoute, 500);
     } else {
       applyRoute();
     }
   });
 
-  // Écoute les changements manuels de l'URL par l'utilisateur ou le navigateur
-  window.addEventListener('hashchange', applyRoute);
-
-  // Basculement d'écrans auth
-  goToLogin.addEventListener('click', (e) => {
-    e.preventDefault();
+  // ─── AUTH : FORMULAIRES ────────────────────────────────────────
+  goToLogin.addEventListener('click', () => {
     registerError.textContent = '';
     registerSuccess.textContent = '';
     window.location.hash = '#login';
   });
-
-  goToRegister.addEventListener('click', (e) => {
-    e.preventDefault();
+  goToRegister.addEventListener('click', () => {
     loginError.textContent = '';
     window.location.hash = '#register';
   });
 
-  // Inscription
-  registerForm.addEventListener('submit', async (e) => {
+  registerForm.addEventListener('submit', async e => {
     e.preventDefault();
     registerError.textContent = '';
     registerSuccess.textContent = '';
+    const firstName    = document.getElementById('register-firstname').value.trim();
+    const lastName     = document.getElementById('register-lastname').value.trim();
+    const position     = document.getElementById('register-position').value.trim();
+    const email        = document.getElementById('register-email').value.trim();
+    const password     = document.getElementById('register-password').value;
+    const confirmPass  = document.getElementById('register-confirm-password').value;
 
-    const firstName = document.getElementById('register-firstname').value.trim();
-    const lastName = document.getElementById('register-lastname').value.trim();
-    const position = document.getElementById('register-position').value.trim();
-    const email = document.getElementById('register-email').value.trim();
-    const password = document.getElementById('register-password').value;
-    const confirmPassword = document.getElementById('register-confirm-password').value;
-
-    if (!firstName || !lastName || !position || !email || !password || !confirmPassword) {
+    if (!firstName || !lastName || !position || !email || !password || !confirmPass) {
       registerError.textContent = 'Tous les champs sont requis.';
       return;
     }
-
-    if (password !== confirmPassword) {
+    if (password !== confirmPass) {
       registerError.textContent = 'Les mots de passe ne correspondent pas.';
       return;
     }
-
-    const { data, error } = await supabaseClient.auth.signUp({
-      email: email,
-      password: password,
-      options: {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          position: position
-        }
-      }
+    const { data, error } = await sb.auth.signUp({
+      email, password,
+      options: { data: { first_name: firstName, last_name: lastName, position } }
     });
-
-    if (error) {
-      registerError.textContent = `Erreur : ${error.message}`;
-      return;
-    }
-
+    if (error) { registerError.textContent = error.message; return; }
     if (data.session) {
-      registerSuccess.textContent = 'Inscription réussie ! Connexion automatique...';
-      setTimeout(() => {
-        registerForm.reset();
-      }, 1000);
+      registerSuccess.textContent = 'Inscription réussie !';
+      setTimeout(() => registerForm.reset(), 1000);
     } else {
-      registerSuccess.textContent = 'Inscription réussie ! Veuillez vérifier votre boîte e-mail pour confirmer votre compte, puis connectez-vous.';
-      setTimeout(() => {
-        registerForm.reset();
-        window.location.hash = '#login';
-      }, 4000);
+      registerSuccess.textContent = 'Vérifiez votre e-mail pour confirmer votre compte.';
+      setTimeout(() => { registerForm.reset(); window.location.hash = '#login'; }, 4000);
     }
   });
 
-  // Connexion
-  loginForm.addEventListener('submit', async (e) => {
+  loginForm.addEventListener('submit', async e => {
     e.preventDefault();
     loginError.textContent = '';
-
-    const email = document.getElementById('login-email').value.trim();
+    const email    = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
-
-    if (!email || !password) {
-      loginError.textContent = 'Veuillez saisir votre e-mail et votre mot de passe.';
-      return;
-    }
-
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email: email,
-      password: password
-    });
-
-    if (error) {
-      loginError.textContent = `Erreur de connexion : ${error.message}`;
-      return;
-    }
-
-    setTimeout(() => {
-      loginForm.reset();
-    }, 1000);
+    if (!email || !password) { loginError.textContent = 'Remplissez tous les champs.'; return; }
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) { loginError.textContent = error.message; return; }
+    setTimeout(() => loginForm.reset(), 1000);
   });
 
-  // Déconnexion
   logoutBtn.addEventListener('click', async () => {
-    const { error } = await supabaseClient.auth.signOut();
-    if (error) {
-      console.error("Erreur lors de la déconnexion :", error.message);
-    }
-    // Réinitialisation de l'état
-    clients = [];
+    await sb.auth.signOut();
+    clients = []; globalMessages = []; clientMessages = [];
     activeClientId = null;
-    activeClientMessages = [];
-    selectedDateFilter = null;
-    chatInputForm.classList.add('hidden');
-    activeClientNameHeader.innerHTML = `<span>Sélectionnez un client</span>`;
-    chatMessagesContainer.innerHTML = `
-      <div class="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-2">
-        <i data-lucide="message-square" class="w-12 h-12 text-slate-300"></i>
-        <p class="text-sm font-medium">Sélectionnez un client dans la barre latérale pour commencer.</p>
-      </div>
-    `;
-    filesListContainer.innerHTML = `<p class="text-xs text-slate-500 text-center py-8">Sélectionnez un client pour voir ses fichiers.</p>`;
     window.location.hash = '#login';
   });
 
-  // Afficher / Masquer le mot de passe
-  const togglePasswordBtns = document.querySelectorAll('.toggle-password-btn');
-  togglePasswordBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  // Toggle mdp
+  document.querySelectorAll('.toggle-password-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
       e.stopPropagation();
-      const targetId = btn.getAttribute('data-target');
-      const input = document.getElementById(targetId);
-      if (input.type === 'password') {
-        input.type = 'text';
-        btn.textContent = '🙈';
-      } else {
-        input.type = 'password';
-        btn.textContent = '👁️';
-      }
+      const input = document.getElementById(btn.dataset.target);
+      input.type = input.type === 'password' ? 'text' : 'password';
+      btn.textContent = input.type === 'password' ? '👁️' : '🙈';
     });
   });
 
-  // Initialisation du routage au chargement
+  // ─── CLIENTS ────────────────────────────────────────────────────
+  async function loadClients() {
+    const { data } = await sb.from('clients').select('*').order('name');
+    clients = data || [];
+    renderClientList();
+  }
+
+  function renderClientList(filter = '') {
+    clientsList.innerHTML = '';
+    const filtered = clients.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()));
+    if (filtered.length === 0) {
+      clientsList.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucun client.</p>';
+      return;
+    }
+    filtered.forEach((c, i) => {
+      const btn = document.createElement('button');
+      const color = clientColor(c.id);
+      const isSelected = activeClientId === c.id;
+      
+      btn.className = `w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition group animate-fade-in-up ${isSelected ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-50'}`;
+      btn.style.animationDelay = `${i * 30}ms`;
+      btn.innerHTML = `
+        <span class="w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-blue-600' : color.split(' ')[0].replace('bg-', 'bg-').replace('100', '400')}"></span>
+        <span class="flex-1 truncate ${isSelected ? 'text-blue-700' : 'text-slate-700 group-hover:text-blue-600'} transition">${c.name}</span>
+        <i data-lucide="chevron-right" class="w-3.5 h-3.5 ${isSelected ? 'text-blue-500' : 'text-slate-300 group-hover:text-blue-400'} transition"></i>
+      `;
+      btn.addEventListener('click', () => { window.location.hash = `#client/${c.id}`; });
+      clientsList.appendChild(btn);
+    });
+    lucide.createIcons();
+  }
+
+  searchClient.addEventListener('input', e => renderClientList(e.target.value));
+
+  // ─── MODAL NOUVEAU CLIENT ───────────────────────────────────────
+  function openModal(prefillName = '') {
+    newClientName.value = prefillName;
+    newClientModal.classList.remove('hidden');
+    setTimeout(() => {
+      newClientModalPanel.classList.remove('scale-95', 'opacity-0');
+      newClientModalPanel.classList.add('scale-100', 'opacity-100');
+    }, 20);
+    newClientName.focus();
+  }
+  function closeModal() {
+    newClientModalPanel.classList.add('scale-95', 'opacity-0');
+    newClientModalPanel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => { newClientModal.classList.add('hidden'); newClientName.value = ''; }, 200);
+  }
+
+  addClientBtn.addEventListener('click', () => openModal());
+  closeModalBtn.addEventListener('click', closeModal);
+  cancelClientBtn.addEventListener('click', closeModal);
+
+  newClientForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = newClientName.value.trim();
+    if (!name) return;
+    const { data, error } = await sb.from('clients').insert({ name, user_id: currentSession.user.id }).select();
+    if (error) { alert(error.message); return; }
+    closeModal();
+    await loadClients();
+    if (data && data[0]) {
+      pendingClientId = data[0].id;
+      globalChatInput.value = `/${data[0].name} `;
+      globalChatInput.focus();
+    }
+    await loadGlobalFeed();
+  });
+
+  // ─── CHAT GLOBAL + AUTOCOMPLETE `/` ────────────────────────────
+  async function loadGlobalFeed() {
+    const { data } = await sb
+      .from('messages')
+      .select('*, clients(name)')
+      .order('created_at', { ascending: true });
+    globalMessages = data || [];
+    renderGlobalFeed();
+  }
+
+  function renderGlobalFeed() {
+    globalFeed.innerHTML = '';
+    if (globalMessages.length === 0) {
+      globalFeed.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
+          <i data-lucide="message-square-plus" class="w-12 h-12 text-slate-300"></i>
+          <p class="text-sm font-medium">Tapez <span class="font-mono bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded text-xs">/client</span> puis votre note pour commencer.</p>
+        </div>`;
+      lucide.createIcons();
+      return;
+    }
+
+    globalMessages.forEach((msg, i) => {
+      const client = msg.clients;
+      const color  = clientColor(msg.client_id);
+      const date   = new Date(msg.created_at);
+      const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+
+      const div = document.createElement('div');
+      div.className = 'flex items-start gap-3 animate-fade-in-up';
+      div.style.animationDelay = `${Math.min(i * 15, 300)}ms`;
+
+      let attachHTML = '';
+      if (msg.file_url && msg.file_name) {
+        attachHTML = `
+          <div class="mt-1.5 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs w-fit max-w-full shadow-sm">
+            <i data-lucide="file" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
+            <span class="truncate font-medium text-slate-700 max-w-[200px] cursor-pointer hover:underline hover:text-blue-600" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            <button class="download-btn text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>`;
+      }
+
+      div.innerHTML = `
+        <div class="flex-1 bg-white rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition">
+          <div class="flex items-center gap-2 mb-1.5">
+            <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full ${color} hover:opacity-80 transition" data-id="${msg.client_id}">${client?.name || '—'}</button>
+            <span class="text-xs text-slate-400">${dateStr} à ${timeStr}</span>
+          </div>
+          <p class="text-sm text-slate-800 whitespace-pre-line">${msg.content || ''}</p>
+          ${attachHTML}
+        </div>
+      `;
+      globalFeed.appendChild(div);
+    });
+
+    globalFeed.querySelectorAll('.go-client-btn').forEach(btn => {
+      btn.addEventListener('click', () => { window.location.hash = `#client/${btn.dataset.id}`; });
+    });
+    globalFeed.querySelectorAll('.download-btn, [data-path]').forEach(el => {
+      el.addEventListener('click', e => {
+        e.preventDefault();
+        downloadFile(el.dataset.path, el.dataset.name);
+      });
+    });
+
+    globalFeed.scrollTop = globalFeed.scrollHeight;
+    lucide.createIcons();
+  }
+
+  // Autocomplete `/`
+  globalChatInput.addEventListener('input', () => {
+    const val = globalChatInput.value;
+    if (val.startsWith('/')) {
+      const query = val.slice(1).toLowerCase();
+      const hasSpace = val.includes(' ');
+      if (hasSpace) { hideAutocomplete(); return; }
+
+      const matches = clients.filter(c => c.name.toLowerCase().includes(query));
+      autocompleteList.innerHTML = '';
+      matches.forEach(c => {
+        const item = document.createElement('div');
+        const color = clientColor(c.id);
+        item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm transition';
+        item.innerHTML = `
+          <span class="w-2 h-2 rounded-full shrink-0 ${color.split(' ')[0].replace('100', '400')}"></span>
+          <span class="font-medium text-slate-800">${c.name}</span>
+        `;
+        item.addEventListener('mousedown', e => {
+          e.preventDefault();
+          selectClientInGlobalChat(c);
+        });
+        autocompleteList.appendChild(item);
+      });
+
+      if (query.length > 0) {
+        autocompleteCreateName = query.charAt(0).toUpperCase() + query.slice(1);
+        autocompleteCreateLabel.textContent = `Créer "${autocompleteCreateName}"`;
+        autocompleteCreate.classList.remove('hidden');
+      } else {
+        autocompleteCreate.classList.add('hidden');
+      }
+      lucide.createIcons();
+      autocompleteDropdown.classList.remove('hidden');
+    } else {
+      hideAutocomplete();
+      pendingClientId = null;
+    }
+  });
+
+  globalChatInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') hideAutocomplete();
+  });
+
+  document.addEventListener('click', e => {
+    if (!autocompleteDropdown.contains(e.target) && e.target !== globalChatInput) {
+      hideAutocomplete();
+    }
+  });
+
+  function hideAutocomplete() {
+    autocompleteDropdown.classList.add('hidden');
+  }
+
+  function selectClientInGlobalChat(client) {
+    pendingClientId = client.id;
+    globalChatInput.value = `/${client.name} `;
+    hideAutocomplete();
+    globalChatInput.focus();
+    globalChatInput.setSelectionRange(globalChatInput.value.length, globalChatInput.value.length);
+  }
+
+  autocompleteCreate.addEventListener('mousedown', e => {
+    e.preventDefault();
+    hideAutocomplete();
+    openModal(autocompleteCreateName);
+  });
+
+  // Envoi avec tri automatique
+  globalChatForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const rawVal = globalChatInput.value.trim();
+    let targetClientId = pendingClientId;
+    let content = rawVal;
+
+    if (rawVal.startsWith('/')) {
+      const spaceIdx = rawVal.indexOf(' ');
+      if (spaceIdx === -1) {
+        alert('Précisez votre message après le nom du client.');
+        return;
+      }
+      const clientSlug = rawVal.slice(1, spaceIdx).toLowerCase();
+      const found = clients.find(c => c.name.toLowerCase() === clientSlug);
+      if (found) { targetClientId = found.id; }
+      content = rawVal.slice(spaceIdx + 1).trim();
+    }
+
+    if (!targetClientId) { alert('Sélectionnez un client valide avec /NomClient.'); return; }
+    if (!content && !globalFile) return;
+
+    await sendMessage(targetClientId, content, globalFile, async () => {
+      globalChatInput.value = '';
+      pendingClientId = null;
+      globalFile = null;
+      globalFilePreview.classList.add('hidden');
+      globalFileInput.value = '';
+      await loadGlobalFeed();
+    });
+  });
+
+  globalAttachBtn.addEventListener('click', () => globalFileInput.click());
+  globalFileInput.addEventListener('change', e => {
+    if (e.target.files[0]) {
+      globalFile = e.target.files[0];
+      globalFileName.textContent = globalFile.name;
+      globalFilePreview.classList.remove('hidden');
+    }
+  });
+  globalRemoveFile.addEventListener('click', () => {
+    globalFile = null;
+    globalFileInput.value = '';
+    globalFilePreview.classList.add('hidden');
+  });
+
+  // ─── VUE CLIENT LOCALISÉE ───────────────────────────────────────
+  async function loadClientMessages() {
+    clientChatMessages.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
+      <p class="text-sm">Chargement du client...</p>
+    </div>`;
+    const { data } = await sb
+      .from('messages')
+      .select('*')
+      .eq('client_id', activeClientId)
+      .order('created_at', { ascending: true });
+    clientMessages = data || [];
+    renderClientMessages();
+    renderFilesList();
+  }
+
+  function renderClientMessages() {
+    clientChatMessages.innerHTML = '';
+    let msgs = clientMessages;
+    if (selectedDateFilter) {
+      msgs = msgs.filter(m => new Date(m.created_at).toISOString().split('T')[0] === selectedDateFilter);
+    }
+    if (msgs.length === 0) {
+      clientChatMessages.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
+        <i data-lucide="message-square" class="w-10 h-10 text-slate-300"></i>
+        <p class="text-sm">Aucune note${selectedDateFilter ? ' pour cette date' : ''}.</p>
+      </div>`;
+      lucide.createIcons();
+      return;
+    }
+    msgs.forEach((msg, i) => {
+      const date = new Date(msg.created_at);
+      const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      let attachHTML = '';
+      if (msg.file_url && msg.file_name) {
+        attachHTML = `
+          <div class="mt-2 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-sm w-fit max-w-full">
+            <i data-lucide="file" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
+            <span class="truncate font-medium text-slate-700 max-w-[180px] cursor-pointer hover:underline hover:text-blue-600" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            <button class="download-btn text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>`;
+      }
+      const div = document.createElement('div');
+      div.className = 'flex flex-col space-y-0.5 max-w-[85%] animate-fade-in-up';
+      div.style.animationDelay = `${Math.min(i * 20, 300)}ms`;
+      div.innerHTML = `
+        <div class="flex items-baseline gap-2 mb-0.5">
+          <span class="text-xs font-bold text-slate-800">Note</span>
+          <span class="text-[10px] text-slate-400">${dateStr} à ${timeStr}</span>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm text-sm text-slate-800">
+          <p class="whitespace-pre-line">${msg.content || ''}</p>
+          ${attachHTML}
+        </div>
+      `;
+      clientChatMessages.appendChild(div);
+    });
+
+    clientChatMessages.querySelectorAll('.download-btn, [data-path]').forEach(el => {
+      el.addEventListener('click', e => {
+        e.preventDefault();
+        downloadFile(el.dataset.path, el.dataset.name);
+      });
+    });
+
+    clientChatMessages.scrollTop = clientChatMessages.scrollHeight;
+    lucide.createIcons();
+  }
+
+  clientChatForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const content = clientChatInput.value.trim();
+    if (!content && !clientFile) return;
+    await sendMessage(activeClientId, content, clientFile, async () => {
+      clientChatInput.value = '';
+      clientFile = null;
+      clientFilePreview.classList.add('hidden');
+      clientFileInput.value = '';
+      await loadClientMessages();
+      renderCalendar();
+    });
+  });
+
+  clientAttachBtn.addEventListener('click', () => clientFileInput.click());
+  clientFileInput.addEventListener('change', e => {
+    if (e.target.files[0]) {
+      clientFile = e.target.files[0];
+      clientFileName.textContent = clientFile.name;
+      clientFilePreview.classList.remove('hidden');
+    }
+  });
+  clientRemoveFile.addEventListener('click', () => {
+    clientFile = null;
+    clientFileInput.value = '';
+    clientFilePreview.classList.add('hidden');
+  });
+
+  // ─── ENVOI COMMUN ───────────────────────────────────────────────
+  async function sendMessage(clientId, content, file, onSuccess) {
+    let fileUrl = null, fileName = null;
+    if (file) {
+      fileName = file.name;
+      const path = `${currentSession.user.id}/${clientId}/${Date.now()}_${fileName}`;
+      const { error: upErr } = await sb.storage.from('client-files').upload(path, file);
+      if (upErr) { alert(`Erreur upload: ${upErr.message}`); return; }
+      fileUrl = path;
+    }
+    const { error } = await sb.from('messages').insert({
+      client_id: clientId,
+      user_id: currentSession.user.id,
+      content: content || null,
+      file_url: fileUrl,
+      file_name: fileName
+    });
+    if (error) { alert(`Erreur: ${error.message}`); return; }
+    if (onSuccess) await onSuccess();
+  }
+
+  // ─── TÉLÉCHARGEMENT SÉCURISÉ ────────────────────────────────────
+  async function downloadFile(path, name) {
+    const { data, error } = await sb.storage.from('client-files').createSignedUrl(path, 300);
+    if (error) { alert('Impossible d\'accéder au fichier.'); return; }
+    const a = document.createElement('a');
+    a.href = data.signedUrl;
+    a.target = '_blank';
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  // ─── WIDGET FICHIERS ─────────────────────────────────────────────
+  function renderFilesList() {
+    filesList.innerHTML = '';
+    const fileMessages = clientMessages.filter(m => m.file_url && m.file_name);
+    if (fileMessages.length === 0) {
+      filesList.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucun fichier partagé.</p>';
+      return;
+    }
+    fileMessages.forEach((msg, i) => {
+      const date = new Date(msg.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      const div = document.createElement('div');
+      div.className = 'flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 hover:border-blue-300 transition animate-fade-in-up text-xs';
+      div.style.animationDelay = `${i * 30}ms`;
+      div.innerHTML = `
+        <i data-lucide="file" class="w-4 h-4 text-blue-500 shrink-0"></i>
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-slate-800 truncate cursor-pointer hover:underline hover:text-blue-600" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</p>
+          <p class="text-slate-400 text-[10px]">${date}</p>
+        </div>
+        <button class="download-btn p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+        </button>
+      `;
+      filesList.appendChild(div);
+    });
+    filesList.querySelectorAll('.download-btn, [data-path]').forEach(el => {
+      el.addEventListener('click', e => {
+        e.preventDefault();
+        downloadFile(el.dataset.path, el.dataset.name);
+      });
+    });
+    lucide.createIcons();
+  }
+
+  filesWidgetToggle.addEventListener('click', () => {
+    filesWidgetOpen = !filesWidgetOpen;
+    filesListWrapper.style.display = filesWidgetOpen ? '' : 'none';
+    filesChevron.style.transform = filesWidgetOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+  });
+
+  // ─── WIDGET CALENDRIER ───────────────────────────────────────────
+  function renderCalendar() {
+    const year  = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    calMonthYear.textContent = calendarDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+    const daysWithNotes = new Set();
+    clientMessages.forEach(msg => {
+      const d = new Date(msg.created_at);
+      if (d.getFullYear() === year && d.getMonth() === month) daysWithNotes.add(d.getDate());
+    });
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const offset   = firstDay === 0 ? 6 : firstDay - 1;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    calDays.innerHTML = '';
+    for (let i = 0; i < offset; i++) {
+      const blank = document.createElement('div');
+      blank.className = 'calendar-day-cell empty-cell';
+      calDays.appendChild(blank);
+    }
+    for (let d = 1; d <= totalDays; d++) {
+      const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const cell = document.createElement('div');
+      cell.className = 'calendar-day-cell text-xs';
+      cell.textContent = d;
+      if (daysWithNotes.has(d)) cell.classList.add('has-notes');
+      if (selectedDateFilter === ds) cell.classList.add('selected-day');
+      cell.addEventListener('click', () => {
+        if (!activeClientId) return;
+        selectedDateFilter = selectedDateFilter === ds ? null : ds;
+        updateDateFilterUI();
+        renderClientMessages();
+        renderCalendar();
+      });
+      calDays.appendChild(cell);
+    }
+  }
+
+  prevMonthBtn.addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() - 1); renderCalendar(); });
+  nextMonthBtn.addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() + 1); renderCalendar(); });
+
+  function updateDateFilterUI() {
+    if (selectedDateFilter) {
+      const label = new Date(selectedDateFilter).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+      filteredDateText.textContent = label;
+      filteredDateChat.textContent = label;
+      dateFilterIndicator.classList.remove('hidden');
+      dateFilterChat.classList.remove('hidden');
+    } else {
+      dateFilterIndicator.classList.add('hidden');
+      dateFilterChat.classList.add('hidden');
+    }
+  }
+
+  clearDateFilter.addEventListener('click', () => { selectedDateFilter = null; updateDateFilterUI(); renderClientMessages(); renderCalendar(); });
+  clearDateFilterChat.addEventListener('click', () => { selectedDateFilter = null; updateDateFilterUI(); renderClientMessages(); renderCalendar(); });
+
+  // ─── INIT ────────────────────────────────────────────────────────
   applyRoute();
 });
