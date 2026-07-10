@@ -31,6 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const registerSuccess = document.getElementById('register-success');
   const loginError = document.getElementById('login-error');
 
+  // Session courante pour le routage
+  let currentSession = null;
+
   // --- Gestion de la Navigation / Affichage ---
   function showScreen(screen) {
     registerScreen.classList.add('hidden');
@@ -40,35 +43,74 @@ document.addEventListener('DOMContentLoaded', () => {
     screen.classList.remove('hidden');
   }
 
-  // --- Écouteur d'état d'authentification ---
-  // Gère automatiquement la connexion, déconnexion et la restauration de session
-  supabaseClient.auth.onAuthStateChange((event, session) => {
-    console.log("Auth event:", event, session);
+  // --- Routeur Client Basé sur le Hash URL ---
+  // Aide les navigateurs à détecter un changement de page, ce qui déclenche l'enregistrement du mot de passe.
+  function applyRoute() {
+    const hash = window.location.hash;
 
-    if (session && session.user) {
-      const metadata = session.user.user_metadata || {};
+    if (currentSession && currentSession.user) {
+      // Si connecté, forcer l'URL sur #dashboard
+      if (hash !== '#dashboard') {
+        window.location.hash = '#dashboard';
+        return;
+      }
+      
+      const metadata = currentSession.user.user_metadata || {};
       const firstName = metadata.first_name || '';
       const lastName = metadata.last_name || '';
       const position = metadata.position || '';
 
-      userDisplayName.textContent = `${firstName} ${lastName}`.trim() || session.user.email;
+      userDisplayName.textContent = `${firstName} ${lastName}`.trim() || currentSession.user.email;
       userDisplayPosition.textContent = position || 'Non spécifié';
+      
       showScreen(mainContent);
     } else {
-      showScreen(loginScreen);
+      // Si non connecté
+      if (hash === '#register') {
+        showScreen(registerScreen);
+      } else {
+        if (hash !== '#login') {
+          window.location.hash = '#login';
+          return;
+        }
+        showScreen(loginScreen);
+      }
+    }
+  }
+
+  // --- Écouteur d'état d'authentification ---
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    console.log("Auth event:", event, session);
+    currentSession = session;
+
+    if (event === 'SIGNED_IN') {
+      // NOTE IMPORTANTE POUR SAFARI / CHROME KEYCHAIN :
+      // Si l'on masque le formulaire de connexion instantanément dans la même micro-tâche,
+      // le navigateur pense que la soumission a échoué ou a été annulée et ne propose pas d'enregistrer le mot de passe.
+      // Ajouter un léger délai (500ms) permet de laisser le temps au trousseau de clés de s'activer.
+      setTimeout(() => {
+        applyRoute();
+      }, 500);
+    } else {
+      applyRoute();
     }
   });
 
+  // Écoute les changements manuels de l'URL par l'utilisateur ou le navigateur
+  window.addEventListener('hashchange', applyRoute);
+
   // --- Liens de basculement d'écrans ---
-  goToLogin.addEventListener('click', () => {
+  goToLogin.addEventListener('click', (e) => {
+    e.preventDefault();
     registerError.textContent = '';
     registerSuccess.textContent = '';
-    showScreen(loginScreen);
+    window.location.hash = '#login';
   });
 
-  goToRegister.addEventListener('click', () => {
+  goToRegister.addEventListener('click', (e) => {
+    e.preventDefault();
     loginError.textContent = '';
-    showScreen(registerScreen);
+    window.location.hash = '#register';
   });
 
   // --- Inscription (Sign Up) ---
@@ -94,7 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Appel API Supabase Auth avec metadata
     const { data, error } = await supabaseClient.auth.signUp({
       email: email,
       password: password,
@@ -114,12 +155,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (data.session) {
       registerSuccess.textContent = 'Inscription réussie ! Connexion automatique...';
-      registerForm.reset();
+      // Ne pas reset le formulaire immédiatement pour aider les gestionnaires de mots de passe
+      setTimeout(() => {
+        registerForm.reset();
+      }, 1000);
     } else {
       registerSuccess.textContent = 'Inscription réussie ! Veuillez vérifier votre boîte e-mail pour confirmer votre compte, puis connectez-vous.';
-      registerForm.reset();
       setTimeout(() => {
-        showScreen(loginScreen);
+        registerForm.reset();
+        window.location.hash = '#login';
       }, 4000);
     }
   });
@@ -132,6 +176,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
 
+    if (!email || !password) {
+      loginError.textContent = 'Veuillez saisir votre e-mail et votre mot de passe.';
+      return;
+    }
+
     const { data, error } = await supabaseClient.auth.signInWithPassword({
       email: email,
       password: password
@@ -142,7 +191,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    loginForm.reset();
+    // Laisser le formulaire rempli pendant un très court instant pour que le gestionnaire de mots de passe
+    // enregistre les valeurs saisies, puis réinitialiser.
+    setTimeout(() => {
+      loginForm.reset();
+    }, 1000);
   });
 
   // --- Déconnexion (Sign Out) ---
@@ -156,7 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Afficher / Masquer le mot de passe ---
   const togglePasswordBtns = document.querySelectorAll('.toggle-password-btn');
   togglePasswordBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const targetId = btn.getAttribute('data-target');
       const input = document.getElementById(targetId);
       if (input.type === 'password') {
@@ -168,4 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // Initialisation du routage au chargement
+  applyRoute();
 });
