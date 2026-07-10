@@ -254,31 +254,42 @@ body.auth-body {
 
 /* Cercles de sélection de couleur interactifs */
 .color-dot {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   cursor: pointer;
-  border: 2px solid transparent;
-  transition: all 120ms ease;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 .color-dot:hover {
-  transform: scale(1.15);
+  transform: scale(1.18);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
 }
 .color-dot.active {
-  border-color: #0f172a;
-  box-shadow: 0 0 0 1.5px #ffffff;
+  position: relative;
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4.5px var(--accent, #3b82f6);
+  border-color: transparent !important;
+}
+.color-dot.active::after {
+  content: '';
+  position: absolute;
+  inset: 4.5px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 
 /* Version dans les modaux (fond clair) */
 #new-client-colors .color-dot,
 #settings-client-colors .color-dot {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
 }
-#new-client-colors .color-dot.active,
-#settings-client-colors .color-dot.active {
-  border-color: #ffffff;
-  box-shadow: 0 0 0 2px var(--accent);
+#new-client-colors .color-dot.active::after,
+#settings-client-colors .color-dot.active::after {
+  inset: 7.5px;
 }
 
 /* Styles pour la modale d'ajout de personne (roue de couleur) */

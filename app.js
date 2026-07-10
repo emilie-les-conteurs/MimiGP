@@ -55,9 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getClientColorKey(client) {
     if (!client) return 'blue';
-    if (client.color && CLIENT_THEMES[client.color]) return client.color;
+    if (client.color && (CLIENT_THEMES[client.color] || client.color.startsWith('#'))) return client.color;
     const cached = localStorage.getItem(`client_color_${client.id}`);
-    if (cached && CLIENT_THEMES[cached]) return cached;
+    if (cached && (CLIENT_THEMES[cached] || cached.startsWith('#'))) return cached;
     
     // Déterminisme par rapport à l'ID
     let hash = 0;
@@ -1795,10 +1795,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ─── GESTION DU SURLIGNAGE DE PRÉNOMS ──────────────────────────────
+  const personPreviewTag = document.getElementById('person-preview-tag');
+
+  function updatePersonPreview() {
+    const name = personName.value.trim() || "Nom de la personne";
+    const color = personColor.value;
+    personPreviewTag.textContent = name;
+    personPreviewTag.style.backgroundColor = color + '20'; // ~12% opacité
+    personPreviewTag.style.color = color;
+    personPreviewTag.style.borderColor = color + '40'; // ~25% opacité
+  }
+
   function openPersonModal() {
     personName.value = '';
     personColor.value = '#3b82f6';
     personColorHex.textContent = '#3B82F6';
+    updatePersonPreview();
     
     // Rendre les couleurs des clients existants
     personClientColorsGrid.innerHTML = '';
@@ -1811,12 +1823,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'w-7 h-7 rounded-full border border-slate-200 shadow-sm transition hover:scale-110 shrink-0';
+        btn.className = 'color-dot shrink-0';
         btn.style.backgroundColor = theme.dotColor;
         btn.title = `${c.name} (${theme.dotColor})`;
         btn.addEventListener('click', () => {
           personColor.value = theme.dotColor;
           personColorHex.textContent = theme.dotColor.toUpperCase();
+          
+          personClientColorsGrid.querySelectorAll('.color-dot').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          updatePersonPreview();
         });
         personClientColorsGrid.appendChild(btn);
       });
@@ -1839,8 +1855,11 @@ document.addEventListener('DOMContentLoaded', () => {
   closePersonModalBtn.addEventListener('click', closePersonModal);
   cancelPersonBtn.addEventListener('click', closePersonModal);
   
+  personName.addEventListener('input', updatePersonPreview);
   personColor.addEventListener('input', () => {
     personColorHex.textContent = personColor.value.toUpperCase();
+    personClientColorsGrid.querySelectorAll('.color-dot').forEach(b => b.classList.remove('active'));
+    updatePersonPreview();
   });
 
   personForm.addEventListener('submit', e => {
