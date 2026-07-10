@@ -31,39 +31,39 @@ body.auth-body {
 
 /* ─── CLIENT PORTAL THEMING ────────────────────────── */
 #navbar-header.client-mode {
-  background-color: #0f172a !important; /* slate-900 */
+  background-color: var(--accent) !important;
   color: #ffffff !important;
-  border-color: #1e293b !important; /* slate-800 */
+  border-color: var(--accent-hover) !important;
 }
 #navbar-header.client-mode #back-to-dashboard {
-  color: #cbd5e1 !important; /* slate-300 */
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 #navbar-header.client-mode #back-to-dashboard:hover {
   color: #ffffff !important;
 }
 #navbar-header.client-mode #back-separator {
-  background-color: #334155 !important; /* slate-700 */
+  background-color: rgba(255, 255, 255, 0.2) !important;
 }
 #navbar-header.client-mode #active-client-header {
-  border-color: #334155 !important; /* slate-700 */
+  border-color: rgba(255, 255, 255, 0.2) !important;
 }
 #navbar-header.client-mode #client-view-name {
-  background-color: rgba(59, 130, 246, 0.15) !important;
-  color: #60a5fa !important;
-  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
 }
 #navbar-header.client-mode #user-display-name {
   color: #ffffff !important;
 }
 #navbar-header.client-mode #user-display-position {
-  color: #94a3b8 !important; /* slate-400 */
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 #navbar-header.client-mode #logout-btn {
-  background-color: rgba(244, 63, 94, 0.15) !important;
-  color: #fb7185 !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
 }
 #navbar-header.client-mode #logout-btn:hover {
-  background-color: rgba(244, 63, 94, 0.25) !important;
+  background-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 
@@ -162,10 +162,12 @@ body.auth-body {
 /* ─── DYNAMIC THEME SCOPING ────────────────────────── */
 #main-client-view,
 #active-client-header,
-#date-picker-modal {
+#date-picker-modal,
+#client-settings-modal {
   --accent: var(--client-accent, #2563eb);
   --accent-hover: var(--client-accent-hover, #1d4ed8);
   --accent-light: var(--client-accent-light, rgba(37, 99, 235, 0.1));
+  --accent-light-hover: var(--client-accent-light-hover, rgba(37, 99, 235, 0.25));
 }
 
 .btn-accented {
@@ -179,7 +181,15 @@ body.auth-body {
   color: var(--accent) !important;
 }
 
-/* Modificateurs calendrier dynamique */
+/* Modificateurs calendrier dynamique et hovers uniformes */
+.calendar-day-cell {
+  transition: background-color 120ms ease, color 120ms ease, border-radius 120ms ease;
+}
+.calendar-day-cell:hover:not(.empty-cell):not(.selected-day):not(.range-start):not(.range-end):not(.range-mid) {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
 #main-client-view .calendar-day-cell.selected-day,
 #main-client-view .calendar-day-cell.range-start,
 #main-client-view .calendar-day-cell.range-end,
@@ -189,11 +199,25 @@ body.auth-body {
   background-color: var(--accent) !important;
   color: #fff !important;
 }
+#main-client-view .calendar-day-cell.selected-day:hover,
+#main-client-view .calendar-day-cell.range-start:hover,
+#main-client-view .calendar-day-cell.range-end:hover,
+#date-picker-modal .calendar-day-cell.selected-day:hover,
+#date-picker-modal .calendar-day-cell.range-start:hover,
+#date-picker-modal .calendar-day-cell.range-end:hover {
+  background-color: var(--accent-hover) !important;
+}
+
 #main-client-view .calendar-day-cell.range-mid,
 #date-picker-modal .calendar-day-cell.range-mid {
   background-color: var(--accent-light) !important;
   color: var(--accent) !important;
 }
+#main-client-view .calendar-day-cell.range-mid:hover,
+#date-picker-modal .calendar-day-cell.range-mid:hover {
+  background-color: var(--accent-light-hover) !important;
+}
+
 #main-client-view .calendar-day-cell.has-notes::after {
   background-color: var(--accent) !important;
 }
@@ -202,6 +226,29 @@ body.auth-body {
 #main-client-view #date-filter-indicator-chat {
   background-color: var(--accent-light) !important;
   color: var(--accent) !important;
+}
+
+/* Éléments de la barre latérale des clients */
+.client-item-btn {
+  position: relative;
+  padding-left: 20px !important;
+  transition: all 120ms ease;
+}
+.client-item-btn .indicator-stripe {
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  bottom: 8px;
+  width: 3.5px;
+  border-radius: 9999px;
+  background-color: transparent;
+  transition: all 120ms ease;
+}
+.client-item-btn:hover {
+  background-color: #f1f5f9;
+}
+.client-item-btn:hover .indicator-stripe {
+  background-color: #cbd5e1;
 }
 
 /* Cercles de sélection de couleur interactifs */
@@ -214,20 +261,24 @@ body.auth-body {
   transition: all 120ms ease;
 }
 .color-dot:hover {
-  transform: scale(1.2);
+  transform: scale(1.15);
 }
 .color-dot.active {
   border-color: #0f172a;
   box-shadow: 0 0 0 1.5px #ffffff;
 }
-/* Version dans le modal (fond clair) */
-#new-client-colors .color-dot {
-  width: 22px;
-  height: 22px;
+
+/* Version dans les modaux (fond clair) */
+#new-client-colors .color-dot,
+#settings-client-colors .color-dot {
+  width: 24px;
+  height: 24px;
 }
-#new-client-colors .color-dot.active {
+#new-client-colors .color-dot.active,
+#settings-client-colors .color-dot.active {
   border-color: #ffffff;
   box-shadow: 0 0 0 2px var(--accent);
 }
+
 
 

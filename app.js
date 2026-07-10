@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // État de planification des messages
   let selectedMessageDates = [];      // dates sélectionnées pour la future note (format YYYY-MM-DD)
+  let customSelectedDates  = [];      // variable globale de travail pour la sélection courante du calendrier
   let dpMode           = 'single';    // mode calendrier de planification: 'single' ou 'range'
   let dpMonth          = new Date();  // mois affiché dans le sélecteur
   let dpRangeStart     = null;        // début de la plage sélectionnée (YYYY-MM-DD)
@@ -30,12 +31,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Configuration des thèmes de couleur d'accentuation pour les clients
   const CLIENT_THEMES = {
-    blue:    { name: 'Bleu',    dotColor: '#3b82f6', badgeClass: 'bg-blue-100 text-blue-700',       accent: '#2563eb', hover: '#1d4ed8', light: 'rgba(37, 99, 235, 0.1)' },
-    emerald: { name: 'Vert',    dotColor: '#10b981', badgeClass: 'bg-emerald-100 text-emerald-700', accent: '#10b981', hover: '#059669', light: 'rgba(16, 185, 129, 0.1)' },
-    amber:   { name: 'Orange',  dotColor: '#f59e0b', badgeClass: 'bg-amber-100 text-amber-700',     accent: '#f59e0b', hover: '#d97706', light: 'rgba(245, 158, 11, 0.1)' },
-    rose:    { name: 'Rose',    dotColor: '#f43f5e', badgeClass: 'bg-rose-100 text-rose-700',       accent: '#f43f5e', hover: '#e11d48', light: 'rgba(244, 63, 94, 0.1)' },
-    cyan:    { name: 'Cyan',    dotColor: '#06b6d4', badgeClass: 'bg-cyan-100 text-cyan-700',       accent: '#06b6d4', hover: '#0891b2', light: 'rgba(6, 182, 212, 0.1)' },
-    violet:  { name: 'Violet',  dotColor: '#8b5cf6', badgeClass: 'bg-violet-100 text-violet-700',   accent: '#8b5cf6', hover: '#7c3aed', light: 'rgba(139, 92, 246, 0.1)' }
+    blue:      { name: 'Bleu',       dotColor: '#3b82f6', badgeClass: 'bg-blue-100 text-blue-700',       accent: '#2563eb', hover: '#1d4ed8', light: 'rgba(37, 99, 235, 0.1)' },
+    emerald:   { name: 'Vert',       dotColor: '#10b981', badgeClass: 'bg-emerald-100 text-emerald-700', accent: '#10b981', hover: '#059669', light: 'rgba(16, 185, 129, 0.1)' },
+    amber:     { name: 'Orange',     dotColor: '#f59e0b', badgeClass: 'bg-amber-100 text-amber-700',     accent: '#f59e0b', hover: '#d97706', light: 'rgba(245, 158, 11, 0.1)' },
+    rose:      { name: 'Rose',       dotColor: '#f43f5e', badgeClass: 'bg-rose-100 text-rose-700',       accent: '#f43f5e', hover: '#e11d48', light: 'rgba(244, 63, 94, 0.1)' },
+    cyan:      { name: 'Cyan',       dotColor: '#06b6d4', badgeClass: 'bg-cyan-100 text-cyan-700',       accent: '#06b6d4', hover: '#0891b2', light: 'rgba(6, 182, 212, 0.1)' },
+    violet:    { name: 'Violet',     dotColor: '#8b5cf6', badgeClass: 'bg-violet-100 text-violet-700',   accent: '#8b5cf6', hover: '#7c3aed', light: 'rgba(139, 92, 246, 0.1)' },
+    sky:       { name: 'Bleu Ciel',  dotColor: '#0ea5e9', badgeClass: 'bg-sky-100 text-sky-700',         accent: '#0ea5e9', hover: '#0284c7', light: 'rgba(14, 165, 233, 0.1)' },
+    teal:      { name: 'Sarcelle',   dotColor: '#0d9488', badgeClass: 'bg-teal-100 text-teal-700',       accent: '#0d9488', hover: '#0f766e', light: 'rgba(13, 148, 136, 0.1)' },
+    lime:      { name: 'Citron Vert',dotColor: '#84cc16', badgeClass: 'bg-lime-100 text-lime-700',       accent: '#84cc16', hover: '#65a30d', light: 'rgba(132, 204, 22, 0.1)' },
+    fuchsia:   { name: 'Fuchsia',    dotColor: '#d946ef', badgeClass: 'bg-fuchsia-100 text-fuchsia-700', accent: '#d946ef', hover: '#c084fc', light: 'rgba(217, 70, 239, 0.1)' },
+    indigo:    { name: 'Indigo',     dotColor: '#6366f1', badgeClass: 'bg-indigo-100 text-indigo-700',   accent: '#6366f1', hover: '#4f46e5', light: 'rgba(99, 102, 241, 0.1)' },
+    slate:     { name: 'Ardoise',    dotColor: '#64748b', badgeClass: 'bg-slate-100 text-slate-700',     accent: '#64748b', hover: '#475569', light: 'rgba(100, 116, 139, 0.1)' },
+    mint:      { name: 'Menthe',     dotColor: '#6ee7b7', badgeClass: 'bg-emerald-50 text-emerald-600 border border-emerald-200', accent: '#059669', hover: '#047857', light: 'rgba(110, 231, 183, 0.15)' },
+    pink:      { name: 'Rose Pastel',dotColor: '#f9a8d4', badgeClass: 'bg-rose-50 text-rose-600 border border-rose-200',    accent: '#db2777', hover: '#be185d', light: 'rgba(249, 168, 212, 0.15)' },
+    yellow:    { name: 'Jaune Clair',dotColor: '#fef08a', badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200',  accent: '#ca8a04', hover: '#a16207', light: 'rgba(254, 240, 138, 0.15)' },
+    lavender:  { name: 'Lavande',    dotColor: '#c7d2fe', badgeClass: 'bg-indigo-50 text-indigo-600 border border-indigo-200',  accent: '#4f46e5', hover: '#4338ca', light: 'rgba(199, 210, 254, 0.15)' }
   };
   const THEME_KEYS = Object.keys(CLIENT_THEMES);
 
@@ -201,6 +212,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const clientColorPicker   = document.getElementById('client-color-picker');
   const newClientColors     = document.getElementById('new-client-colors');
 
+  // Modal Paramètres Client
+  const clientSettingsModal      = document.getElementById('client-settings-modal');
+  const clientSettingsModalPanel = document.getElementById('client-settings-modal-panel');
+  const closeSettingsModalBtn    = document.getElementById('close-settings-modal-btn');
+  const cancelSettingsBtn        = document.getElementById('cancel-settings-btn');
+  const deleteClientBtn          = document.getElementById('delete-client-btn');
+  const clientSettingsForm       = document.getElementById('client-settings-form');
+  const settingsClientName       = document.getElementById('settings-client-name');
+  const settingsClientColors     = document.getElementById('settings-client-colors');
+  const clientSettingsBtn        = document.getElementById('client-settings-btn');
+
   // ─── ROUTAGE SYNCHRONISÉ ────────────────────────────────────────
   function showScreen(authActive) {
     if (authActive) {
@@ -267,7 +289,6 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Appliquer le thème d'accentuation dynamique du client
       applyClientTheme(client);
-      renderClientColorPicker(client);
       
       selectedDateFilter = null;
       updateDateFilterUI();
@@ -405,16 +426,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const theme = CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue;
       const isSelected = activeClientId === c.id;
       
+      btn.className = `client-item-btn w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 animate-fade-in-up`;
       if (isSelected) {
-        btn.className = `w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition group animate-fade-in-up font-semibold`;
+        btn.classList.add('selected-client');
         btn.style.backgroundColor = theme.light;
         btn.style.color = theme.accent;
       } else {
-        btn.className = `w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50 transition group animate-fade-in-up text-slate-700`;
+        btn.style.color = '#475569';
       }
       
       btn.style.animationDelay = `${i * 30}ms`;
       btn.innerHTML = `
+        <span class="indicator-stripe" style="background-color: ${isSelected ? theme.accent : 'transparent'};"></span>
         <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${theme.dotColor};"></span>
         <span class="flex-1 truncate transition group-hover:text-slate-900">${c.name}</span>
         <i data-lucide="chevron-right" class="w-3.5 h-3.5 transition" style="color: ${isSelected ? theme.accent : '#cbd5e1'};"></i>
@@ -732,6 +755,11 @@ document.addEventListener('DOMContentLoaded', () => {
   globalChatForm.addEventListener('submit', async e => {
     e.preventDefault();
     const rawVal = globalChatInput.value.trim();
+    if (rawVal === '/date') {
+      globalChatInput.value = '';
+      openDatePicker();
+      return;
+    }
     let targetClientId = pendingClientId;
     let content = rawVal;
 
@@ -917,6 +945,11 @@ document.addEventListener('DOMContentLoaded', () => {
   clientChatForm.addEventListener('submit', async e => {
     e.preventDefault();
     const content = clientChatInput.value.trim();
+    if (content === '/date') {
+      clientChatInput.value = '';
+      openDatePicker();
+      return;
+    }
     if (!content && !clientFile) return;
     await sendMessage(activeClientId, content, clientFile, async () => {
       clientChatInput.value = '';
@@ -1107,11 +1140,16 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDatePickerCalendar();
 
     datePickerModal.classList.remove('hidden');
-    setTimeout(() => datePickerModalPanel.classList.remove('scale-95', 'opacity-0'), 10);
+    setTimeout(() => {
+      datePickerModalPanel.classList.remove('scale-95', 'opacity-0');
+      datePickerModalPanel.classList.add('scale-100', 'opacity-100');
+    }, 10);
   }
 
+  // Correction de la transition de fermeture
   function closeDatePicker() {
     datePickerModalPanel.classList.add('scale-95', 'opacity-0');
+    datePickerModalPanel.classList.remove('scale-100', 'opacity-100');
     setTimeout(() => datePickerModal.classList.add('hidden'), 200);
   }
 
@@ -1309,39 +1347,108 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Rendu interactif du color picker d'en-tête client
-  function renderClientColorPicker(client) {
-    if (!client) return;
-    clientColorPicker.innerHTML = '';
-    const activeColor = getClientColorKey(client);
+  // ─── PARAMÈTRES DU CLIENT ─────────────────────────────────────────
+  let selectedSettingsColor = 'blue';
 
+  function openSettingsModal() {
+    const client = clients.find(c => c.id === activeClientId);
+    if (!client) return;
+
+    settingsClientName.value = client.name;
+    selectedSettingsColor = getClientColorKey(client);
+
+    // Rendre les options de couleur
+    settingsClientColors.innerHTML = '';
     THEME_KEYS.forEach(key => {
       const theme = CLIENT_THEMES[key];
       const dot = document.createElement('div');
-      dot.className = `color-dot ${key === activeColor ? 'active' : ''}`;
+      dot.className = `color-dot ${key === selectedSettingsColor ? 'active' : ''}`;
       dot.style.backgroundColor = theme.dotColor;
-      dot.title = `Passer l'interface en ${theme.name}`;
-      
-      dot.addEventListener('click', async () => {
-        // Tenter la mise à jour persistante
-        const { error } = await sb.from('clients').update({ color: key }).eq('id', client.id);
-        
-        if (error) {
-          console.warn("Mise à jour de la couleur Supabase échouée (la colonne color n'existe probablement pas). Enregistrement local.", error.message);
-        }
-        
-        // Enregistrement fallback
-        localStorage.setItem(`client_color_${client.id}`, key);
-        
-        // Mettre à jour en mémoire locale
-        client.color = key;
-
-        // Réappliquer le thème et rafraîchir
-        applyClientTheme(client);
-        renderClientColorPicker(client);
-        await loadClients(); // pour actualiser les points de couleur de la liste
+      dot.title = theme.name;
+      dot.addEventListener('click', () => {
+        selectedSettingsColor = key;
+        settingsClientColors.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        clientSettingsModalPanel.style.setProperty('--client-accent', theme.accent);
       });
-      clientColorPicker.appendChild(dot);
+      settingsClientColors.appendChild(dot);
     });
+    clientSettingsModalPanel.style.setProperty('--client-accent', CLIENT_THEMES[selectedSettingsColor].accent);
+
+    clientSettingsModal.classList.remove('hidden');
+    setTimeout(() => {
+      clientSettingsModalPanel.classList.remove('scale-95', 'opacity-0');
+      clientSettingsModalPanel.classList.add('scale-100', 'opacity-100');
+    }, 20);
   }
+
+  function closeSettingsModal() {
+    clientSettingsModalPanel.classList.add('scale-95', 'opacity-0');
+    clientSettingsModalPanel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => { clientSettingsModal.classList.add('hidden'); }, 200);
+  }
+
+  clientSettingsBtn.addEventListener('click', openSettingsModal);
+  closeSettingsModalBtn.addEventListener('click', closeSettingsModal);
+  cancelSettingsBtn.addEventListener('click', closeSettingsModal);
+
+  clientSettingsForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const newName = settingsClientName.value.trim();
+    if (!newName) return;
+
+    const client = clients.find(c => c.id === activeClientId);
+    if (!client) return;
+
+    // Tenter la mise à jour complète dans Supabase
+    const { error } = await sb.from('clients')
+      .update({ name: newName, color: selectedSettingsColor })
+      .eq('id', activeClientId);
+
+    if (error) {
+      console.warn("Échec de la mise à jour Supabase avec 'color', repli sur 'name' uniquement...", error.message);
+      const nameOnlyRes = await sb.from('clients')
+        .update({ name: newName })
+        .eq('id', activeClientId);
+      
+      if (nameOnlyRes.error) {
+        alert(nameOnlyRes.error.message);
+        return;
+      }
+    }
+
+    // Sauvegarder dans localStorage (fallback / persistance locale instantanée)
+    localStorage.setItem(`client_color_${activeClientId}`, selectedSettingsColor);
+
+    // Mettre à jour en mémoire
+    client.name = newName;
+    client.color = selectedSettingsColor;
+
+    closeSettingsModal();
+    await loadClients();
+
+    // Mettre à jour l'interface active
+    clientViewName.textContent = newName;
+    applyClientTheme(client);
+  });
+
+  deleteClientBtn.addEventListener('click', async () => {
+    const client = clients.find(c => c.id === activeClientId);
+    if (!client) return;
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le client "${client.name}" ainsi que toutes ses notes ?\nCette action est irréversible.`)) return;
+
+    // 1. Supprimer ses messages
+    const { error: msgErr } = await sb.from('messages').delete().eq('client_id', activeClientId);
+    if (msgErr) { alert(`Erreur de suppression des messages: ${msgErr.message}`); return; }
+
+    // 2. Supprimer le client
+    const { error: cliErr } = await sb.from('clients').delete().eq('id', activeClientId);
+    if (cliErr) { alert(`Erreur de suppression du client: ${cliErr.message}`); return; }
+
+    // 3. Vider cache local
+    localStorage.removeItem(`client_color_${activeClientId}`);
+
+    closeSettingsModal();
+    window.location.hash = '#';
+  });
 });

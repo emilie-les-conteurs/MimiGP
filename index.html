@@ -117,11 +117,11 @@
         <h1 class="text-lg font-bold tracking-tight cursor-pointer" id="logo-home">MimiGP Portal</h1>
         
         <!-- En-tête dynamique du client actif (affiché uniquement en mode client) -->
-        <div id="active-client-header" class="hidden items-center gap-3 ml-4 pl-4 border-l border-slate-200">
-          <div class="px-2.5 py-0.5 rounded-md text-xs font-bold border transition-all duration-200" id="client-view-name">Client</div>
-          <div class="flex items-center gap-1.5" id="client-color-picker" title="Choisir la couleur d'accentuation">
-            <!-- Rendu dynamique des cercles de couleur -->
-          </div>
+        <div id="active-client-header" class="hidden items-center gap-3 ml-4 pl-4 border-l border-white/20">
+          <div class="px-2.5 py-0.5 rounded-md text-xs font-bold border border-white/30 text-white bg-white/10 transition-all duration-200" id="client-view-name">Client</div>
+          <button id="client-settings-btn" class="p-1 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition" title="Paramètres du client">
+            <i data-lucide="settings" class="w-4.5 h-4.5"></i>
+          </button>
         </div>
       </div>
       <div class="flex items-center gap-4">
@@ -347,7 +347,7 @@
           </div>
           <div>
             <label class="text-sm font-medium block mb-2">Couleur d'accentuation</label>
-            <div class="flex items-center gap-2.5" id="new-client-colors">
+            <div class="grid grid-cols-8 gap-2" id="new-client-colors">
               <!-- Rendu dynamique des options de couleur -->
             </div>
           </div>
@@ -355,6 +355,45 @@
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
           <button type="button" id="cancel-client-btn" class="px-4 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50 transition">Annuler</button>
           <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">Créer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODALE PARAMÈTRES CLIENT -->
+  <div id="client-settings-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div id="client-settings-modal-panel" class="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-sm mx-4 overflow-hidden transform scale-95 opacity-0 transition-all duration-200">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="settings" class="w-5 h-5 text-slate-500"></i>
+          <span>Paramètres du client</span>
+        </h3>
+        <button id="close-settings-modal-btn" class="text-slate-400 hover:text-slate-600 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="client-settings-form">
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="text-sm font-medium block mb-1.5 text-slate-700">Nom du client ou projet</label>
+            <input class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition" type="text" id="settings-client-name" required placeholder="Entreprise ACME...">
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-2 text-slate-700">Couleur d'accentuation</label>
+            <div class="grid grid-cols-8 gap-2" id="settings-client-colors">
+              <!-- Rendu dynamique des 16 couleurs -->
+            </div>
+          </div>
+        </div>
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+          <button type="button" id="delete-client-btn" class="text-rose-600 hover:text-rose-800 text-xs font-bold transition flex items-center gap-1">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            Supprimer le client
+          </button>
+          <div class="flex gap-2">
+            <button type="button" id="cancel-settings-btn" class="px-4 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50 transition">Annuler</button>
+            <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition" id="save-settings-btn">Enregistrer</button>
+          </div>
         </div>
       </form>
     </div>
