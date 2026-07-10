@@ -72,6 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const clientsList         = document.getElementById('clients-list');
   const searchClient        = document.getElementById('search-client');
   const addClientBtn        = document.getElementById('add-client-btn');
+  const navbarHeader        = document.getElementById('navbar-header');
+  const sidebarClients      = document.getElementById('sidebar-clients');
 
   // Chat Global (Vue Accueil)
   const globalFeed          = document.getElementById('global-feed');
@@ -127,8 +129,10 @@ document.addEventListener('DOMContentLoaded', () => {
       registerScreen.classList.add('hidden');
       loginScreen.classList.add('hidden');
       dashboardView.classList.remove('hidden');
+      document.body.classList.remove('auth-body');
     } else {
       dashboardView.classList.add('hidden');
+      document.body.classList.add('auth-body');
       const hash = window.location.hash;
       if (hash === '#register') {
         registerScreen.classList.remove('hidden');
@@ -169,6 +173,10 @@ document.addEventListener('DOMContentLoaded', () => {
       mainGlobalView.classList.add('hidden');
       mainClientView.classList.remove('hidden');
 
+      // Masquer la sidebar clients et passer la navbar en mode espace client dédié
+      sidebarClients.classList.add('hidden');
+      navbarHeader.classList.add('client-mode');
+
       // Configurer la navbar en mode "Client actif"
       backToDashboard.classList.remove('hidden');
       backToDashboard.classList.add('flex');
@@ -188,6 +196,10 @@ document.addEventListener('DOMContentLoaded', () => {
       activeClientId = null;
       mainClientView.classList.add('hidden');
       mainGlobalView.classList.remove('hidden');
+
+      // Réafficher la sidebar clients et repasser la navbar en mode clair dashboard
+      sidebarClients.classList.remove('hidden');
+      navbarHeader.classList.remove('client-mode');
 
       // Configurer la navbar en mode "Accueil globale"
       backToDashboard.classList.add('hidden');
@@ -433,10 +445,43 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   }
 
-  // Autocomplete `/`
+  // Autocomplete `/` et `/cl`
   globalChatInput.addEventListener('input', () => {
     const val = globalChatInput.value;
-    if (val.startsWith('/')) {
+    
+    if (val.startsWith('/cl ') || val === '/cl') {
+      // Commande /cl (avec espace ou pile sur la commande)
+      const query = val === '/cl' ? '' : val.slice(4).replace(/^"|"/g, '').toLowerCase();
+      const matches = clients.filter(c => c.name.toLowerCase().includes(query));
+      
+      autocompleteList.innerHTML = '';
+      matches.forEach(c => {
+        const item = document.createElement('div');
+        const color = clientColor(c.id);
+        item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm transition';
+        item.innerHTML = `
+          <span class="w-2 h-2 rounded-full shrink-0 ${color.split(' ')[0].replace('bg-', 'bg-').replace('100', '400')}"></span>
+          <span class="font-medium text-slate-800">${c.name}</span>
+        `;
+        item.addEventListener('mousedown', e => {
+          e.preventDefault();
+          selectClientWithClCommand(c);
+        });
+        autocompleteList.appendChild(item);
+      });
+
+      if (query.length > 0) {
+        autocompleteCreateName = query.charAt(0).toUpperCase() + query.slice(1);
+        autocompleteCreateLabel.textContent = `Créer "${autocompleteCreateName}"`;
+        autocompleteCreate.classList.remove('hidden');
+      } else {
+        autocompleteCreate.classList.add('hidden');
+      }
+      lucide.createIcons();
+      autocompleteDropdown.classList.remove('hidden');
+      
+    } else if (val.startsWith('/') && !val.startsWith('/cl')) {
+      // Ancienne syntaxe de repli /ClientName
       const query = val.slice(1).toLowerCase();
       const hasSpace = val.includes(' ');
       if (hasSpace) { hideAutocomplete(); return; }
@@ -495,20 +540,96 @@ document.addEventListener('DOMContentLoaded', () => {
     globalChatInput.setSelectionRange(globalChatInput.value.length, globalChatInput.value.length);
   }
 
+  function selectClientWithClCommand(client) {
+    pendingClientId = client.id;
+    const formatted = client.name.includes(' ') ? `"${client.name}"` : client.name;
+    globalChatInput.value = `/cl ${formatted} `;
+    hideAutocomplete();
+    globalChatInput.focus();
+    globalChatInput.setSelectionRange(globalChatInput.value.length, globalChatInput.value.length);
+  }
+
   autocompleteCreate.addEventListener('mousedown', e => {
     e.preventDefault();
     hideAutocomplete();
     openModal(autocompleteCreateName);
   });
 
-  // Envoi avec tri automatique
+  // Envoi avec tri automatique (/cl ou /NomClient)
   globalChatForm.addEventListener('submit', async e => {
     e.preventDefault();
     const rawVal = globalChatInput.value.trim();
     let targetClientId = pendingClientId;
     let content = rawVal;
 
-    if (rawVal.startsWith('/')) {
+    if (rawVal.startsWith('/cl ')) {
+      // Commande /cl (avec ou sans guillemets)
+      const afterCl = rawVal.slice(4).trim();
+      let clientName = '';
+      let msgContent = '';
+
+      if (afterCl.startsWith('"') || afterCl.startsWith("'")) {
+        const quoteChar = afterCl[0];
+        const nextQuoteIdx = afterCl.indexOf(quoteChar, 1);
+        if (nextQuoteIdx === -1) {
+          alert('Format incorrect. Guillemet fermant manquant.');
+          return;
+        }
+        clientName = afterCl.slice(1, nextQuoteIdx);
+        msgContent = afterCl.slice(nextQuoteIdx + 1).trim();
+      } else {
+        // Recherche du client correspondant par préfixe le plus long
+        const sortedClients = [...clients].sort((a, b) => b.name.length - a.name.length);
+        const matchedClient = sortedClients.find(c => afterCl.toLowerCase().startsWith(c.name.toLowerCase()));
+
+        if (matchedClient) {
+          clientName = matchedClient.name;
+          msgContent = afterCl.slice(clientName.length).trim();
+        } else {
+          // Repli sur le premier mot
+          const spaceIdx = afterCl.indexOf(' ');
+          if (spaceIdx === -1) {
+            clientName = afterCl;
+            msgContent = '';
+          } else {
+            clientName = afterCl.slice(0, spaceIdx);
+            msgContent = afterCl.slice(spaceIdx + 1).trim();
+          }
+        }
+      }
+
+      if (!clientName) {
+        alert('Précisez le nom du client après /cl.');
+        return;
+      }
+
+      // Recherche dans la base
+      const found = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
+      if (found) {
+        targetClientId = found.id;
+        content = msgContent;
+      } else {
+        // Option de création rapide
+        const confirmCreate = confirm(`Le client "${clientName}" n'existe pas. Voulez-vous le créer pour y envoyer cette note ?`);
+        if (confirmCreate) {
+          const { data, error } = await sb
+            .from('clients')
+            .insert([{ name: clientName, user_id: currentSession.user.id }])
+            .select();
+          if (error) { alert(error.message); return; }
+          await loadClients();
+          if (data && data[0]) {
+            targetClientId = data[0].id;
+            content = msgContent;
+          } else {
+            return;
+          }
+        } else {
+          return;
+        }
+      }
+    } else if (rawVal.startsWith('/') && !rawVal.startsWith('/cl')) {
+      // Ancienne syntaxe /ClientName
       const spaceIdx = rawVal.indexOf(' ');
       if (spaceIdx === -1) {
         alert('Précisez votre message après le nom du client.');
@@ -520,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
       content = rawVal.slice(spaceIdx + 1).trim();
     }
 
-    if (!targetClientId) { alert('Sélectionnez un client valide avec /NomClient.'); return; }
+    if (!targetClientId) { alert('Sélectionnez un client avec la commande /cl NomClient.'); return; }
     if (!content && !globalFile) return;
 
     await sendMessage(targetClientId, content, globalFile, async () => {
