@@ -5,6 +5,10 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: #f8fafc; /* Tailwind slate-50 */
   color: #0f172a; /* Tailwind slate-900 */
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Custom Scrollbars */
@@ -27,6 +31,20 @@ body {
 .hidden {
   display: none !important;
 }
+
+/* Auth forms: centered card with max-width */
+.auth-container {
+  width: 100%;
+  max-width: 440px;
+  padding: 0 16px;
+}
+
+/* Dashboard overrides body flex centering — takes full screen instead */
+#main-content {
+  width: 100% !important;
+  align-self: stretch;
+}
+
 
 /* Entrance Animations */
 .animate-fade-in-up {
