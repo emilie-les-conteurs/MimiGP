@@ -76,15 +76,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const key = getClientColorKey(client);
     const theme = CLIENT_THEMES[key] || CLIENT_THEMES.blue;
 
+    const navbarHeader = document.getElementById('navbar-header');
     const rootElement = document.getElementById('main-client-view');
     const headerElement = document.getElementById('active-client-header');
     const datePicker = document.getElementById('date-picker-modal');
+    const clientSettingsModal = document.getElementById('client-settings-modal');
 
-    [rootElement, headerElement, datePicker].forEach(el => {
+    [navbarHeader, rootElement, headerElement, datePicker, clientSettingsModal].forEach(el => {
       if (el) {
         el.style.setProperty('--client-accent', theme.accent);
         el.style.setProperty('--client-accent-hover', theme.hover);
         el.style.setProperty('--client-accent-light', theme.light);
+        el.style.setProperty('--client-accent-light-hover', theme.light.replace('0.1', '0.25').replace('0.15', '0.35'));
       }
     });
 
@@ -222,6 +225,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsClientName       = document.getElementById('settings-client-name');
   const settingsClientColors     = document.getElementById('settings-client-colors');
   const clientSettingsBtn        = document.getElementById('client-settings-btn');
+
+  // Modal Visionneuse de Fichiers
+  const fileViewerModal      = document.getElementById('file-viewer-modal');
+  const fileViewerModalPanel = document.getElementById('file-viewer-modal-panel');
+  const closeViewerBtn       = document.getElementById('close-viewer-btn');
+  const viewerFileName       = document.getElementById('viewer-file-name');
+  const viewerDownloadBtn    = document.getElementById('viewer-download-btn');
+  const viewerContent        = document.getElementById('viewer-content');
+
+  // Modal Ajout de Personne
+  const personModal          = document.getElementById('person-modal');
+  const personModalPanel     = document.getElementById('person-modal-panel');
+  const closePersonModalBtn  = document.getElementById('close-person-modal-btn');
+  const cancelPersonBtn      = document.getElementById('cancel-person-btn');
+  const personForm           = document.getElementById('person-form');
+  const personName           = document.getElementById('person-name');
+  const personColor          = document.getElementById('person-color');
+  const personColorHex       = document.getElementById('person-color-hex');
 
   // ─── ROUTAGE SYNCHRONISÉ ────────────────────────────────────────
   function showScreen(authActive) {
@@ -585,7 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attachHTML = `
           <div class="mt-1.5 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs w-fit max-w-full shadow-sm">
             <i data-lucide="file" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
-            <span class="truncate font-medium text-slate-700 max-w-[200px] cursor-pointer hover:underline hover:text-blue-600" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            <span class="truncate font-medium text-slate-700 max-w-[200px] cursor-pointer hover:underline hover:text-blue-600 file-name-link" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
             <button class="download-btn text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
               <i data-lucide="download" class="w-3.5 h-3.5"></i>
             </button>
@@ -594,11 +615,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       div.innerHTML = `
         <div class="flex-1 bg-white rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition">
-          <div class="flex items-center gap-2 mb-1.5">
-            <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full ${color} hover:opacity-80 transition" data-id="${msg.client_id}">${client?.name || '—'}</button>
-            <span class="text-xs text-slate-400">${dateStr} à ${timeStr}</span>
+          <div class="flex items-center justify-between gap-2 mb-1.5 w-full">
+            <div class="flex items-center gap-2">
+              <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full ${color} hover:opacity-80 transition" data-id="${msg.client_id}">${client?.name || '—'}</button>
+              <span class="text-xs text-slate-400">${dateStr} à ${timeStr}</span>
+            </div>
+            <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
           </div>
-          <p class="text-sm text-slate-800 whitespace-pre-line">${msg.content || ''}</p>
+          <p class="text-sm text-slate-800 whitespace-pre-line">${highlightMessageContent(msg.content)}</p>
           ${attachHTML}
         </div>
       `;
@@ -608,10 +634,23 @@ document.addEventListener('DOMContentLoaded', () => {
     globalFeed.querySelectorAll('.go-client-btn').forEach(btn => {
       btn.addEventListener('click', () => { window.location.hash = `#client/${btn.dataset.id}`; });
     });
-    globalFeed.querySelectorAll('.download-btn, [data-path]').forEach(el => {
+    globalFeed.querySelectorAll('[data-path]').forEach(el => {
       el.addEventListener('click', e => {
         e.preventDefault();
-        downloadFile(el.dataset.path, el.dataset.name);
+        e.stopPropagation();
+        const path = el.dataset.path;
+        const name = el.dataset.name;
+        if (el.classList.contains('download-btn') || el.closest('.download-btn')) {
+          downloadFile(path, name);
+        } else {
+          openFileViewer(path, name);
+        }
+      });
+    });
+    globalFeed.querySelectorAll('.delete-msg-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        deleteMessage(btn.dataset.id);
       });
     });
 
@@ -637,6 +676,28 @@ document.addEventListener('DOMContentLoaded', () => {
         globalChatInput.value = '';
         hideAutocomplete();
         openDatePicker();
+      });
+      autocompleteList.appendChild(item);
+      autocompleteCreate.classList.add('hidden');
+      lucide.createIcons();
+      autocompleteDropdown.classList.remove('hidden');
+      return;
+    }
+
+    if (val.trim() === '/personne') {
+      // Suggestion d'ajout de personne
+      autocompleteList.innerHTML = '';
+      const item = document.createElement('div');
+      item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm text-purple-600 font-bold transition';
+      item.innerHTML = `
+        <i data-lucide="user-plus" class="w-4 h-4 text-purple-500"></i>
+        <span>👤 Ajouter une personne... (/personne)</span>
+      `;
+      item.addEventListener('mousedown', e => {
+        e.preventDefault();
+        globalChatInput.value = '';
+        hideAutocomplete();
+        openPersonModal();
       });
       autocompleteList.appendChild(item);
       autocompleteCreate.classList.add('hidden');
@@ -758,6 +819,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rawVal === '/date') {
       globalChatInput.value = '';
       openDatePicker();
+      return;
+    }
+    if (rawVal === '/personne') {
+      globalChatInput.value = '';
+      openPersonModal();
       return;
     }
     let targetClientId = pendingClientId;
@@ -909,7 +975,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attachHTML = `
           <div class="mt-2 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-sm w-fit max-w-full">
             <i data-lucide="file" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
-            <span class="truncate font-medium text-slate-700 max-w-[180px] cursor-pointer hover:underline hover:text-blue-600" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            <span class="truncate font-medium text-slate-700 max-w-[180px] cursor-pointer hover:underline hover:text-blue-600 file-name-link" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
             <button class="download-btn text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
               <i data-lucide="download" class="w-3.5 h-3.5"></i>
             </button>
@@ -919,22 +985,38 @@ document.addEventListener('DOMContentLoaded', () => {
       div.className = 'flex flex-col space-y-0.5 max-w-[85%] animate-fade-in-up';
       div.style.animationDelay = `${Math.min(i * 20, 300)}ms`;
       div.innerHTML = `
-        <div class="flex items-baseline gap-2 mb-0.5">
-          <span class="text-xs font-bold text-slate-800">Note</span>
-          <span class="text-[10px] text-slate-400">${dateStr} à ${timeStr}</span>
+        <div class="flex items-center justify-between gap-4 mb-0.5 w-full">
+          <span class="text-[10px] text-slate-400 font-semibold">${dateStr} à ${timeStr}</span>
+          <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
+            <i data-lucide="trash-2" class="w-3 h-3"></i>
+          </button>
         </div>
         <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm text-sm text-slate-800">
-          <p class="whitespace-pre-line">${msg.content || ''}</p>
+          <p class="whitespace-pre-line">${highlightMessageContent(msg.content)}</p>
           ${attachHTML}
         </div>
       `;
       clientChatMessages.appendChild(div);
     });
 
-    clientChatMessages.querySelectorAll('.download-btn, [data-path]').forEach(el => {
+    clientChatMessages.querySelectorAll('[data-path]').forEach(el => {
       el.addEventListener('click', e => {
         e.preventDefault();
-        downloadFile(el.dataset.path, el.dataset.name);
+        e.stopPropagation();
+        const path = el.dataset.path;
+        const name = el.dataset.name;
+        if (el.classList.contains('download-btn') || el.closest('.download-btn')) {
+          downloadFile(path, name);
+        } else {
+          openFileViewer(path, name);
+        }
+      });
+    });
+
+    clientChatMessages.querySelectorAll('.delete-msg-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        deleteMessage(btn.dataset.id);
       });
     });
 
@@ -948,6 +1030,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (content === '/date') {
       clientChatInput.value = '';
       openDatePicker();
+      return;
+    }
+    if (content === '/personne') {
+      clientChatInput.value = '';
+      openPersonModal();
       return;
     }
     if (!content && !clientFile) return;
@@ -1053,10 +1140,17 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       filesList.appendChild(div);
     });
-    filesList.querySelectorAll('.download-btn, [data-path]').forEach(el => {
+    filesList.querySelectorAll('[data-path]').forEach(el => {
       el.addEventListener('click', e => {
         e.preventDefault();
-        downloadFile(el.dataset.path, el.dataset.name);
+        e.stopPropagation();
+        const path = el.dataset.path;
+        const name = el.dataset.name;
+        if (el.classList.contains('download-btn') || el.closest('.download-btn')) {
+          downloadFile(path, name);
+        } else {
+          openFileViewer(path, name);
+        }
       });
     });
     lucide.createIcons();
@@ -1432,6 +1526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyClientTheme(client);
   });
 
+  // ─── PARAMÈTRES DU CLIENT (Fin) et fonctions utilitaires additionnelles ──────
   deleteClientBtn.addEventListener('click', async () => {
     const client = clients.find(c => c.id === activeClientId);
     if (!client) return;
@@ -1451,4 +1546,193 @@ document.addEventListener('DOMContentLoaded', () => {
     closeSettingsModal();
     window.location.hash = '#';
   });
+
+  // ─── SUPPRESSION DE NOTE ──────────────────────────────────────────
+  async function deleteMessage(msgId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette note définitivement ?')) return;
+    const { error } = await sb.from('messages').delete().eq('id', msgId);
+    if (error) { alert(`Erreur lors de la suppression de la note: ${error.message}`); return; }
+
+    // Recharger la bonne vue
+    if (activeClientId) {
+      await loadClientMessages();
+      renderCalendar();
+    } else {
+      await loadGlobalFeed();
+    }
+  }
+
+  // ─── VISIONNEUSE DE FICHIERS ──────────────────────────────────────
+  let activeViewerPath = '';
+  let activeViewerName = '';
+
+  async function openFileViewer(path, name) {
+    activeViewerPath = path;
+    activeViewerName = name;
+    viewerFileName.textContent = name;
+
+    viewerContent.innerHTML = '<div class="text-slate-500 flex flex-col items-center gap-2"><i class="w-8 h-8 animate-spin text-blue-500" data-lucide="loader-2"></i><span>Chargement de l\'aperçu...</span></div>';
+    lucide.createIcons();
+
+    // Récupérer un URL signé de 10 minutes
+    const { data, error } = await sb.storage.from('client-files').createSignedUrl(path, 600);
+    if (error) { 
+      viewerContent.innerHTML = `<p class="text-rose-600 font-medium">Erreur d'accès au fichier: ${error.message}</p>`; 
+      return; 
+    }
+
+    const url = data.signedUrl;
+    const ext = name.split('.').pop().toLowerCase();
+    viewerContent.innerHTML = '';
+
+    if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.className = 'max-w-full max-h-full object-contain rounded-xl border bg-white shadow-sm';
+      viewerContent.appendChild(img);
+    } else if (ext === 'pdf') {
+      const iframe = document.createElement('iframe');
+      iframe.src = url;
+      iframe.className = 'w-full h-full rounded-xl border bg-white shadow-sm';
+      viewerContent.appendChild(iframe);
+    } else if (['txt', 'md', 'json', 'js', 'css', 'html', 'csv'].includes(ext)) {
+      try {
+        const response = await fetch(url);
+        const text = await response.text();
+        const pre = document.createElement('pre');
+        pre.className = 'w-full h-full overflow-auto bg-slate-950 text-slate-100 p-4 rounded-xl font-mono text-sm leading-relaxed border shadow-inner';
+        pre.textContent = text;
+        viewerContent.appendChild(pre);
+      } catch (err) {
+        viewerContent.innerHTML = `<p class="text-rose-600 font-medium">Erreur lors de l'affichage textuel: ${err.message}</p>`;
+      }
+    } else {
+      // Repli
+      viewerContent.innerHTML = `
+        <div class="flex flex-col items-center gap-4 text-center max-w-sm">
+          <i data-lucide="file-warning" class="w-16 h-16 text-slate-400"></i>
+          <div>
+            <h4 class="font-bold text-slate-800 text-sm">Aperçu indisponible</h4>
+            <p class="text-xs text-slate-500 mt-1">Les fichiers du format .${ext} ne peuvent être affichés directement. Vous pouvez les télécharger.</p>
+          </div>
+          <button id="viewer-fallback-download" class="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition">
+            Télécharger le fichier
+          </button>
+        </div>
+      `;
+      lucide.createIcons();
+      document.getElementById('viewer-fallback-download').addEventListener('click', () => {
+        downloadFile(path, name);
+      });
+    }
+
+    fileViewerModal.classList.remove('hidden');
+    setTimeout(() => {
+      fileViewerModalPanel.classList.remove('scale-95', 'opacity-0');
+      fileViewerModalPanel.classList.add('scale-100', 'opacity-100');
+    }, 10);
+  }
+
+  function closeFileViewer() {
+    fileViewerModalPanel.classList.add('scale-95', 'opacity-0');
+    fileViewerModalPanel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => { fileViewerModal.classList.add('hidden'); viewerContent.innerHTML = ''; }, 200);
+  }
+
+  closeViewerBtn.addEventListener('click', closeFileViewer);
+  viewerDownloadBtn.addEventListener('click', () => {
+    if (activeViewerPath && activeViewerName) downloadFile(activeViewerPath, activeViewerName);
+  });
+
+  // ─── GESTION DU SURLIGNAGE DE PRÉNOMS ──────────────────────────────
+  function openPersonModal() {
+    personName.value = '';
+    personColor.value = '#3b82f6';
+    personColorHex.textContent = '#3b82f6';
+    
+    personModal.classList.remove('hidden');
+    setTimeout(() => {
+      personModalPanel.classList.remove('scale-95', 'opacity-0');
+      personModalPanel.classList.add('scale-100', 'opacity-100');
+    }, 20);
+    personName.focus();
+  }
+
+  function closePersonModal() {
+    personModalPanel.classList.add('scale-95', 'opacity-0');
+    personModalPanel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => { personModal.classList.add('hidden'); personName.value = ''; }, 200);
+  }
+
+  closePersonModalBtn.addEventListener('click', closePersonModal);
+  cancelPersonBtn.addEventListener('click', closePersonModal);
+  
+  personColor.addEventListener('input', () => {
+    personColorHex.textContent = personColor.value.toUpperCase();
+  });
+
+  personForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const nameVal = personName.value.trim();
+    if (!nameVal) return;
+
+    // Charger les personnes
+    const saved = localStorage.getItem('mimi_persons');
+    const persons = saved ? JSON.parse(saved) : [];
+    
+    // Éviter les doublons
+    const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
+    if (existsIdx !== -1) {
+      persons[existsIdx].color = personColor.value;
+    } else {
+      persons.push({ name: nameVal, color: personColor.value });
+    }
+
+    localStorage.setItem('mimi_persons', JSON.stringify(persons));
+    closePersonModal();
+
+    // Rafraîchir les messages pour appliquer le nouveau surlignage
+    if (activeClientId) {
+      loadClientMessages();
+    } else {
+      loadGlobalFeed();
+    }
+  });
+
+  // Fonction de surlignage des messages
+  function highlightMessageContent(text) {
+    if (!text) return '';
+    const saved = localStorage.getItem('mimi_persons');
+    const persons = saved ? JSON.parse(saved) : [];
+    
+    let html = escapeHTML(text);
+    if (persons.length === 0) return html;
+
+    // Trier pour éviter d'écraser des noms imbriqués
+    const sorted = [...persons].sort((a, b) => b.name.length - a.name.length);
+
+    sorted.forEach(p => {
+      const escapedName = escapeRegExp(p.name);
+      // Regex tolérant les accents et vérifiant les limites de mots
+      const regex = new RegExp(`(?<![a-zA-Z0-9À-ÿ])${escapedName}(?![a-zA-Z0-9À-ÿ])`, 'gi');
+      html = html.replace(regex, match => {
+        return `<span class="px-1.5 py-0.5 rounded font-semibold text-xs border" style="background-color: ${p.color}20; color: ${p.color}; border-color: ${p.color}40;">${match}</span>`;
+      });
+    });
+
+    return html;
+  }
+
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function escapeHTML(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 });

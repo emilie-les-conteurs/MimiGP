@@ -280,5 +280,28 @@ body.auth-body {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+/* Styles pour la modale d'ajout de personne (roue de couleur) */
+#person-color {
+  padding: 0;
+  border: none;
+  outline: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px #cbd5e1;
+  transition: transform 120ms ease;
+}
+#person-color:hover {
+  transform: scale(1.05);
+}
+#person-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+#person-color::-webkit-color-swatch {
+  border: none;
+  border-radius: 10px;
+}
+
+
 
 
