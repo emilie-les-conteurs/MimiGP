@@ -723,8 +723,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const commandPickerEl = document.getElementById('command-picker');
   const commandPickerList = document.getElementById('command-picker-list');
   let currentPickerItems = [];
+  let activeCommandWordInfo = null;
 
-  function showCommandPicker(inputEl, val) {
+  function getActiveCommandInfo(inputEl) {
+    const text = inputEl.value;
+    const caretPos = inputEl.selectionStart;
+    
+    // Trouver le début du mot actuel délimité par des espaces
+    const lastSpaceIdx = text.lastIndexOf(' ', caretPos - 1);
+    const wordStart = lastSpaceIdx === -1 ? 0 : lastSpaceIdx + 1;
+    const word = text.slice(wordStart, caretPos);
+    
+    return {
+      word,
+      wordStart,
+      caretPos
+    };
+  }
+
+  function showCommandPicker(inputEl) {
+    const info = getActiveCommandInfo(inputEl);
+    const val = info.word;
+    activeCommandWordInfo = info;
+
     currentPickerItems = [];
     
     // 1. Mode autocomplétion client (si commence par /cl)
@@ -859,6 +880,10 @@ document.addEventListener('DOMContentLoaded', () => {
   async function executeItem(inputEl, item) {
     hideCommandPicker();
     
+    const info = activeCommandWordInfo || getActiveCommandInfo(inputEl);
+    const text = inputEl.value;
+    
+    let replacement = item.cmd;
     if (item.type === 'create') {
       const clientName = item.cmd.charAt(0).toUpperCase() + item.cmd.slice(1);
       openModal(clientName);
@@ -867,32 +892,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (item.type === 'client') {
       pendingClientId = item.clientObj.id;
-      inputEl.value = item.cmd;
-      inputEl.focus();
-      return;
-    }
-
-    if (item.type === 'client-shortcut') {
+    } else if (item.type === 'client-shortcut') {
       pendingClientId = item.clientObj.id;
-      inputEl.value = item.cmd;
-      inputEl.focus();
-      return;
     }
 
-    const cmd = item.cmd;
-    inputEl.value = cmd;
-    inputEl.focus();
+    const before = text.slice(0, info.wordStart);
+    const after = text.slice(info.caretPos);
 
-    if (cmd === '/couleurfond') {
-      inputEl.value = '';
+    if (replacement === '/couleurfond') {
+      replacement = '';
       openBgColorModal(inputEl);
-    } else if (cmd === '/date') {
-      inputEl.value = '';
+    } else if (replacement === '/date') {
+      replacement = '';
       openDatePicker();
-    } else if (cmd === '/personne') {
-      inputEl.value = '';
+    } else if (replacement === '/personne') {
+      replacement = '';
       openPersonModal();
     }
+
+    inputEl.value = before + replacement + after;
+    inputEl.focus();
+    
+    const newCaretPos = info.wordStart + replacement.length;
+    inputEl.setSelectionRange(newCaretPos, newCaretPos);
   }
 
   function handleCommandPickerKeydown(e, inputEl) {
@@ -916,9 +938,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function attachCommandPicker(inputEl) {
     inputEl.addEventListener('input', () => {
-      const val = inputEl.value;
-      if (val.startsWith('/')) {
-        showCommandPicker(inputEl, val);
+      const info = getActiveCommandInfo(inputEl);
+      if (info.word.startsWith('/')) {
+        showCommandPicker(inputEl);
       } else {
         hideCommandPicker();
       }
@@ -1246,119 +1268,122 @@ document.addEventListener('DOMContentLoaded', () => {
   // Autocomplete et sélecteur de commandes (/ notion-style)
   attachCommandPicker(globalChatInput);
 
-  // Envoi avec tri automatique (/cl ou /NomClient)
+  // Analyse des commandes cumulables d'un message
+  function parseInputCommands(rawText) {
+    let text = rawText;
+    let clientId = null;
+    let isTodo = false;
+    let bgColor = pendingNoteBgColor;
+
+    // 1. Parser la commande /cl
+    const clRegex = /\/cl\s+(?:"([^"]+)"|'([^']+)'|([^\s/]+))/i;
+    const clMatch = text.match(clRegex);
+    if (clMatch) {
+      const clientName = clMatch[1] || clMatch[2] || clMatch[3];
+      const found = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
+      if (found) {
+        clientId = found.id;
+      }
+      text = text.replace(clRegex, '');
+    }
+
+    // 2. Parser le raccourci /ClientName
+    if (!clientId) {
+      const clientShortcutRegex = /^\/([a-zA-Z0-9À-ÿ\s]+)(?:\s+|$)/i;
+      const shortcutMatch = text.match(clientShortcutRegex);
+      if (shortcutMatch) {
+        const potentialName = shortcutMatch[1].trim();
+        // Vérifier que ce n'est pas une commande système connue
+        const isSystemCmd = ['date', 'personne', 'couleurfond', 'pensebete'].includes(potentialName.toLowerCase());
+        if (!isSystemCmd) {
+          const found = clients.find(c => c.name.toLowerCase() === potentialName.toLowerCase());
+          if (found) {
+            clientId = found.id;
+            text = text.replace(clientShortcutRegex, '');
+          }
+        }
+      }
+    }
+
+    // 3. Parser /pensebete
+    const pbRegex = /\/pensebete(?:\s+|$)/i;
+    if (pbRegex.test(text)) {
+      isTodo = true;
+      text = text.replace(pbRegex, '');
+    }
+
+    // 4. Parser /couleurfond
+    const cfRegex = /\/couleurfond(?:\s+(\#[0-9a-fA-F]{6}|[a-zA-Z]+))?/i;
+    const cfMatch = text.match(cfRegex);
+    if (cfMatch) {
+      if (cfMatch[1]) {
+        bgColor = cfMatch[1];
+      }
+      text = text.replace(cfRegex, '');
+    }
+
+    // 5. Nettoyer /date
+    text = text.replace(/\/date(?:\s+|$)/gi, '');
+
+    // Nettoyer les espaces superflus
+    text = text.replace(/\s+/g, ' ').trim();
+
+    return {
+      content: text,
+      clientId,
+      isTodo,
+      bgColor
+    };
+  }
+
+  // Envoi avec tri automatique et multi-commandes
   globalChatForm.addEventListener('submit', async e => {
     e.preventDefault();
     const rawVal = globalChatInput.value.trim();
-    if (rawVal === '/date') {
-      globalChatInput.value = '';
-      openDatePicker();
-      return;
-    }
-    if (rawVal === '/personne') {
-      globalChatInput.value = '';
-      openPersonModal();
-      return;
-    }
-    if (rawVal === '/couleurfond') {
-      globalChatInput.value = '';
-      openBgColorModal(globalChatInput);
-      return;
-    }
-    if (rawVal.startsWith('/pensebete ')) {
-      const pbContent = rawVal.slice('/pensebete '.length).trim();
-      if (pbContent) {
-        addTodo(pendingClientId || null, pbContent);
-        globalChatInput.value = '';
-      }
-      return;
-    }
-    let targetClientId = pendingClientId;
-    let content = rawVal;
+    if (!rawVal && !globalFile) return;
 
-    if (rawVal.startsWith('/cl ')) {
-      // Commande /cl (avec ou sans guillemets)
-      const afterCl = rawVal.slice(4).trim();
-      let clientName = '';
-      let msgContent = '';
+    const parsed = parseInputCommands(rawVal);
+    let targetClientId = parsed.clientId || pendingClientId;
+    let content = parsed.content;
 
-      if (afterCl.startsWith('"') || afterCl.startsWith("'")) {
-        const quoteChar = afterCl[0];
-        const nextQuoteIdx = afterCl.indexOf(quoteChar, 1);
-        if (nextQuoteIdx === -1) {
-          alert('Format incorrect. Guillemet fermant manquant.');
-          return;
-        }
-        clientName = afterCl.slice(1, nextQuoteIdx);
-        msgContent = afterCl.slice(nextQuoteIdx + 1).trim();
-      } else {
-        // Recherche du client correspondant par préfixe le plus long
-        const sortedClients = [...clients].sort((a, b) => b.name.length - a.name.length);
-        const matchedClient = sortedClients.find(c => afterCl.toLowerCase().startsWith(c.name.toLowerCase()));
-
-        if (matchedClient) {
-          clientName = matchedClient.name;
-          msgContent = afterCl.slice(clientName.length).trim();
-        } else {
-          // Repli sur le premier mot
-          const spaceIdx = afterCl.indexOf(' ');
-          if (spaceIdx === -1) {
-            clientName = afterCl;
-            msgContent = '';
-          } else {
-            clientName = afterCl.slice(0, spaceIdx);
-            msgContent = afterCl.slice(spaceIdx + 1).trim();
-          }
-        }
-      }
-
-      if (!clientName) {
-        alert('Précisez le nom du client après /cl.');
-        return;
-      }
-
-      // Recherche dans la base
-      const found = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
-      if (found) {
-        targetClientId = found.id;
-        content = msgContent;
-      } else {
-        // Option de création rapide
-        const confirmCreate = confirm(`Le client "${clientName}" n'existe pas. Voulez-vous le créer pour y envoyer cette note ?`);
-        if (confirmCreate) {
-          const { data, error } = await sb
-            .from('clients')
-            .insert([{ name: clientName, user_id: currentSession.user.id }])
-            .select();
-          if (error) { alert(error.message); return; }
-          await loadClients();
-          if (data && data[0]) {
-            targetClientId = data[0].id;
-            content = msgContent;
-          } else {
-            return;
-          }
+    // Si le client n'existe pas encore mais qu'il a été saisi dans /cl
+    const clRegex = /\/cl\s+(?:"([^"]+)"|'([^']+)'|([^\s/]+))/i;
+    const clMatch = rawVal.match(clRegex);
+    if (clMatch && !parsed.clientId) {
+      const clientName = clMatch[1] || clMatch[2] || clMatch[3];
+      const confirmCreate = confirm(`Le client "${clientName}" n'existe pas. Voulez-vous le créer pour y envoyer cette note ?`);
+      if (confirmCreate) {
+        const { data, error } = await sb
+          .from('clients')
+          .insert([{ name: clientName, user_id: currentSession.user.id }])
+          .select();
+        if (error) { alert(error.message); return; }
+        await loadClients();
+        if (data && data[0]) {
+          targetClientId = data[0].id;
         } else {
           return;
         }
-      }
-    } else if (rawVal.startsWith('/') && !rawVal.startsWith('/cl')) {
-      // Ancienne syntaxe /ClientName
-      const spaceIdx = rawVal.indexOf(' ');
-      if (spaceIdx === -1) {
-        alert('Précisez votre message après le nom du client.');
+      } else {
         return;
       }
-      const clientSlug = rawVal.slice(1, spaceIdx).toLowerCase();
-      const found = clients.find(c => c.name.toLowerCase() === clientSlug);
-      if (found) { targetClientId = found.id; }
-      content = rawVal.slice(spaceIdx + 1).trim();
     }
 
-    if (!targetClientId) { alert('Sélectionnez un client avec la commande /cl NomClient.'); return; }
-    if (!content && !globalFile) return;
+    if (!targetClientId) {
+      alert('Veuillez spécifier un client avec la commande /cl NomClient ou en utilisant un raccourci /NomClient.');
+      return;
+    }
 
-    const bgColorToSave = pendingNoteBgColor;
+    const bgColorToSave = parsed.bgColor;
+    const isTodo = parsed.isTodo;
+
+    if (isTodo) {
+      addTodo(targetClientId, content || "À faire");
+      globalChatInput.value = '';
+      pendingNoteBgColor = null;
+      return;
+    }
+
     await sendMessage(targetClientId, content, globalFile, async (msgData) => {
       if (bgColorToSave && msgData?.id) {
         noteBgs[msgData.id] = bgColorToSave;
@@ -1533,34 +1558,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   clientChatForm.addEventListener('submit', async e => {
     e.preventDefault();
-    const content = clientChatInput.value.trim();
-    if (content === '/date') {
+    const rawVal = clientChatInput.value.trim();
+    if (!rawVal && !clientFile) return;
+
+    const parsed = parseInputCommands(rawVal);
+    let targetClientId = parsed.clientId || activeClientId; // par défaut sur le client actif
+    let content = parsed.content;
+
+    const bgColorToSave = parsed.bgColor;
+    const isTodo = parsed.isTodo;
+
+    if (isTodo) {
+      addTodo(targetClientId, content || "À faire");
       clientChatInput.value = '';
-      openDatePicker();
+      pendingNoteBgColor = null;
       return;
     }
-    if (content === '/personne') {
-      clientChatInput.value = '';
-      openPersonModal();
-      return;
-    }
-    if (content === '/couleurfond') {
-      clientChatInput.value = '';
-      openBgColorModal(clientChatInput);
-      return;
-    }
-    if (content.startsWith('/pensebete ')) {
-      const pbContent = content.slice('/pensebete '.length).trim();
-      if (pbContent) {
-        addTodo(activeClientId, pbContent);
-        clientChatInput.value = '';
-      }
-      return;
-    }
-    if (!content && !clientFile) return;
-    const bgColorToSave = pendingNoteBgColor;
-    await sendMessage(activeClientId, content, clientFile, async (msgData) => {
-      // Save bg color for this message
+
+    await sendMessage(targetClientId, content, clientFile, async (msgData) => {
+      // Enregistrer la couleur de fond du message
       if (bgColorToSave && msgData?.id) {
         noteBgs[msgData.id] = bgColorToSave;
         saveNoteBgs();
