@@ -21,24 +21,74 @@ document.addEventListener('DOMContentLoaded', () => {
   let filesWidgetOpen  = true;
   let autocompleteCreateName = '';    // nom saisi après `/` pour créer un client
 
-  // Palette de couleurs pour les badges clients
-  const CLIENT_COLORS = [
-    'bg-violet-100 text-violet-700',
-    'bg-emerald-100 text-emerald-700',
-    'bg-amber-100 text-amber-700',
-    'bg-rose-100 text-rose-700',
-    'bg-cyan-100 text-cyan-700',
-    'bg-fuchsia-100 text-fuchsia-700',
-    'bg-lime-100 text-lime-700',
-    'bg-orange-100 text-orange-700',
-  ];
-  const clientColorMap = {};
-  function clientColor(clientId) {
-    if (!clientColorMap[clientId]) {
-      const idx = Object.keys(clientColorMap).length % CLIENT_COLORS.length;
-      clientColorMap[clientId] = CLIENT_COLORS[idx];
+  // État de planification des messages
+  let selectedMessageDates = [];      // dates sélectionnées pour la future note (format YYYY-MM-DD)
+  let dpMode           = 'single';    // mode calendrier de planification: 'single' ou 'range'
+  let dpMonth          = new Date();  // mois affiché dans le sélecteur
+  let dpRangeStart     = null;        // début de la plage sélectionnée (YYYY-MM-DD)
+  let dpRangeEnd       = null;        // fin de la plage sélectionnée (YYYY-MM-DD)
+
+  // Configuration des thèmes de couleur d'accentuation pour les clients
+  const CLIENT_THEMES = {
+    blue:    { name: 'Bleu',    dotColor: '#3b82f6', badgeClass: 'bg-blue-100 text-blue-700',       accent: '#2563eb', hover: '#1d4ed8', light: 'rgba(37, 99, 235, 0.1)' },
+    emerald: { name: 'Vert',    dotColor: '#10b981', badgeClass: 'bg-emerald-100 text-emerald-700', accent: '#10b981', hover: '#059669', light: 'rgba(16, 185, 129, 0.1)' },
+    amber:   { name: 'Orange',  dotColor: '#f59e0b', badgeClass: 'bg-amber-100 text-amber-700',     accent: '#f59e0b', hover: '#d97706', light: 'rgba(245, 158, 11, 0.1)' },
+    rose:    { name: 'Rose',    dotColor: '#f43f5e', badgeClass: 'bg-rose-100 text-rose-700',       accent: '#f43f5e', hover: '#e11d48', light: 'rgba(244, 63, 94, 0.1)' },
+    cyan:    { name: 'Cyan',    dotColor: '#06b6d4', badgeClass: 'bg-cyan-100 text-cyan-700',       accent: '#06b6d4', hover: '#0891b2', light: 'rgba(6, 182, 212, 0.1)' },
+    violet:  { name: 'Violet',  dotColor: '#8b5cf6', badgeClass: 'bg-violet-100 text-violet-700',   accent: '#8b5cf6', hover: '#7c3aed', light: 'rgba(139, 92, 246, 0.1)' }
+  };
+  const THEME_KEYS = Object.keys(CLIENT_THEMES);
+
+  // Variable locale pour stocker la couleur sélectionnée lors de la création d'un client
+  let selectedNewClientColor = 'blue';
+
+  function getClientColorKey(client) {
+    if (!client) return 'blue';
+    if (client.color && CLIENT_THEMES[client.color]) return client.color;
+    const cached = localStorage.getItem(`client_color_${client.id}`);
+    if (cached && CLIENT_THEMES[cached]) return cached;
+    
+    // Déterminisme par rapport à l'ID
+    let hash = 0;
+    const idStr = String(client.id || '');
+    if (idStr) {
+      for (let i = 0; i < idStr.length; i++) {
+        hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
+      }
     }
-    return clientColorMap[clientId];
+    const idx = Math.abs(hash) % THEME_KEYS.length;
+    return THEME_KEYS[idx];
+  }
+
+  function applyClientTheme(client) {
+    if (!client) return;
+    const key = getClientColorKey(client);
+    const theme = CLIENT_THEMES[key] || CLIENT_THEMES.blue;
+
+    const rootElement = document.getElementById('main-client-view');
+    const headerElement = document.getElementById('active-client-header');
+    const datePicker = document.getElementById('date-picker-modal');
+
+    [rootElement, headerElement, datePicker].forEach(el => {
+      if (el) {
+        el.style.setProperty('--client-accent', theme.accent);
+        el.style.setProperty('--client-accent-hover', theme.hover);
+        el.style.setProperty('--client-accent-light', theme.light);
+      }
+    });
+
+    const clientViewBadge = document.getElementById('client-view-name');
+    if (clientViewBadge) {
+      clientViewBadge.style.borderColor = theme.accent;
+      clientViewBadge.style.color = theme.accent;
+      clientViewBadge.style.backgroundColor = theme.light;
+    }
+  }
+
+  function clientColor(clientId) {
+    const client = clients.find(c => c.id === clientId);
+    const key = getClientColorKey(client || { id: clientId });
+    return CLIENT_THEMES[key].badgeClass;
   }
 
   // ─── DOM REFERENCES ─────────────────────────────────────────────
@@ -115,6 +165,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const filteredDateChat    = document.getElementById('filtered-date-text-chat');
   const clearDateFilterChat = document.getElementById('clear-date-filter-chat');
 
+  // Modale sélection de date
+  const globalDateBtn         = document.getElementById('global-date-btn');
+  const globalDatePreview     = document.getElementById('global-date-preview');
+  const globalDatePreviewText = document.getElementById('global-date-preview-text');
+  const globalRemoveDate      = document.getElementById('global-remove-date');
+
+  const clientDateBtn         = document.getElementById('client-date-btn');
+  const clientDatePreview     = document.getElementById('client-date-preview');
+  const clientDatePreviewText = document.getElementById('client-date-preview-text');
+  const clientRemoveDate      = document.getElementById('client-remove-date');
+
+  const datePickerModal       = document.getElementById('date-picker-modal');
+  const datePickerModalPanel  = document.getElementById('date-picker-modal-panel');
+  const closeDatePickerBtn    = document.getElementById('close-date-picker-btn');
+  const cancelDpBtn           = document.getElementById('cancel-dp-btn');
+  const confirmDpBtn          = document.getElementById('confirm-dp-btn');
+
+  const dateModeSingle        = document.getElementById('date-mode-single');
+  const dateModeRange         = document.getElementById('date-mode-range');
+
+  const dpPrevMonth           = document.getElementById('dp-prev-month');
+  const dpNextMonth           = document.getElementById('dp-next-month');
+  const dpMonthYear           = document.getElementById('dp-month-year');
+  const dpDays                = document.getElementById('dp-days');
+  const dpSelectionSummary    = document.getElementById('dp-selection-summary');
+
   // Modal nouveau client
   const newClientModal      = document.getElementById('new-client-modal');
   const newClientModalPanel = document.getElementById('new-client-modal-panel');
@@ -122,6 +198,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelClientBtn     = document.getElementById('cancel-client-btn');
   const newClientForm       = document.getElementById('new-client-form');
   const newClientName       = document.getElementById('new-client-name');
+  const clientColorPicker   = document.getElementById('client-color-picker');
+  const newClientColors     = document.getElementById('new-client-colors');
 
   // ─── ROUTAGE SYNCHRONISÉ ────────────────────────────────────────
   function showScreen(authActive) {
@@ -186,6 +264,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const client = clients.find(c => c.id === id);
       clientViewName.textContent = client ? client.name : 'Client';
+      
+      // Appliquer le thème d'accentuation dynamique du client
+      applyClientTheme(client);
+      renderClientColorPicker(client);
       
       selectedDateFilter = null;
       updateDateFilterUI();
@@ -319,15 +401,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     filtered.forEach((c, i) => {
       const btn = document.createElement('button');
-      const color = clientColor(c.id);
+      const colorKey = getClientColorKey(c);
+      const theme = CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue;
       const isSelected = activeClientId === c.id;
       
-      btn.className = `w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition group animate-fade-in-up ${isSelected ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-50'}`;
+      if (isSelected) {
+        btn.className = `w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition group animate-fade-in-up font-semibold`;
+        btn.style.backgroundColor = theme.light;
+        btn.style.color = theme.accent;
+      } else {
+        btn.className = `w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50 transition group animate-fade-in-up text-slate-700`;
+      }
+      
       btn.style.animationDelay = `${i * 30}ms`;
       btn.innerHTML = `
-        <span class="w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-blue-600' : color.split(' ')[0].replace('bg-', 'bg-').replace('100', '400')}"></span>
-        <span class="flex-1 truncate ${isSelected ? 'text-blue-700' : 'text-slate-700 group-hover:text-blue-600'} transition">${c.name}</span>
-        <i data-lucide="chevron-right" class="w-3.5 h-3.5 ${isSelected ? 'text-blue-500' : 'text-slate-300 group-hover:text-blue-400'} transition"></i>
+        <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${theme.dotColor};"></span>
+        <span class="flex-1 truncate transition group-hover:text-slate-900">${c.name}</span>
+        <i data-lucide="chevron-right" class="w-3.5 h-3.5 transition" style="color: ${isSelected ? theme.accent : '#cbd5e1'};"></i>
       `;
       btn.addEventListener('click', () => { window.location.hash = `#client/${c.id}`; });
       clientsList.appendChild(btn);
@@ -340,6 +430,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── MODAL NOUVEAU CLIENT ───────────────────────────────────────
   function openModal(prefillName = '') {
     newClientName.value = prefillName;
+    selectedNewClientColor = 'blue';
+
+    // Rendre les options de couleur
+    newClientColors.innerHTML = '';
+    THEME_KEYS.forEach(key => {
+      const theme = CLIENT_THEMES[key];
+      const dot = document.createElement('div');
+      dot.className = `color-dot ${key === selectedNewClientColor ? 'active' : ''}`;
+      dot.style.backgroundColor = theme.dotColor;
+      dot.title = theme.name;
+      dot.addEventListener('click', () => {
+        selectedNewClientColor = key;
+        newClientColors.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        newClientColors.style.setProperty('--client-accent', theme.accent);
+      });
+      newClientColors.appendChild(dot);
+    });
+    newClientColors.style.setProperty('--client-accent', CLIENT_THEMES.blue.accent);
+
     newClientModal.classList.remove('hidden');
     setTimeout(() => {
       newClientModalPanel.classList.remove('scale-95', 'opacity-0');
@@ -361,13 +471,54 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const name = newClientName.value.trim();
     if (!name) return;
-    const { data, error } = await sb.from('clients').insert({ name, user_id: currentSession.user.id }).select();
-    if (error) { alert(error.message); return; }
+
+    let data = null, error = null;
+    
+    // Tenter d'insérer avec la colonne color
+    const res = await sb.from('clients').insert({
+      name,
+      user_id: currentSession.user.id,
+      color: selectedNewClientColor
+    }).select();
+    
+    data = res.data;
+    error = res.error;
+
+    if (error) {
+      // Si la colonne n'existe pas, on replie sur LocalStorage
+      if (error.message.includes('column') && error.message.includes('color')) {
+        console.warn("La colonne 'color' n'existe pas dans votre table 'clients' sur Supabase. Repli sur localStorage local. Exécutez le SQL suivant pour activer la persistance partagée: ALTER TABLE clients ADD COLUMN color text;");
+        
+        const retryRes = await sb.from('clients').insert({
+          name,
+          user_id: currentSession.user.id
+        }).select();
+
+        if (retryRes.error) {
+          alert(retryRes.error.message);
+          return;
+        }
+
+        data = retryRes.data;
+        error = null;
+
+        // Enregistrer dans localStorage local
+        if (data && data[0]) {
+          localStorage.setItem(`client_color_${data[0].id}`, selectedNewClientColor);
+        }
+      } else {
+        alert(error.message);
+        return;
+      }
+    }
+
     closeModal();
     await loadClients();
     if (data && data[0]) {
       pendingClientId = data[0].id;
-      globalChatInput.value = `/${data[0].name} `;
+      // Autocomplete format
+      const formatted = data[0].name.includes(' ') ? `"${data[0].name}"` : data[0].name;
+      globalChatInput.value = `/cl ${formatted} `;
       globalChatInput.focus();
     }
     await loadGlobalFeed();
@@ -448,6 +599,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // Autocomplete `/` et `/cl`
   globalChatInput.addEventListener('input', () => {
     const val = globalChatInput.value;
+
+    if (val.trim() === '/date') {
+      // Suggestion d'ouverture du calendrier
+      autocompleteList.innerHTML = '';
+      const item = document.createElement('div');
+      item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm text-blue-600 font-bold transition';
+      item.innerHTML = `
+        <i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i>
+        <span>📅 Dater cette note... (/date)</span>
+      `;
+      item.addEventListener('mousedown', e => {
+        e.preventDefault();
+        globalChatInput.value = '';
+        hideAutocomplete();
+        openDatePicker();
+      });
+      autocompleteList.appendChild(item);
+      autocompleteCreate.classList.add('hidden');
+      lucide.createIcons();
+      autocompleteDropdown.classList.remove('hidden');
+      return;
+    }
     
     if (val.startsWith('/cl ') || val === '/cl') {
       // Commande /cl (avec espace ou pile sur la commande)
@@ -650,8 +823,9 @@ document.addEventListener('DOMContentLoaded', () => {
       globalFile = null;
       globalFilePreview.classList.add('hidden');
       globalFileInput.value = '';
+      clearSelectedMessageDates(); // Nettoyer la date planifiée
       await loadGlobalFeed();
-    });
+    }, selectedMessageDates);
   });
 
   globalAttachBtn.addEventListener('click', () => globalFileInput.click());
@@ -749,9 +923,10 @@ document.addEventListener('DOMContentLoaded', () => {
       clientFile = null;
       clientFilePreview.classList.add('hidden');
       clientFileInput.value = '';
+      clearSelectedMessageDates(); // Nettoyer la date planifiée
       await loadClientMessages();
       renderCalendar();
-    });
+    }, selectedMessageDates);
   });
 
   clientAttachBtn.addEventListener('click', () => clientFileInput.click());
@@ -769,7 +944,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ─── ENVOI COMMUN ───────────────────────────────────────────────
-  async function sendMessage(clientId, content, file, onSuccess) {
+  async function sendMessage(clientId, content, file, onSuccess, customDates = null) {
     let fileUrl = null, fileName = null;
     if (file) {
       fileName = file.name;
@@ -778,14 +953,32 @@ document.addEventListener('DOMContentLoaded', () => {
       if (upErr) { alert(`Erreur upload: ${upErr.message}`); return; }
       fileUrl = path;
     }
-    const { error } = await sb.from('messages').insert({
-      client_id: clientId,
-      user_id: currentSession.user.id,
-      content: content || null,
-      file_url: fileUrl,
-      file_name: fileName
-    });
-    if (error) { alert(`Erreur: ${error.message}`); return; }
+
+    if (customDates && customDates.length > 0) {
+      // Pour conserver l'ordre d'affichage, on génère des timestamps avec l'heure courante locale
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      const rows = customDates.map(d => ({
+        client_id: clientId,
+        user_id: currentSession.user.id,
+        content: content || null,
+        file_url: fileUrl,
+        file_name: fileName,
+        created_at: `${d}T${timeStr}Z`
+      }));
+      const { error } = await sb.from('messages').insert(rows);
+      if (error) { alert(`Erreur: ${error.message}`); return; }
+    } else {
+      const { error } = await sb.from('messages').insert({
+        client_id: clientId,
+        user_id: currentSession.user.id,
+        content: content || null,
+        file_url: fileUrl,
+        file_name: fileName
+      });
+      if (error) { alert(`Erreur: ${error.message}`); return; }
+    }
+
     if (onSuccess) await onSuccess();
   }
 
@@ -903,4 +1096,252 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── INIT ────────────────────────────────────────────────────────
   applyRoute();
+
+  // ─── DATE PICKER : LOGIQUE ET INTERFACES ──────────────────────────
+  function openDatePicker() {
+    dpMonth = new Date();
+    dpRangeStart = null;
+    dpRangeEnd = null;
+    customSelectedDates = [];
+    updateDatePickerUI();
+    renderDatePickerCalendar();
+
+    datePickerModal.classList.remove('hidden');
+    setTimeout(() => datePickerModalPanel.classList.remove('scale-95', 'opacity-0'), 10);
+  }
+
+  function closeDatePicker() {
+    datePickerModalPanel.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => datePickerModal.classList.add('hidden'), 200);
+  }
+
+  function getDatesInRange(startStr, endStr) {
+    const dates = [];
+    const [sY, sM, sD] = startStr.split('-').map(Number);
+    const [eY, eM, eD] = endStr.split('-').map(Number);
+    let current = new Date(sY, sM - 1, sD);
+    const end = new Date(eY, eM - 1, eD);
+    while (current <= end) {
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      const d = String(current.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  }
+
+  function formatDateLabel(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function renderDatePickerCalendar() {
+    const year  = dpMonth.getFullYear();
+    const month = dpMonth.getMonth();
+    dpMonthYear.textContent = dpMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const offset   = firstDay === 0 ? 6 : firstDay - 1;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    dpDays.innerHTML = '';
+    for (let i = 0; i < offset; i++) {
+      const blank = document.createElement('div');
+      blank.className = 'calendar-day-cell empty-cell';
+      dpDays.appendChild(blank);
+    }
+
+    for (let d = 1; d <= totalDays; d++) {
+      const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const cell = document.createElement('div');
+      cell.className = 'calendar-day-cell text-xs';
+      cell.textContent = d;
+
+      // Classes de sélection
+      if (dpMode === 'single') {
+        if (customSelectedDates.includes(ds)) {
+          cell.classList.add('selected-day');
+        }
+      } else {
+        // Mode Plage
+        if (dpRangeStart === ds && !dpRangeEnd) {
+          cell.classList.add('selected-day');
+        } else if (dpRangeStart === ds) {
+          cell.classList.add('range-start');
+        } else if (dpRangeEnd === ds) {
+          cell.classList.add('range-end');
+        } else if (dpRangeStart && dpRangeEnd && ds > dpRangeStart && ds < dpRangeEnd) {
+          cell.classList.add('range-mid');
+        }
+      }
+
+      cell.addEventListener('click', () => {
+        if (dpMode === 'single') {
+          customSelectedDates = [ds];
+        } else {
+          // Mode plage
+          if ((dpRangeStart && dpRangeEnd) || !dpRangeStart) {
+            dpRangeStart = ds;
+            dpRangeEnd = null;
+            customSelectedDates = [ds];
+          } else {
+            // dpRangeStart est défini, dpRangeEnd est null
+            if (ds < dpRangeStart) {
+              dpRangeStart = ds;
+              dpRangeEnd = null;
+              customSelectedDates = [ds];
+            } else {
+              dpRangeEnd = ds;
+              customSelectedDates = getDatesInRange(dpRangeStart, dpRangeEnd);
+            }
+          }
+        }
+        updateDatePickerUI();
+        renderDatePickerCalendar();
+      });
+
+      dpDays.appendChild(cell);
+    }
+    lucide.createIcons();
+  }
+
+  function updateDatePickerUI() {
+    if (customSelectedDates.length === 0) {
+      dpSelectionSummary.textContent = "Aucune date sélectionnée (par défaut : aujourd'hui)";
+      return;
+    }
+
+    if (dpMode === 'single' || customSelectedDates.length === 1) {
+      dpSelectionSummary.textContent = `1 jour : ${formatDateLabel(customSelectedDates[0])}`;
+    } else {
+      const startLabel = formatDateLabel(dpRangeStart);
+      const endLabel = formatDateLabel(dpRangeEnd || dpRangeStart);
+      dpSelectionSummary.textContent = `${customSelectedDates.length} jours : du ${startLabel} au ${endLabel}`;
+    }
+  }
+
+  // Événements de sélection de mode (Single / Range)
+  dateModeSingle.addEventListener('click', () => {
+    dpMode = 'single';
+    dateModeSingle.className = "flex-1 py-1.5 rounded-lg text-xs font-bold transition bg-white text-slate-800 shadow-sm";
+    dateModeRange.className = "flex-1 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-800";
+    dpRangeStart = null;
+    dpRangeEnd = null;
+    customSelectedDates = [];
+    updateDatePickerUI();
+    renderDatePickerCalendar();
+  });
+
+  dateModeRange.addEventListener('click', () => {
+    dpMode = 'range';
+    dateModeRange.className = "flex-1 py-1.5 rounded-lg text-xs font-bold transition bg-white text-slate-800 shadow-sm";
+    dateModeSingle.className = "flex-1 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-800";
+    dpRangeStart = null;
+    dpRangeEnd = null;
+    customSelectedDates = [];
+    updateDatePickerUI();
+    renderDatePickerCalendar();
+  });
+
+  // Navigation mois
+  dpPrevMonth.addEventListener('click', () => { dpMonth.setMonth(dpMonth.getMonth() - 1); renderDatePickerCalendar(); });
+  dpNextMonth.addEventListener('click', () => { dpMonth.setMonth(dpMonth.getMonth() + 1); renderDatePickerCalendar(); });
+
+  // Fermeture / Confirmation
+  cancelDpBtn.addEventListener('click', closeDatePicker);
+  closeDatePickerBtn.addEventListener('click', closeDatePicker);
+
+  confirmDpBtn.addEventListener('click', () => {
+    // Si l'utilisateur n'a rien cliqué, on prend par défaut aujourd'hui
+    if (customSelectedDates.length === 0) {
+      const today = new Date();
+      const ds = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      customSelectedDates = [ds];
+    }
+
+    selectedMessageDates = [...customSelectedDates];
+
+    // Afficher l'aperçu dans l'input actif
+    const count = selectedMessageDates.length;
+    let label = '';
+    if (count === 1) {
+      label = formatDateLabel(selectedMessageDates[0]);
+    } else {
+      label = `Du ${formatDateLabel(selectedMessageDates[0])} au ${formatDateLabel(selectedMessageDates[count - 1])}`;
+    }
+
+    if (activeClientId) {
+      clientDatePreviewText.textContent = label;
+      clientDatePreview.classList.remove('hidden');
+      globalDatePreview.classList.add('hidden');
+    } else {
+      globalDatePreviewText.textContent = label;
+      globalDatePreview.classList.remove('hidden');
+      clientDatePreview.classList.add('hidden');
+    }
+
+    closeDatePicker();
+  });
+
+  // Retrait de la date d'envoi
+  function clearSelectedMessageDates() {
+    selectedMessageDates = [];
+    globalDatePreview.classList.add('hidden');
+    clientDatePreview.classList.add('hidden');
+    globalDatePreviewText.textContent = '';
+    clientDatePreviewText.textContent = '';
+  }
+
+  globalRemoveDate.addEventListener('click', clearSelectedMessageDates);
+  clientRemoveDate.addEventListener('click', clearSelectedMessageDates);
+
+  // Clic sur les boutons de calendrier des inputs
+  globalDateBtn.addEventListener('click', openDatePicker);
+  clientDateBtn.addEventListener('click', openDatePicker);
+
+  // Écouter /date dans l'input client
+  clientChatInput.addEventListener('input', () => {
+    if (clientChatInput.value.trim() === '/date') {
+      clientChatInput.value = '';
+      openDatePicker();
+    }
+  });
+
+  // Rendu interactif du color picker d'en-tête client
+  function renderClientColorPicker(client) {
+    if (!client) return;
+    clientColorPicker.innerHTML = '';
+    const activeColor = getClientColorKey(client);
+
+    THEME_KEYS.forEach(key => {
+      const theme = CLIENT_THEMES[key];
+      const dot = document.createElement('div');
+      dot.className = `color-dot ${key === activeColor ? 'active' : ''}`;
+      dot.style.backgroundColor = theme.dotColor;
+      dot.title = `Passer l'interface en ${theme.name}`;
+      
+      dot.addEventListener('click', async () => {
+        // Tenter la mise à jour persistante
+        const { error } = await sb.from('clients').update({ color: key }).eq('id', client.id);
+        
+        if (error) {
+          console.warn("Mise à jour de la couleur Supabase échouée (la colonne color n'existe probablement pas). Enregistrement local.", error.message);
+        }
+        
+        // Enregistrement fallback
+        localStorage.setItem(`client_color_${client.id}`, key);
+        
+        // Mettre à jour en mémoire locale
+        client.color = key;
+
+        // Réappliquer le thème et rafraîchir
+        applyClientTheme(client);
+        renderClientColorPicker(client);
+        await loadClients(); // pour actualiser les points de couleur de la liste
+      });
+      clientColorPicker.appendChild(dot);
+    });
+  }
 });

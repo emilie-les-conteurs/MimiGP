@@ -140,3 +140,94 @@ body.auth-body {
   font-weight: 600;
 }
 .calendar-day-cell.selected-day::after { background: rgba(255,255,255,0.7); }
+
+.calendar-day-cell.range-start {
+  background: #2563eb !important;
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: 6px 0 0 6px !important;
+}
+.calendar-day-cell.range-end {
+  background: #2563eb !important;
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: 0 6px 6px 0 !important;
+}
+.calendar-day-cell.range-mid {
+  background: #eff6ff !important; /* blue-50 */
+  color: #1d4ed8 !important; /* blue-700 */
+  border-radius: 0 !important;
+}
+
+/* ─── DYNAMIC THEME SCOPING ────────────────────────── */
+#main-client-view,
+#active-client-header,
+#date-picker-modal {
+  --accent: var(--client-accent, #2563eb);
+  --accent-hover: var(--client-accent-hover, #1d4ed8);
+  --accent-light: var(--client-accent-light, rgba(37, 99, 235, 0.1));
+}
+
+.btn-accented {
+  background-color: var(--accent) !important;
+}
+.btn-accented:hover {
+  background-color: var(--accent-hover) !important;
+}
+
+.client-text-accented {
+  color: var(--accent) !important;
+}
+
+/* Modificateurs calendrier dynamique */
+#main-client-view .calendar-day-cell.selected-day,
+#main-client-view .calendar-day-cell.range-start,
+#main-client-view .calendar-day-cell.range-end,
+#date-picker-modal .calendar-day-cell.selected-day,
+#date-picker-modal .calendar-day-cell.range-start,
+#date-picker-modal .calendar-day-cell.range-end {
+  background-color: var(--accent) !important;
+  color: #fff !important;
+}
+#main-client-view .calendar-day-cell.range-mid,
+#date-picker-modal .calendar-day-cell.range-mid {
+  background-color: var(--accent-light) !important;
+  color: var(--accent) !important;
+}
+#main-client-view .calendar-day-cell.has-notes::after {
+  background-color: var(--accent) !important;
+}
+
+/* Sélecteur de date (Filtres) */
+#main-client-view #date-filter-indicator-chat {
+  background-color: var(--accent-light) !important;
+  color: var(--accent) !important;
+}
+
+/* Cercles de sélection de couleur interactifs */
+.color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 120ms ease;
+}
+.color-dot:hover {
+  transform: scale(1.2);
+}
+.color-dot.active {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 1.5px #ffffff;
+}
+/* Version dans le modal (fond clair) */
+#new-client-colors .color-dot {
+  width: 22px;
+  height: 22px;
+}
+#new-client-colors .color-dot.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+

@@ -117,8 +117,11 @@
         <h1 class="text-lg font-bold tracking-tight cursor-pointer" id="logo-home">MimiGP Portal</h1>
         
         <!-- En-tête dynamique du client actif (affiché uniquement en mode client) -->
-        <div id="active-client-header" class="hidden items-center gap-2 ml-4 pl-4 border-l border-slate-200">
-          <div class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-xs font-bold" id="client-view-name">Client</div>
+        <div id="active-client-header" class="hidden items-center gap-3 ml-4 pl-4 border-l border-slate-200">
+          <div class="px-2.5 py-0.5 rounded-md text-xs font-bold border transition-all duration-200" id="client-view-name">Client</div>
+          <div class="flex items-center gap-1.5" id="client-color-picker" title="Choisir la couleur d'accentuation">
+            <!-- Rendu dynamique des cercles de couleur -->
+          </div>
         </div>
       </div>
       <div class="flex items-center gap-4">
@@ -178,10 +181,13 @@
             </div>
 
             <form id="global-chat-form" class="flex items-end gap-3">
-              <div class="shrink-0">
+              <div class="shrink-0 flex items-center gap-1.5">
                 <input type="file" id="global-file-input" class="hidden">
                 <button type="button" id="global-attach-btn" class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition" title="Joindre un fichier">
                   <i data-lucide="paperclip" class="w-5 h-5"></i>
+                </button>
+                <button type="button" id="global-date-btn" class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition" title="Choisir une date (futur/passé)">
+                  <i data-lucide="calendar" class="w-5 h-5"></i>
                 </button>
               </div>
 
@@ -189,6 +195,15 @@
                 <div id="global-file-preview" class="hidden bg-slate-100 px-3 py-1.5 rounded-t-xl border border-b-0 border-slate-200 flex items-center justify-between text-xs">
                   <span class="font-medium text-slate-700 truncate max-w-[200px]" id="global-file-name"></span>
                   <button type="button" id="global-remove-file" class="text-rose-500 hover:text-rose-700 ml-2">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+                <div id="global-date-preview" class="hidden bg-blue-50 text-blue-700 px-3 py-1.5 rounded-t-xl border border-b-0 border-blue-200 flex items-center justify-between text-xs font-semibold">
+                  <span class="flex items-center gap-1.5">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                    <span id="global-date-preview-text"></span>
+                  </span>
+                  <button type="button" id="global-remove-date" class="text-blue-500 hover:text-blue-700 ml-2">
                     <i data-lucide="x" class="w-3.5 h-3.5"></i>
                   </button>
                 </div>
@@ -226,10 +241,13 @@
           <!-- Saisie chat client -->
           <div class="p-4 border-t border-slate-100 bg-white shrink-0">
             <form id="client-chat-form" class="flex items-end gap-3">
-              <div class="shrink-0">
+              <div class="shrink-0 flex items-center gap-1.5">
                 <input type="file" id="client-file-input" class="hidden">
                 <button type="button" id="client-attach-btn" class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition">
                   <i data-lucide="paperclip" class="w-5 h-5"></i>
+                </button>
+                <button type="button" id="client-date-btn" class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition" title="Choisir une date (futur/passé)">
+                  <i data-lucide="calendar" class="w-5 h-5"></i>
                 </button>
               </div>
               <div class="flex-1 flex flex-col">
@@ -239,9 +257,18 @@
                     <i data-lucide="x" class="w-3.5 h-3.5"></i>
                   </button>
                 </div>
+                <div id="client-date-preview" class="hidden bg-blue-50 text-blue-700 px-3 py-1.5 rounded-t-xl border border-b-0 border-blue-200 flex items-center justify-between text-xs font-semibold">
+                  <span class="flex items-center gap-1.5">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                    <span id="client-date-preview-text"></span>
+                  </span>
+                  <button type="button" id="client-remove-date" class="text-blue-500 hover:text-blue-700 ml-2">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
                 <input type="text" id="client-chat-input" class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="Écrire une note dédiée pour ce client...">
               </div>
-              <button type="submit" class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition">
+              <button type="submit" class="btn-accented shrink-0 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition">
                 <i data-lucide="send" class="w-5 h-5"></i>
               </button>
             </form>
@@ -255,7 +282,7 @@
           <div class="p-4 border-b border-slate-100 bg-slate-50/30">
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                <i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i>
+                <i data-lucide="calendar" class="w-4 h-4 client-text-accented"></i>
                 <span>Calendrier</span>
               </h3>
               <div class="flex items-center gap-0.5">
@@ -283,7 +310,7 @@
           <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
             <button id="files-widget-toggle" class="flex items-center justify-between px-4 py-3 border-b border-slate-100 w-full text-left group shrink-0 hover:bg-slate-50 transition">
               <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                <i data-lucide="file-text" class="w-4 h-4 text-blue-500"></i>
+                <i data-lucide="file-text" class="w-4 h-4 client-text-accented"></i>
                 <span>Fichiers partagés</span>
               </h3>
               <i data-lucide="chevron-down" id="files-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200"></i>
@@ -313,15 +340,80 @@
         </button>
       </div>
       <form id="new-client-form">
-        <div class="p-6">
-          <label class="text-sm font-medium block mb-1.5">Nom du client ou projet</label>
-          <input class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition" type="text" id="new-client-name" required placeholder="Entreprise ACME, Projet X...">
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="text-sm font-medium block mb-1.5">Nom du client ou projet</label>
+            <input class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition" type="text" id="new-client-name" required placeholder="Entreprise ACME, Projet X...">
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-2">Couleur d'accentuation</label>
+            <div class="flex items-center gap-2.5" id="new-client-colors">
+              <!-- Rendu dynamique des options de couleur -->
+            </div>
+          </div>
         </div>
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
           <button type="button" id="cancel-client-btn" class="px-4 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50 transition">Annuler</button>
           <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">Créer</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODALE SÉLECTION DATE -->
+  <div id="date-picker-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div id="date-picker-modal-panel" class="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-sm mx-4 overflow-hidden transform scale-95 opacity-0 transition-all duration-200">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="calendar" class="w-5 h-5 text-blue-500"></i>
+          Dater la note
+        </h3>
+        <button id="close-date-picker-btn" class="text-slate-400 hover:text-slate-600 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      
+      <div class="p-5 space-y-4">
+        <!-- Sélecteur de mode (Unique / Plage) -->
+        <div class="flex bg-slate-100 p-1 rounded-xl gap-1">
+          <button type="button" id="date-mode-single" class="flex-1 py-1.5 rounded-lg text-xs font-bold transition bg-white text-slate-800 shadow-sm">
+            Date unique
+          </button>
+          <button type="button" id="date-mode-range" class="flex-1 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-800">
+            Plage de dates
+          </button>
+        </div>
+
+        <!-- Calendrier interactif -->
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <button type="button" id="dp-prev-month" class="p-1 hover:bg-slate-200 rounded-lg text-slate-500 transition">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <span id="dp-month-year" class="text-xs font-bold text-slate-700"></span>
+            <button type="button" id="dp-next-month" class="p-1 hover:bg-slate-200 rounded-lg text-slate-500 transition">
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-1">
+            <div>Lu</div><div>Ma</div><div>Me</div><div>Je</div><div>Ve</div><div>Sa</div><div>Di</div>
+          </div>
+          
+          <div id="dp-days" class="calendar-grid"></div>
+        </div>
+
+        <!-- Info sélection actuelle -->
+        <div class="text-xs text-slate-500 bg-blue-50/50 border border-blue-100/50 p-3 rounded-xl flex flex-col gap-1">
+          <span class="font-bold text-blue-700">Sélection :</span>
+          <span id="dp-selection-summary">Aucune date sélectionnée</span>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+        <button type="button" id="cancel-dp-btn" class="px-4 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50 transition">Annuler</button>
+        <button type="button" id="confirm-dp-btn" class="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">Valider</button>
+      </div>
     </div>
   </div>
 
