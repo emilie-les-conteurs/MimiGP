@@ -79,3 +79,30 @@ button:hover {
   border: 1px solid #eee;
   border-radius: 5px;
 }
+
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-wrapper input {
+  padding-right: 40px !important;
+}
+
+.toggle-password-btn {
+  position: absolute;
+  right: 10px;
+  background: none !important;
+  color: #888 !important;
+  border: none !important;
+  padding: 0 !important;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.toggle-password-btn:hover {
+  background: none !important;
+  color: #333 !important;
+}
+

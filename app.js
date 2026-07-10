@@ -152,4 +152,20 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error("Erreur lors de la déconnexion :", error.message);
     }
   });
+
+  // --- Afficher / Masquer le mot de passe ---
+  const togglePasswordBtns = document.querySelectorAll('.toggle-password-btn');
+  togglePasswordBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+      }
+    });
+  });
 });

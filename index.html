@@ -14,27 +14,33 @@
     <form id="register-form">
       <div class="form-group">
         <label for="register-firstname">Prénom</label>
-        <input type="text" id="register-firstname" required placeholder="Jean">
+        <input type="text" id="register-firstname" name="firstname" autocomplete="given-name" required placeholder="Jean">
       </div>
       <div class="form-group">
         <label for="register-lastname">Nom</label>
-        <input type="text" id="register-lastname" required placeholder="Dupont">
+        <input type="text" id="register-lastname" name="lastname" autocomplete="family-name" required placeholder="Dupont">
       </div>
       <div class="form-group">
         <label for="register-position">Poste</label>
-        <input type="text" id="register-position" required placeholder="Développeur, Manager, etc.">
+        <input type="text" id="register-position" name="position" autocomplete="organization-title" required placeholder="Développeur, Manager, etc.">
       </div>
       <div class="form-group">
         <label for="register-email">Adresse e-mail</label>
-        <input type="email" id="register-email" required placeholder="nom@exemple.com">
+        <input type="email" id="register-email" name="email" autocomplete="username" required placeholder="nom@exemple.com">
       </div>
       <div class="form-group">
         <label for="register-password">Mot de passe</label>
-        <input type="password" id="register-password" required minlength="6" placeholder="Min. 6 caractères">
+        <div class="password-wrapper">
+          <input type="password" id="register-password" name="password" autocomplete="new-password" required minlength="6" placeholder="Min. 6 caractères">
+          <button type="button" class="toggle-password-btn" data-target="register-password" tabindex="-1">👁️</button>
+        </div>
       </div>
       <div class="form-group">
         <label for="register-confirm-password">Confirmation du mot de passe</label>
-        <input type="password" id="register-confirm-password" required minlength="6" placeholder="Saisir à nouveau le mot de passe">
+        <div class="password-wrapper">
+          <input type="password" id="register-confirm-password" name="confirm-password" autocomplete="new-password" required minlength="6" placeholder="Saisir à nouveau le mot de passe">
+          <button type="button" class="toggle-password-btn" data-target="register-confirm-password" tabindex="-1">👁️</button>
+        </div>
       </div>
       <button type="submit">S'inscrire</button>
     </form>
@@ -51,11 +57,14 @@
     <form id="login-form">
       <div class="form-group">
         <label for="login-email">Adresse e-mail</label>
-        <input type="email" id="login-email" required placeholder="nom@exemple.com">
+        <input type="email" id="login-email" name="email" autocomplete="username" required placeholder="nom@exemple.com">
       </div>
       <div class="form-group">
         <label for="login-password">Mot de passe</label>
-        <input type="password" id="login-password" required>
+        <div class="password-wrapper">
+          <input type="password" id="login-password" name="password" autocomplete="current-password" required>
+          <button type="button" class="toggle-password-btn" data-target="login-password" tabindex="-1">👁️</button>
+        </div>
       </div>
       <button type="submit">Se connecter</button>
     </form>
