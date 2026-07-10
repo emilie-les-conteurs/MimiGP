@@ -2272,4 +2272,3 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSettingsManagement();
   });
 });
-});
