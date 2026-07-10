@@ -129,6 +129,10 @@
           <p class="text-sm font-semibold leading-tight" id="user-display-name"></p>
           <p class="text-xs text-slate-500" id="user-display-position"></p>
         </div>
+        <a href="#settings" id="settings-nav-btn" class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-semibold transition" title="Paramètres du compte">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Paramètres</span>
+        </a>
         <button id="logout-btn" class="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-sm font-semibold transition">
           <i data-lucide="log-out" class="w-4 h-4"></i>
           <span>Déconnexion</span>
@@ -322,6 +326,80 @@
             </div>
           </div>
         </aside>
+      </div>
+
+      <!-- PANNEAU DROIT DYNAMIQUE — VUE PARAMÈTRES GLOBAL -->
+      <div id="main-settings-view" class="hidden flex-1 min-h-0 flex flex-col bg-slate-50 overflow-y-auto">
+        <div class="p-8 max-w-5xl w-full mx-auto space-y-8 animate-fade-in-up">
+          
+          <!-- En-tête Paramètres -->
+          <div class="border-b border-slate-200 pb-4">
+            <h1 class="text-2xl font-black text-slate-800 flex items-center gap-2">
+              <i data-lucide="settings" class="w-7 h-7 text-blue-500"></i>
+              Paramètres du compte
+            </h1>
+            <p class="text-sm text-slate-400">Gérez globalement vos clients, vos prénoms surlignés et les préférences du portail.</p>
+          </div>
+
+          <!-- Grille des sections de gestion -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <!-- SECTION : GESTION DES PERSONNES -->
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col h-[650px] overflow-hidden">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+                <h2 class="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wider">
+                  <i data-lucide="users" class="w-4 h-4 text-purple-500"></i>
+                  Gestion des personnes
+                </h2>
+                <span class="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-semibold" id="settings-persons-count">0</span>
+              </div>
+              
+              <!-- Formulaire rapide pour ajouter une personne -->
+              <form id="settings-add-person-form" class="mt-4 p-4 bg-purple-50/50 border border-purple-100/50 rounded-xl space-y-3 shrink-0">
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="text-[10px] uppercase font-bold text-slate-400">Prénom</label>
+                    <input type="text" id="settings-add-person-name" required placeholder="Antoine..." class="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition">
+                  </div>
+                  <div>
+                    <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Couleur</label>
+                    <div class="flex items-center gap-2">
+                      <input type="color" id="settings-add-person-color" value="#8b5cf6" class="w-7 h-7 border-0 rounded cursor-pointer bg-transparent">
+                      <span class="text-[10px] font-mono text-slate-500" id="settings-add-person-color-hex-field">#8B5CF6</span>
+                    </div>
+                  </div>
+                </div>
+                <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1">
+                  <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                  Ajouter la personne
+                </button>
+              </form>
+
+              <!-- Liste des personnes -->
+              <div class="flex-1 overflow-y-auto mt-4 space-y-2 pr-1" id="settings-persons-list">
+                <!-- Rendu dynamique -->
+              </div>
+            </section>
+
+            <!-- SECTION : GESTION DES CLIENTS -->
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col h-[650px] overflow-hidden">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+                <h2 class="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wider">
+                  <i data-lucide="briefcase" class="w-4 h-4 text-blue-500"></i>
+                  Gestion des clients (marques)
+                </h2>
+                <span class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-semibold" id="settings-clients-count">0</span>
+              </div>
+              
+              <!-- Liste des clients -->
+              <div class="flex-1 overflow-y-auto mt-4 space-y-2 pr-1" id="settings-clients-list">
+                <!-- Rendu dynamique -->
+              </div>
+            </section>
+
+          </div>
+
+        </div>
       </div>
 
     </div>

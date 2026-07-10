@@ -278,6 +278,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const personColorHex       = document.getElementById('person-color-hex');
   const personClientColorsGrid = document.getElementById('person-client-colors-grid');
 
+  // Page Paramètres du Compte
+  const mainSettingsView       = document.getElementById('main-settings-view');
+  const settingsPersonsCount   = document.getElementById('settings-persons-count');
+  const settingsClientsCount   = document.getElementById('settings-clients-count');
+  const settingsAddPersonForm  = document.getElementById('settings-add-person-form');
+  const settingsAddPersonName  = document.getElementById('settings-add-person-name');
+  const settingsAddPersonColor = document.getElementById('settings-add-person-color');
+  const settingsAddPersonColorHexField = document.getElementById('settings-add-person-color-hex-field');
+  const settingsPersonsList    = document.getElementById('settings-persons-list');
+  const settingsClientsList    = document.getElementById('settings-clients-list');
+
   // ─── ROUTAGE SYNCHRONISÉ ────────────────────────────────────────
   function showScreen(authActive) {
     if (authActive) {
@@ -326,6 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Afficher/Masquer les sous-panneaux UI
       mainGlobalView.classList.add('hidden');
+      mainSettingsView.classList.add('hidden');
       mainClientView.classList.remove('hidden');
 
       // Masquer la sidebar clients et passer la navbar en mode espace client dédié
@@ -350,10 +362,30 @@ document.addEventListener('DOMContentLoaded', () => {
       await loadClientMessages();
       renderCalendar();
       renderClientList(); // Rafraîchir l'état actif dans la sidebar
+    } else if (hash === '#settings') {
+      activeClientId = null;
+      mainClientView.classList.add('hidden');
+      mainGlobalView.classList.add('hidden');
+      mainSettingsView.classList.remove('hidden');
+
+      // Réafficher la sidebar clients et repasser la navbar en mode clair dashboard
+      sidebarClients.classList.remove('hidden');
+      navbarHeader.classList.remove('client-mode');
+
+      // Configurer la navbar en mode "Paramètres" (avec bouton retour)
+      backToDashboard.classList.remove('hidden');
+      backToDashboard.classList.add('flex');
+      backSeparator.classList.remove('hidden');
+      activeClientHeader.classList.add('hidden');
+      activeClientHeader.classList.remove('flex');
+
+      renderSettingsManagement();
+      renderClientList(); // Effacer la sélection de la sidebar
     } else {
       // Mode Dashboard Accueil Global
       activeClientId = null;
       mainClientView.classList.add('hidden');
+      mainSettingsView.classList.add('hidden');
       mainGlobalView.classList.remove('hidden');
 
       // Réafficher la sidebar clients et repasser la navbar en mode clair dashboard
@@ -1970,4 +2002,201 @@ document.addEventListener('DOMContentLoaded', () => {
     const pinned = JSON.parse(localStorage.getItem('mimi_pinned_files') || '[]');
     return pinned.includes(String(msgId));
   }
+
+  // ─── GESTION GLOBAL DE LA PAGE DES PARAMÈTRES ──────────────────────
+  function renderSettingsManagement() {
+    renderSettingsClients(settingsClientsList);
+    renderSettingsPersons(settingsPersonsList);
+  }
+
+  function renderSettingsClients(clientsListContainer) {
+    clientsListContainer.innerHTML = '';
+    settingsClientsCount.textContent = clients.length;
+
+    if (clients.length === 0) {
+      clientsListContainer.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucun client configuré.</p>';
+      return;
+    }
+
+    clients.forEach((c) => {
+      const colorKey = getClientColorKey(c);
+      const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+      
+      const div = document.createElement('div');
+      div.className = 'p-3 bg-slate-50 border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 transition-all hover:bg-slate-100/30';
+      div.innerHTML = `
+        <div class="flex-1 min-w-0 flex items-center gap-3">
+          <input type="text" value="${escapeHTML(c.name)}" class="edit-client-name-input bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-[180px]" data-id="${c.id}">
+          
+          <div class="flex items-center gap-1.5 shrink-0">
+            <input type="color" value="${theme.dotColor}" class="settings-row-client-color w-6 h-6 border border-slate-200 rounded cursor-pointer bg-transparent" data-id="${c.id}">
+            <span class="text-[10px] font-mono text-slate-400 uppercase hidden sm:inline">${theme.dotColor}</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-1">
+          <button class="settings-save-client-btn p-1.5 hover:bg-emerald-50 rounded-lg text-slate-400 hover:text-emerald-600 transition" data-id="${c.id}" title="Enregistrer">
+            <i data-lucide="check" class="w-4 h-4"></i>
+          </button>
+          <button class="settings-delete-client-btn p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition" data-id="${c.id}" title="Supprimer">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      `;
+      clientsListContainer.appendChild(div);
+    });
+
+    // Événements Clients
+    clientsListContainer.querySelectorAll('.settings-save-client-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const row = btn.closest('.settings-save-client-btn').parentNode.parentNode;
+        const nameInput = row.querySelector('.edit-client-name-input');
+        const colorInput = row.querySelector('.settings-row-client-color');
+        const newName = nameInput.value.trim();
+        const newColor = colorInput.value;
+        
+        if (!newName) return;
+        
+        const { error } = await sb.from('clients').update({ name: newName, color: newColor }).eq('id', id);
+        if (error) {
+          console.warn("Échec mise à jour couleur Supabase, repli sur nom...", error.message);
+          const { error: err2 } = await sb.from('clients').update({ name: newName }).eq('id', id);
+          if (err2) { alert(err2.message); return; }
+        }
+        
+        localStorage.setItem(`client_color_${id}`, newColor);
+        
+        await loadClients();
+        renderSettingsManagement();
+      });
+    });
+
+    clientsListContainer.querySelectorAll('.settings-delete-client-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const c = clients.find(cl => cl.id === id);
+        if (!c) return;
+        if (!confirm(`Êtes-vous sûr de vouloir supprimer le client "${c.name}" ainsi que toutes ses notes ?\nCette action est définitive.`)) return;
+        
+        // 1. Supprimer messages
+        await sb.from('messages').delete().eq('client_id', id);
+        // 2. Supprimer client
+        await sb.from('clients').delete().eq('id', id);
+        // 3. Vider cache local
+        localStorage.removeItem(`client_color_${id}`);
+        
+        await loadClients();
+        renderSettingsManagement();
+      });
+    });
+
+    lucide.createIcons();
+  }
+
+  function renderSettingsPersons(personsListContainer) {
+    personsListContainer.innerHTML = '';
+    const saved = localStorage.getItem('mimi_persons');
+    const persons = saved ? JSON.parse(saved) : [];
+    
+    settingsPersonsCount.textContent = persons.length;
+
+    if (persons.length === 0) {
+      personsListContainer.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucune personne configurée.</p>';
+      return;
+    }
+
+    persons.forEach((p, idx) => {
+      const div = document.createElement('div');
+      div.className = 'p-3 bg-slate-50 border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 transition-all hover:bg-slate-100/30';
+      div.innerHTML = `
+        <div class="flex-1 min-w-0 flex items-center gap-3">
+          <input type="text" value="${escapeHTML(p.name)}" class="edit-person-name-input bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 w-full max-w-[140px]" data-idx="${idx}">
+          
+          <div class="flex items-center gap-1.5 shrink-0">
+            <input type="color" value="${p.color}" class="settings-row-person-color w-6 h-6 border border-slate-200 rounded cursor-pointer bg-transparent" data-idx="${idx}">
+            <span class="text-[10px] font-mono text-slate-400 uppercase hidden sm:inline">${p.color}</span>
+          </div>
+
+          <span class="px-1.5 py-0.5 rounded font-semibold text-[10px] border truncate max-w-[80px] hidden sm:inline" style="background-color: ${p.color}20; color: ${p.color}; border-color: ${p.color}40;">${escapeHTML(p.name)}</span>
+        </div>
+        
+        <div class="flex items-center gap-1">
+          <button class="settings-save-person-btn p-1.5 hover:bg-emerald-50 rounded-lg text-slate-400 hover:text-emerald-600 transition" data-idx="${idx}" title="Enregistrer">
+            <i data-lucide="check" class="w-4 h-4"></i>
+          </button>
+          <button class="settings-delete-person-btn p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition" data-idx="${idx}" title="Supprimer">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      `;
+      personsListContainer.appendChild(div);
+    });
+
+    // Événements Personnes
+    personsListContainer.querySelectorAll('.settings-save-person-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        const row = btn.closest('.settings-save-person-btn').parentNode.parentNode;
+        const nameInput = row.querySelector('.edit-person-name-input');
+        const colorInput = row.querySelector('.settings-row-person-color');
+        const newName = nameInput.value.trim();
+        const newColor = colorInput.value;
+        
+        if (!newName) return;
+        
+        const saved = localStorage.getItem('mimi_persons');
+        const persons = saved ? JSON.parse(saved) : [];
+        
+        persons[idx] = { name: newName, color: newColor };
+        localStorage.setItem('mimi_persons', JSON.stringify(persons));
+        
+        renderSettingsManagement();
+      });
+    });
+
+    personsListContainer.querySelectorAll('.settings-delete-person-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        const saved = localStorage.getItem('mimi_persons');
+        const persons = saved ? JSON.parse(saved) : [];
+        
+        persons.splice(idx, 1);
+        localStorage.setItem('mimi_persons', JSON.stringify(persons));
+        
+        renderSettingsManagement();
+      });
+    });
+
+    lucide.createIcons();
+  }
+
+  // Écouteurs de création rapide de personne dans les paramètres
+  settingsAddPersonColor.addEventListener('input', () => {
+    settingsAddPersonColorHexField.textContent = settingsAddPersonColor.value.toUpperCase();
+  });
+
+  settingsAddPersonForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const nameVal = settingsAddPersonName.value.trim();
+    if (!nameVal) return;
+    
+    const saved = localStorage.getItem('mimi_persons');
+    const persons = saved ? JSON.parse(saved) : [];
+    
+    const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
+    if (existsIdx !== -1) {
+      persons[existsIdx].color = settingsAddPersonColor.value;
+    } else {
+      persons.push({ name: nameVal, color: settingsAddPersonColor.value });
+    }
+    
+    localStorage.setItem('mimi_persons', JSON.stringify(persons));
+    
+    settingsAddPersonName.value = '';
+    settingsAddPersonColor.value = '#8b5cf6';
+    settingsAddPersonColorHexField.textContent = '#8B5CF6';
+    
+    renderSettingsManagement();
+  });
 });
