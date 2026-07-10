@@ -1,4 +1,69 @@
-<head></head>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MimiGP - Connexion / Inscription</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
-<string>mimi</string>
+
+  <!-- ÉCRAN D'INSCRIPTION -->
+  <div id="register-screen" class="auth-container">
+    <h2>Inscription</h2>
+    <form id="register-form">
+      <div class="form-group">
+        <label for="register-username">Nom d'utilisateur</label>
+        <input type="text" id="register-username" required>
+      </div>
+      <div class="form-group">
+        <label for="register-password">Mot de passe</label>
+        <input type="password" id="register-password" required>
+      </div>
+      <button type="submit">S'inscrire</button>
+    </form>
+    <div id="register-error" class="error-message"></div>
+    <div id="register-success" class="success-message"></div>
+    <div class="toggle-auth">
+      Déjà un compte ? <a id="go-to-login">Se connecter</a>
+    </div>
+  </div>
+
+  <!-- ÉCRAN DE CONNEXION -->
+  <div id="login-screen" class="auth-container hidden">
+    <h2>Connexion</h2>
+    <form id="login-form">
+      <div class="form-group">
+        <label for="login-username">Nom d'utilisateur</label>
+        <input type="text" id="login-username" required>
+      </div>
+      <div class="form-group">
+        <label for="login-password">Mot de passe</label>
+        <input type="password" id="login-password" required>
+      </div>
+      <button type="submit">Se connecter</button>
+    </form>
+    <div id="login-error" class="error-message"></div>
+    <div class="toggle-auth">
+      Pas encore de compte ? <a id="go-to-register">S'inscrire</a>
+    </div>
+  </div>
+
+  <!-- CONTENU DU SITE (PROTÉGÉ) -->
+  <div id="main-content" class="hidden">
+    <header style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
+      <h1>MimiGP</h1>
+      <div>
+        Bonjour <span id="user-display-name" style="font-weight: bold;"></span> !
+        <button id="logout-btn" style="margin-left: 15px; background-color: #ff4d4f;">Déconnexion</button>
+      </div>
+    </header>
+    <main style="margin-top: 20px;">
+      <h2>Bienvenue sur MimiGP</h2>
+      <p>Ceci est l'espace membre sécurisé. Pour le moment, l'authentification est fonctionnelle.</p>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
 </body>
+</html>
