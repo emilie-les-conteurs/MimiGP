@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let globalFile       = null;        // fichier sélectionné (chat global)
   let clientFile       = null;        // fichier sélectionné (chat client)
   let filesWidgetOpen  = true;
-  let autocompleteCreateName = '';    // nom saisi après `/` pour créer un client
+
   let selectedPersonClientColorId = null; // client couleur associé à la personne en cours de création
 
   // État de planification des messages
@@ -214,10 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const globalFilePreview   = document.getElementById('global-file-preview');
   const globalFileName      = document.getElementById('global-file-name');
   const globalRemoveFile    = document.getElementById('global-remove-file');
-  const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
-  const autocompleteList    = document.getElementById('autocomplete-list');
-  const autocompleteCreate  = document.getElementById('autocomplete-create');
-  const autocompleteCreateLabel = document.getElementById('autocomplete-create-label');
+
 
   // Chat Dédié (Vue Client)
   const clientChatMessages  = document.getElementById('client-chat-messages');
@@ -725,36 +722,115 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── COMMAND PICKER (Notion-style) ──────────────────────────────────
   const commandPickerEl = document.getElementById('command-picker');
   const commandPickerList = document.getElementById('command-picker-list');
+  let currentPickerItems = [];
 
-  function showCommandPicker(inputEl, query) {
-    const filtered = query.length <= 1
-      ? SLASH_COMMANDS
-      : SLASH_COMMANDS.filter(c => c.label.toLowerCase().startsWith(query.toLowerCase()));
+  function showCommandPicker(inputEl, val) {
+    currentPickerItems = [];
+    
+    // 1. Mode autocomplétion client (si commence par /cl)
+    if (val.startsWith('/cl ') || val === '/cl') {
+      const clQuery = val === '/cl' ? '' : val.slice(4).replace(/^"|"/g, '').toLowerCase();
+      const matches = clients.filter(c => c.name.toLowerCase().includes(clQuery));
+      
+      matches.forEach(c => {
+        const colorKey = getClientColorKey(c);
+        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+        currentPickerItems.push({
+          type: 'client',
+          cmd: c.name.includes(' ') ? `/cl "${c.name}" ` : `/cl ${c.name} `,
+          label: c.name,
+          desc: 'Sélectionner ce client',
+          icon: `<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${theme.dotColor};"></span>`,
+          clientObj: c
+        });
+      });
 
-    if (filtered.length === 0) { hideCommandPicker(); return; }
+      if (clQuery.length > 0) {
+        currentPickerItems.push({
+          type: 'create',
+          cmd: clQuery,
+          label: `Créer "${clQuery.charAt(0).toUpperCase() + clQuery.slice(1)}"`,
+          desc: 'Créer ce client et l\'associer à la note',
+          icon: '➕'
+        });
+      }
+    } else {
+      // 2. Mode recherche de commandes / raccourcis clients
+      const cmdQuery = val.slice(1).toLowerCase();
 
-    commandPickerList.innerHTML = filtered.map((c, i) => `
-      <div class="command-item" data-cmd="${c.cmd}" data-index="${i}" tabindex="-1">
-        <div class="cmd-icon">${c.icon}</div>
-        <div class="flex flex-col">
-          <span class="cmd-label">${c.label}</span>
-          <span class="cmd-desc">${c.desc}</span>
+      // Filtrer les commandes principales
+      const filteredCmds = SLASH_COMMANDS.filter(c => c.label.toLowerCase().includes(val.toLowerCase()) || c.cmd.toLowerCase().includes(val.toLowerCase()));
+      filteredCmds.forEach(c => {
+        currentPickerItems.push({
+          type: 'cmd',
+          cmd: c.cmd,
+          label: c.label,
+          desc: c.desc,
+          icon: c.icon
+        });
+      });
+
+      // Filtrer les clients raccourcis (ex: /ClientName)
+      const filteredClients = clients.filter(c => c.name.toLowerCase().includes(cmdQuery));
+      filteredClients.forEach(c => {
+        const colorKey = getClientColorKey(c);
+        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+        currentPickerItems.push({
+          type: 'client-shortcut',
+          cmd: `/${c.name.includes(' ') ? `"${c.name}"` : c.name} `,
+          label: `/${c.name}`,
+          desc: `Raccourci direct vers le client ${c.name}`,
+          icon: `<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${theme.dotColor};"></span>`,
+          clientObj: c
+        });
+      });
+    }
+
+    if (currentPickerItems.length === 0) { hideCommandPicker(); return; }
+
+    // Rendre la liste
+    let html = '';
+    let lastType = null;
+    currentPickerItems.forEach((item, index) => {
+      let sectionHeader = '';
+      if (item.type !== lastType) {
+        if (item.type === 'cmd') {
+          sectionHeader = `<div class="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">Commandes</div>`;
+        } else if (item.type === 'client') {
+          sectionHeader = `<div class="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">Clients</div>`;
+        } else if (item.type === 'client-shortcut') {
+          sectionHeader = `<div class="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">Raccourcis Clients</div>`;
+        } else if (item.type === 'create') {
+          sectionHeader = `<div class="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">Action</div>`;
+        }
+        html += sectionHeader;
+        lastType = item.type;
+      }
+
+      html += `
+        <div class="command-item ${index === commandPickerActiveIndex ? 'active' : ''}" data-index="${index}">
+          <div class="cmd-icon">${item.icon}</div>
+          <div class="flex flex-col">
+            <span class="cmd-label">${item.label}</span>
+            <span class="cmd-desc">${item.desc}</span>
+          </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    });
 
-    // Position above the input
+    commandPickerList.innerHTML = html;
+
+    // Positionner au-dessus du champ
     const rect = inputEl.getBoundingClientRect();
     commandPickerEl.style.left = rect.left + 'px';
     commandPickerEl.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
     commandPickerEl.classList.remove('hidden');
-    commandPickerActiveIndex = -1;
 
     commandPickerList.querySelectorAll('.command-item').forEach(item => {
       item.addEventListener('mousedown', e => {
         e.preventDefault();
-        const cmd = item.dataset.cmd;
-        insertCommand(inputEl, cmd);
+        const idx = parseInt(item.dataset.index);
+        executeItem(inputEl, currentPickerItems[idx]);
       });
     });
 
@@ -771,15 +847,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!items.length) return false;
     items.forEach(i => i.classList.remove('active'));
     commandPickerActiveIndex = (commandPickerActiveIndex + direction + items.length) % items.length;
-    items[commandPickerActiveIndex]?.classList.add('active');
+    
+    const activeItem = items[commandPickerActiveIndex];
+    if (activeItem) {
+      activeItem.classList.add('active');
+      activeItem.scrollIntoView({ block: 'nearest' });
+    }
     return true;
   }
 
-  function insertCommand(inputEl, cmd) {
+  async function executeItem(inputEl, item) {
+    hideCommandPicker();
+    
+    if (item.type === 'create') {
+      const clientName = item.cmd.charAt(0).toUpperCase() + item.cmd.slice(1);
+      openModal(clientName);
+      return;
+    }
+
+    if (item.type === 'client') {
+      pendingClientId = item.clientObj.id;
+      inputEl.value = item.cmd;
+      inputEl.focus();
+      return;
+    }
+
+    if (item.type === 'client-shortcut') {
+      pendingClientId = item.clientObj.id;
+      inputEl.value = item.cmd;
+      inputEl.focus();
+      return;
+    }
+
+    const cmd = item.cmd;
     inputEl.value = cmd;
     inputEl.focus();
-    hideCommandPicker();
-    // Trigger special single-step commands immediately
+
     if (cmd === '/couleurfond') {
       inputEl.value = '';
       openBgColorModal(inputEl);
@@ -797,11 +900,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'ArrowDown') { e.preventDefault(); navigateCommandPicker(1); return true; }
     if (e.key === 'ArrowUp') { e.preventDefault(); navigateCommandPicker(-1); return true; }
     if (e.key === 'Enter' || e.key === 'Tab') {
-      const items = commandPickerList.querySelectorAll('.command-item');
-      const activeItem = commandPickerActiveIndex >= 0 ? items[commandPickerActiveIndex] : items[0];
-      if (activeItem) {
+      if (commandPickerActiveIndex >= 0 && commandPickerActiveIndex < currentPickerItems.length) {
         e.preventDefault();
-        insertCommand(inputEl, activeItem.dataset.cmd);
+        executeItem(inputEl, currentPickerItems[commandPickerActiveIndex]);
+        return true;
+      } else if (currentPickerItems.length > 0) {
+        e.preventDefault();
+        executeItem(inputEl, currentPickerItems[0]);
         return true;
       }
     }
@@ -812,14 +917,18 @@ document.addEventListener('DOMContentLoaded', () => {
   function attachCommandPicker(inputEl) {
     inputEl.addEventListener('input', () => {
       const val = inputEl.value;
-      if (val.startsWith('/') && !val.includes(' ')) {
+      if (val.startsWith('/')) {
         showCommandPicker(inputEl, val);
       } else {
         hideCommandPicker();
       }
     });
-    inputEl.addEventListener('keydown', e => handleCommandPickerKeydown(e, inputEl));
-    inputEl.addEventListener('blur', () => setTimeout(hideCommandPicker, 150));
+    inputEl.addEventListener('keydown', e => {
+      if (handleCommandPickerKeydown(e, inputEl)) {
+        e.stopPropagation();
+      }
+    });
+    inputEl.addEventListener('blur', () => setTimeout(hideCommandPicker, 200));
   }
 
   // ─── COULEUR DE FOND (/couleurfond) ─────────────────────────────────
@@ -1134,133 +1243,8 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   }
 
-  // Autocomplete `/` et `/cl`
-  globalChatInput.addEventListener('input', () => {
-    const val = globalChatInput.value;
-
-    if (val.trim() === '/date') {
-      globalChatInput.value = '';
-      hideAutocomplete();
-      openDatePicker();
-      return;
-    }
-
-    if (val.trim() === '/personne') {
-      globalChatInput.value = '';
-      hideAutocomplete();
-      openPersonModal();
-      return;
-    }
-    
-    if (val.startsWith('/cl ') || val === '/cl') {
-      // Commande /cl (avec espace ou pile sur la commande)
-      const query = val === '/cl' ? '' : val.slice(4).replace(/^"|"/g, '').toLowerCase();
-      const matches = clients.filter(c => c.name.toLowerCase().includes(query));
-      
-      autocompleteList.innerHTML = '';
-      matches.forEach(c => {
-        const item = document.createElement('div');
-        const colorKey = getClientColorKey(c);
-        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
-        item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm transition';
-        item.innerHTML = `
-          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${theme.dotColor};"></span>
-          <span class="font-medium text-slate-800">${c.name}</span>
-        `;
-        item.addEventListener('mousedown', e => {
-          e.preventDefault();
-          selectClientWithClCommand(c);
-        });
-        autocompleteList.appendChild(item);
-      });
-
-      if (query.length > 0) {
-        autocompleteCreateName = query.charAt(0).toUpperCase() + query.slice(1);
-        autocompleteCreateLabel.textContent = `Créer "${autocompleteCreateName}"`;
-        autocompleteCreate.classList.remove('hidden');
-      } else {
-        autocompleteCreate.classList.add('hidden');
-      }
-      lucide.createIcons();
-      autocompleteDropdown.classList.remove('hidden');
-      
-    } else if (val.startsWith('/') && !val.startsWith('/cl')) {
-      // Ancienne syntaxe de repli /ClientName
-      const query = val.slice(1).toLowerCase();
-      const hasSpace = val.includes(' ');
-      if (hasSpace) { hideAutocomplete(); return; }
-
-      const matches = clients.filter(c => c.name.toLowerCase().includes(query));
-      autocompleteList.innerHTML = '';
-      matches.forEach(c => {
-        const item = document.createElement('div');
-        const colorKey = getClientColorKey(c);
-        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
-        item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm transition';
-        item.innerHTML = `
-          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${theme.dotColor};"></span>
-          <span class="font-medium text-slate-800">${c.name}</span>
-        `;
-        item.addEventListener('mousedown', e => {
-          e.preventDefault();
-          selectClientInGlobalChat(c);
-        });
-        autocompleteList.appendChild(item);
-      });
-
-      if (query.length > 0) {
-        autocompleteCreateName = query.charAt(0).toUpperCase() + query.slice(1);
-        autocompleteCreateLabel.textContent = `Créer "${autocompleteCreateName}"`;
-        autocompleteCreate.classList.remove('hidden');
-      } else {
-        autocompleteCreate.classList.add('hidden');
-      }
-      lucide.createIcons();
-      autocompleteDropdown.classList.remove('hidden');
-    } else {
-      hideAutocomplete();
-      pendingClientId = null;
-    }
-  });
-
-  globalChatInput.addEventListener('keydown', e => {
-    if (handleCommandPickerKeydown(e, globalChatInput)) return;
-    if (e.key === 'Escape') hideAutocomplete();
-  });
+  // Autocomplete et sélecteur de commandes (/ notion-style)
   attachCommandPicker(globalChatInput);
-
-  document.addEventListener('click', e => {
-    if (!autocompleteDropdown.contains(e.target) && e.target !== globalChatInput) {
-      hideAutocomplete();
-    }
-  });
-
-  function hideAutocomplete() {
-    autocompleteDropdown.classList.add('hidden');
-  }
-
-  function selectClientInGlobalChat(client) {
-    pendingClientId = client.id;
-    globalChatInput.value = `/${client.name} `;
-    hideAutocomplete();
-    globalChatInput.focus();
-    globalChatInput.setSelectionRange(globalChatInput.value.length, globalChatInput.value.length);
-  }
-
-  function selectClientWithClCommand(client) {
-    pendingClientId = client.id;
-    const formatted = client.name.includes(' ') ? `"${client.name}"` : client.name;
-    globalChatInput.value = `/cl ${formatted} `;
-    hideAutocomplete();
-    globalChatInput.focus();
-    globalChatInput.setSelectionRange(globalChatInput.value.length, globalChatInput.value.length);
-  }
-
-  autocompleteCreate.addEventListener('mousedown', e => {
-    e.preventDefault();
-    hideAutocomplete();
-    openModal(autocompleteCreateName);
-  });
 
   // Envoi avec tri automatique (/cl ou /NomClient)
   globalChatForm.addEventListener('submit', async e => {
@@ -2015,17 +1999,7 @@ document.addEventListener('DOMContentLoaded', () => {
   globalDateBtn.addEventListener('click', openDatePicker);
   clientDateBtn.addEventListener('click', openDatePicker);
 
-  // Écouter /date et /personne dans l'input client pour ouverture instantanée
-  clientChatInput.addEventListener('input', () => {
-    const val = clientChatInput.value.trim();
-    if (val === '/date') {
-      clientChatInput.value = '';
-      openDatePicker();
-    } else if (val === '/personne') {
-      clientChatInput.value = '';
-      openPersonModal();
-    }
-  });
+
 
   // ─── PARAMÈTRES DU CLIENT ─────────────────────────────────────────
   let selectedSettingsColor = 'blue';
