@@ -75,6 +75,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Files DOM Elements
   const filesListContainer = document.getElementById('files-list');
+  const filesWidgetToggle = document.getElementById('files-widget-toggle');
+  const filesListWrapper = document.getElementById('files-list-wrapper');
+  const filesChevron = document.getElementById('files-chevron');
+
+  // --- WIDGET FICHIERS : TOGGLE ACCORDÉON ---
+  let filesWidgetOpen = true;
+
+  filesWidgetToggle.addEventListener('click', () => {
+    filesWidgetOpen = !filesWidgetOpen;
+
+    if (filesWidgetOpen) {
+      filesListWrapper.style.maxHeight = filesListWrapper.scrollHeight + 'px';
+      filesListWrapper.classList.remove('overflow-hidden');
+      filesListWrapper.style.opacity = '1';
+      filesChevron.style.transform = 'rotate(0deg)';
+    } else {
+      filesListWrapper.style.maxHeight = '0px';
+      filesListWrapper.classList.add('overflow-hidden');
+      filesListWrapper.style.opacity = '0';
+      filesChevron.style.transform = 'rotate(-90deg)';
+    }
+  });
+
+  // Initialiser le wrapper avec transition CSS
+  filesListWrapper.style.transition = 'max-height 250ms ease-out, opacity 200ms ease-out';
+  filesListWrapper.style.maxHeight = '9999px'; // ouvert par défaut
 
   // --- UTILS & ROUTAGE ---
   function showScreen(screen) {
