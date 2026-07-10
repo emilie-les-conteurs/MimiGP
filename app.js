@@ -665,7 +665,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ─── CHAT GLOBAL + AUTOCOMPLETE `/` ────────────────────────────
-  async function loadGlobalFeed() {
+  async function loadGlobalFeed(showSpinner = true) {
+    if (showSpinner) {
+      globalFeed.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400">
+        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
+        <p class="text-sm">Chargement des notes...</p>
+      </div>`;
+    }
     const { data } = await sb
       .from('messages')
       .select('*, clients(*)')
@@ -1031,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', () => {
       globalFilePreview.classList.add('hidden');
       globalFileInput.value = '';
       clearSelectedMessageDates(); // Nettoyer la date planifiée
-      await loadGlobalFeed();
+      await loadGlobalFeed(false); // Eviter l'effet de clignotement de chargement
     }, selectedMessageDates);
   });
 
@@ -1050,11 +1056,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ─── VUE CLIENT LOCALISÉE ───────────────────────────────────────
-  async function loadClientMessages() {
-    clientChatMessages.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400">
-      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
-      <p class="text-sm">Chargement du client...</p>
-    </div>`;
+  async function loadClientMessages(showSpinner = true) {
+    if (showSpinner) {
+      clientChatMessages.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400">
+        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
+        <p class="text-sm">Chargement du client...</p>
+      </div>`;
+    }
     const { data } = await sb
       .from('messages')
       .select('*')
@@ -1196,7 +1204,7 @@ document.addEventListener('DOMContentLoaded', () => {
       clientFilePreview.classList.add('hidden');
       clientFileInput.value = '';
       clearSelectedMessageDates(); // Nettoyer la date planifiée
-      await loadClientMessages();
+      await loadClientMessages(false); // Eviter l'effet de clignotement de chargement
       renderCalendar();
     }, selectedMessageDates);
   });
