@@ -30,6 +30,39 @@ document.addEventListener('DOMContentLoaded', () => {
   let dpRangeStart     = null;        // début de la plage sélectionnée (YYYY-MM-DD)
   let dpRangeEnd       = null;        // fin de la plage sélectionnée (YYYY-MM-DD)
 
+  // ─── PENSE-BÊTES ─────────────────────────────────────────────────
+  // { id, clientId, content, done, createdAt }
+  let todos = JSON.parse(localStorage.getItem('mimi_todos') || '[]');
+  function saveTodos() { localStorage.setItem('mimi_todos', JSON.stringify(todos)); }
+
+  // ─── COULEUR DE FOND DES NOTES ───────────────────────────────────
+  let pendingNoteBgColor = null; // couleur de fond sélectionnée pour la prochaine note
+  const NOTE_BG_COLORS = [
+    { key: null,     label: 'Aucune',   bg: '#ffffff', border: '#e2e8f0' },
+    { key: '#fef9c3',label: 'Jaune',    bg: '#fef9c3', border: '#fde047' },
+    { key: '#dcfce7',label: 'Vert',     bg: '#dcfce7', border: '#86efac' },
+    { key: '#dbeafe',label: 'Bleu',     bg: '#dbeafe', border: '#93c5fd' },
+    { key: '#fce7f3',label: 'Rose',     bg: '#fce7f3', border: '#f9a8d4' },
+    { key: '#ede9fe',label: 'Violet',   bg: '#ede9fe', border: '#c4b5fd' },
+    { key: '#ffedd5',label: 'Orange',   bg: '#ffedd5', border: '#fdba74' },
+    { key: '#f0fdf4',label: 'Menthe',   bg: '#f0fdf4', border: '#86efac' },
+    { key: '#fdf4ff',label: 'Lilas',    bg: '#fdf4ff', border: '#e879f9' },
+    { key: '#f8fafc',label: 'Gris',     bg: '#f8fafc', border: '#cbd5e1' },
+  ];
+  // Map msgId → bgColor persisté dans localStorage
+  let noteBgs = JSON.parse(localStorage.getItem('mimi_note_bgs') || '{}');
+  function saveNoteBgs() { localStorage.setItem('mimi_note_bgs', JSON.stringify(noteBgs)); }
+
+  // ─── COMMAND PICKER ───────────────────────────────────────────────
+  const SLASH_COMMANDS = [
+    { cmd: '/cl ',       label: '/cl',         desc: 'Attribuer la note à un client',      icon: '🏢' },
+    { cmd: '/pensebete ',label: '/pensebete',  desc: 'Créer un pense-bête interactif',     icon: '📌' },
+    { cmd: '/couleurfond',label: '/couleurfond',desc: 'Changer la couleur de fond',        icon: '🎨' },
+    { cmd: '/date',      label: '/date',        desc: 'Planifier la note sur une date',    icon: '📅' },
+    { cmd: '/personne',  label: '/personne',    desc: 'Ajouter/gérer une personne',        icon: '👤' },
+  ];
+  let commandPickerActiveIndex = -1;
+
   // Configuration des thèmes de couleur d'accentuation pour les clients
   const CLIENT_THEMES = {
     blue:      { name: 'Bleu',       dotColor: '#3b82f6', badgeClass: 'bg-blue-100 text-blue-700',       accent: '#2563eb', hover: '#1d4ed8', light: 'rgba(37, 99, 235, 0.1)' },
@@ -689,9 +722,302 @@ document.addEventListener('DOMContentLoaded', () => {
     return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  // ─── COMMAND PICKER (Notion-style) ──────────────────────────────────
+  const commandPickerEl = document.getElementById('command-picker');
+  const commandPickerList = document.getElementById('command-picker-list');
+
+  function showCommandPicker(inputEl, query) {
+    const filtered = query.length <= 1
+      ? SLASH_COMMANDS
+      : SLASH_COMMANDS.filter(c => c.label.toLowerCase().startsWith(query.toLowerCase()));
+
+    if (filtered.length === 0) { hideCommandPicker(); return; }
+
+    commandPickerList.innerHTML = filtered.map((c, i) => `
+      <div class="command-item" data-cmd="${c.cmd}" data-index="${i}" tabindex="-1">
+        <div class="cmd-icon">${c.icon}</div>
+        <div class="flex flex-col">
+          <span class="cmd-label">${c.label}</span>
+          <span class="cmd-desc">${c.desc}</span>
+        </div>
+      </div>
+    `).join('');
+
+    // Position above the input
+    const rect = inputEl.getBoundingClientRect();
+    commandPickerEl.style.left = rect.left + 'px';
+    commandPickerEl.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+    commandPickerEl.classList.remove('hidden');
+    commandPickerActiveIndex = -1;
+
+    commandPickerList.querySelectorAll('.command-item').forEach(item => {
+      item.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const cmd = item.dataset.cmd;
+        insertCommand(inputEl, cmd);
+      });
+    });
+
+    lucide.createIcons({ nodes: [commandPickerEl] });
+  }
+
+  function hideCommandPicker() {
+    commandPickerEl.classList.add('hidden');
+    commandPickerActiveIndex = -1;
+  }
+
+  function navigateCommandPicker(direction) {
+    const items = commandPickerList.querySelectorAll('.command-item');
+    if (!items.length) return false;
+    items.forEach(i => i.classList.remove('active'));
+    commandPickerActiveIndex = (commandPickerActiveIndex + direction + items.length) % items.length;
+    items[commandPickerActiveIndex]?.classList.add('active');
+    return true;
+  }
+
+  function insertCommand(inputEl, cmd) {
+    inputEl.value = cmd;
+    inputEl.focus();
+    hideCommandPicker();
+    // Trigger special single-step commands immediately
+    if (cmd === '/couleurfond') {
+      inputEl.value = '';
+      openBgColorModal(inputEl);
+    } else if (cmd === '/date') {
+      inputEl.value = '';
+      openDatePicker();
+    } else if (cmd === '/personne') {
+      inputEl.value = '';
+      openPersonModal();
+    }
+  }
+
+  function handleCommandPickerKeydown(e, inputEl) {
+    if (commandPickerEl.classList.contains('hidden')) return false;
+    if (e.key === 'ArrowDown') { e.preventDefault(); navigateCommandPicker(1); return true; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); navigateCommandPicker(-1); return true; }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      const items = commandPickerList.querySelectorAll('.command-item');
+      const activeItem = commandPickerActiveIndex >= 0 ? items[commandPickerActiveIndex] : items[0];
+      if (activeItem) {
+        e.preventDefault();
+        insertCommand(inputEl, activeItem.dataset.cmd);
+        return true;
+      }
+    }
+    if (e.key === 'Escape') { hideCommandPicker(); return true; }
+    return false;
+  }
+
+  function attachCommandPicker(inputEl) {
+    inputEl.addEventListener('input', () => {
+      const val = inputEl.value;
+      if (val.startsWith('/') && !val.includes(' ')) {
+        showCommandPicker(inputEl, val);
+      } else {
+        hideCommandPicker();
+      }
+    });
+    inputEl.addEventListener('keydown', e => handleCommandPickerKeydown(e, inputEl));
+    inputEl.addEventListener('blur', () => setTimeout(hideCommandPicker, 150));
+  }
+
+  // ─── COULEUR DE FOND (/couleurfond) ─────────────────────────────────
+  const bgColorModal = document.getElementById('bg-color-modal');
+  const bgColorModalPanel = document.getElementById('bg-color-modal-panel');
+  const bgColorGrid = document.getElementById('bg-color-grid');
+  const closeBgColorBtn = document.getElementById('close-bg-color-btn');
+  let _bgColorTargetInput = null;
+
+  function openBgColorModal(sourceInput) {
+    _bgColorTargetInput = sourceInput;
+
+    bgColorGrid.innerHTML = NOTE_BG_COLORS.map(c => `
+      <button type="button" class="w-10 h-10 rounded-xl border-2 transition-all duration-150 hover:scale-110 flex items-center justify-center relative ${pendingNoteBgColor === c.key ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : ''}"
+        style="background-color: ${c.bg}; border-color: ${c.border};"
+        data-color="${c.key || ''}"
+        title="${c.label}">
+        ${pendingNoteBgColor === c.key ? '<span style="font-size:10px">✓</span>' : ''}
+      </button>
+    `).join('');
+
+    bgColorModal.classList.remove('hidden');
+    requestAnimationFrame(() => {
+      bgColorModalPanel.style.transform = 'translateY(0)';
+      bgColorModalPanel.style.opacity = '1';
+    });
+
+    bgColorGrid.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.color || null;
+        pendingNoteBgColor = key === '' ? null : key;
+        closeBgColorModal();
+      });
+    });
+  }
+
+  function closeBgColorModal() {
+    bgColorModalPanel.style.transform = 'translateY(16px)';
+    bgColorModalPanel.style.opacity = '0';
+    setTimeout(() => bgColorModal.classList.add('hidden'), 200);
+  }
+
+  closeBgColorBtn.addEventListener('click', closeBgColorModal);
+  bgColorModal.addEventListener('click', e => { if (e.target === bgColorModal) closeBgColorModal(); });
+
+  // ─── PENSE-BÊTES (/pensebete) ────────────────────────────────────────
+  const globalTodosContainer = document.getElementById('global-todos-container');
+  const globalTodosList = document.getElementById('global-todos-list');
+  const globalTodosToggle = document.getElementById('global-todos-toggle');
+  const globalTodosChevron = document.getElementById('global-todos-chevron');
+  const clientTodosContainer = document.getElementById('client-todos-container');
+  const clientTodosList = document.getElementById('client-todos-list');
+  const clientTodosToggle = document.getElementById('client-todos-toggle');
+  const clientTodosChevron = document.getElementById('client-todos-chevron');
+
+  let globalTodosOpen = true;
+  let clientTodosOpen = true;
+
+  globalTodosToggle?.addEventListener('click', () => {
+    globalTodosOpen = !globalTodosOpen;
+    globalTodosList.style.display = globalTodosOpen ? '' : 'none';
+    globalTodosChevron.style.transform = globalTodosOpen ? '' : 'rotate(-90deg)';
+  });
+  clientTodosToggle?.addEventListener('click', () => {
+    clientTodosOpen = !clientTodosOpen;
+    clientTodosList.style.display = clientTodosOpen ? '' : 'none';
+    clientTodosChevron.style.transform = clientTodosOpen ? '' : 'rotate(-90deg)';
+  });
+
+  function renderTodos(contextClientId) {
+    // Global todos (all non-done)
+    const globalActive = todos.filter(t => !t.done);
+    globalTodosContainer.classList.toggle('hidden', globalActive.length === 0);
+    globalTodosList.innerHTML = globalActive.map(t => renderTodoItem(t)).join('');
+
+    // Client todos (filtered by clientId)
+    if (contextClientId) {
+      const clientActive = todos.filter(t => !t.done && String(t.clientId) === String(contextClientId));
+      clientTodosContainer.classList.toggle('hidden', clientActive.length === 0);
+      clientTodosList.innerHTML = clientActive.map(t => renderTodoItem(t)).join('');
+    }
+
+    // Bind events on both
+    [globalTodosList, clientTodosList].forEach(container => {
+      container.querySelectorAll('.todo-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const id = cb.dataset.id;
+          const todo = todos.find(t => t.id === id);
+          if (todo) { todo.done = cb.checked; saveTodos(); renderTodos(contextClientId); }
+        });
+      });
+      container.querySelectorAll('.todo-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          todos = todos.filter(t => t.id !== btn.dataset.id);
+          saveTodos(); renderTodos(contextClientId);
+        });
+      });
+    });
+  }
+
+  function renderTodoItem(t) {
+    return `<div class="todo-item${t.done ? ' done' : ''}">
+      <input type="checkbox" class="todo-checkbox" data-id="${t.id}" ${t.done ? 'checked' : ''}>
+      <span class="flex-1">${t.content}</span>
+      <button class="todo-delete" data-id="${t.id}" title="Supprimer">✕</button>
+    </div>`;
+  }
+
+  function addTodo(clientId, content) {
+    const todo = { id: Date.now().toString(), clientId, content, done: false, createdAt: new Date().toISOString() };
+    todos.push(todo);
+    saveTodos();
+    renderTodos(clientId);
+  }
+
+  // ─── NOTES À VENIR ────────────────────────────────────────────────────
+  const upcomingWidgetToggle = document.getElementById('upcoming-widget-toggle');
+  const upcomingChevron = document.getElementById('upcoming-chevron');
+  const upcomingListWrapper = document.getElementById('upcoming-list-wrapper');
+  const upcomingList = document.getElementById('upcoming-list');
+  let upcomingOpen = true;
+
+  upcomingWidgetToggle?.addEventListener('click', () => {
+    upcomingOpen = !upcomingOpen;
+    upcomingListWrapper.style.display = upcomingOpen ? '' : 'none';
+    upcomingChevron.style.transform = upcomingOpen ? '' : 'rotate(-90deg)';
+  });
+
+  function renderUpcomingNotes(msgs) {
+    const today = new Date().toISOString().split('T')[0];
+    const upcoming = msgs.filter(m => {
+      const d = new Date(m.created_at).toISOString().split('T')[0];
+      return d > today;
+    }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    if (!upcomingList) return upcoming;
+
+    if (upcoming.length === 0) {
+      upcomingList.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Aucune note à venir.</p>';
+    } else {
+      upcomingList.innerHTML = upcoming.map(m => {
+        const d = new Date(m.created_at).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+        const preview = (m.content || '').slice(0, 80);
+        return `<div class="upcoming-note-item">
+          <span class="upcoming-date">${d}</span>
+          <span class="upcoming-content">${preview}</span>
+        </div>`;
+      }).join('');
+    }
+    return upcoming;
+  }
+
+  // ─── BANDEAU DE RAPPEL LENDEMAIN ──────────────────────────────────────
+  const tomorrowBanner = document.getElementById('tomorrow-notes-banner');
+  const tomorrowNotesList = document.getElementById('tomorrow-notes-list');
+  const tomorrowNotesCount = document.getElementById('tomorrow-notes-count');
+  const closeTomorrowBannerBtn = document.getElementById('close-tomorrow-banner-btn');
+
+  closeTomorrowBannerBtn?.addEventListener('click', () => {
+    tomorrowBanner.classList.add('hidden');
+    tomorrowBanner.classList.remove('flex');
+  });
+
+  function renderTomorrowBanner(allMessages, allClients) {
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const tomorrowMsgs = allMessages.filter(m => {
+      const d = new Date(m.created_at).toISOString().split('T')[0];
+      return d === tomorrow;
+    });
+
+    if (tomorrowMsgs.length === 0) {
+      tomorrowBanner.classList.add('hidden');
+      tomorrowBanner.classList.remove('flex');
+      return;
+    }
+
+    tomorrowNotesList.innerHTML = tomorrowMsgs.map(m => {
+      const client = allClients.find(c => String(c.id) === String(m.client_id));
+      const clientName = client ? client.name : 'Sans client';
+      const preview = (m.content || '').slice(0, 60);
+      return `<li><span class="font-bold">${clientName}</span> — ${preview}${(m.content || '').length > 60 ? '…' : ''}</li>`;
+    }).join('');
+
+    tomorrowNotesCount.textContent = tomorrowMsgs.length;
+    tomorrowBanner.classList.remove('hidden');
+    tomorrowBanner.classList.add('flex');
+    lucide.createIcons({ nodes: [tomorrowBanner] });
+  }
+
   function renderGlobalFeed() {
-    globalFeed.innerHTML = '';
-    if (globalMessages.length === 0) {
+    const today = new Date().toISOString().split('T')[0];
+    // Séparer les messages passés/présents des messages futurs
+    const presentMsgs = globalMessages.filter(m => new Date(m.created_at).toISOString().split('T')[0] <= today);
+    renderUpcomingNotes(globalMessages);
+    renderTomorrowBanner(globalMessages, clients);
+    renderTodos(null);
+
+    if (presentMsgs.length === 0) {
       globalFeed.innerHTML = `
         <div class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
           <i data-lucide="message-square-plus" class="w-12 h-12 text-slate-300"></i>
@@ -703,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let lastDateStr = null;
 
-    globalMessages.forEach((msg, i) => {
+    presentMsgs.forEach((msg, i) => {
       const client = msg.clients;
       const badgeStyle = getClientBadgeStyle(msg.client_id);
       const date   = new Date(msg.created_at);
@@ -746,8 +1072,11 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>`;
       }
 
+      const bgColor = noteBgs[msg.id];
+      const bgStyle = bgColor ? `background-color: ${bgColor}; border-color: transparent;` : '';
+
       div.innerHTML = `
-        <div class="flex-1 bg-white rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition">
+        <div class="flex-1 rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition" style="${bgStyle || 'background-color: white;'}">
           <div class="flex items-center justify-between gap-2 mb-1.5 w-full">
             <div class="flex items-center gap-2">
               <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-80 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
@@ -895,8 +1224,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   globalChatInput.addEventListener('keydown', e => {
+    if (handleCommandPickerKeydown(e, globalChatInput)) return;
     if (e.key === 'Escape') hideAutocomplete();
   });
+  attachCommandPicker(globalChatInput);
 
   document.addEventListener('click', e => {
     if (!autocompleteDropdown.contains(e.target) && e.target !== globalChatInput) {
@@ -943,6 +1274,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rawVal === '/personne') {
       globalChatInput.value = '';
       openPersonModal();
+      return;
+    }
+    if (rawVal === '/couleurfond') {
+      globalChatInput.value = '';
+      openBgColorModal(globalChatInput);
+      return;
+    }
+    if (rawVal.startsWith('/pensebete ')) {
+      const pbContent = rawVal.slice('/pensebete '.length).trim();
+      if (pbContent) {
+        addTodo(pendingClientId || null, pbContent);
+        globalChatInput.value = '';
+      }
       return;
     }
     let targetClientId = pendingClientId;
@@ -1030,14 +1374,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!targetClientId) { alert('Sélectionnez un client avec la commande /cl NomClient.'); return; }
     if (!content && !globalFile) return;
 
-    await sendMessage(targetClientId, content, globalFile, async () => {
+    const bgColorToSave = pendingNoteBgColor;
+    await sendMessage(targetClientId, content, globalFile, async (msgData) => {
+      if (bgColorToSave && msgData?.id) {
+        noteBgs[msgData.id] = bgColorToSave;
+        saveNoteBgs();
+      }
+      pendingNoteBgColor = null;
       globalChatInput.value = '';
       pendingClientId = null;
       globalFile = null;
       globalFilePreview.classList.add('hidden');
       globalFileInput.value = '';
-      clearSelectedMessageDates(); // Nettoyer la date planifiée
-      await loadGlobalFeed(false); // Eviter l'effet de clignotement de chargement
+      clearSelectedMessageDates();
+      await loadGlobalFeed(false);
     }, selectedMessageDates);
   });
 
@@ -1075,10 +1425,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderClientMessages() {
     clientChatMessages.innerHTML = '';
+    const today = new Date().toISOString().split('T')[0];
     let msgs = clientMessages;
+    // Filter future notes (shown in "À venir" widget, not in the main feed)
+    if (!selectedDateFilter) {
+      msgs = msgs.filter(m => new Date(m.created_at).toISOString().split('T')[0] <= today);
+    }
     if (selectedDateFilter) {
       msgs = msgs.filter(m => new Date(m.created_at).toISOString().split('T')[0] === selectedDateFilter);
     }
+    // Update upcoming widget
+    renderUpcomingNotes(clientMessages);
+    renderTodos(activeClientId);
     if (msgs.length === 0) {
       clientChatMessages.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
         <i data-lucide="message-square" class="w-10 h-10 text-slate-300"></i>
@@ -1125,6 +1483,11 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
           </div>`;
       }
+      const bgColor = noteBgs[msg.id];
+      const bgStyle = bgColor
+        ? `background-color: ${bgColor}; border-color: transparent;`
+        : 'background-color: white; border-color: #e2e8f0;';
+
       const div = document.createElement('div');
       div.className = 'flex flex-col space-y-0.5 max-w-[85%] animate-fade-in-up';
       div.style.animationDelay = `${Math.min(i * 20, 300)}ms`;
@@ -1135,7 +1498,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <i data-lucide="trash-2" class="w-3 h-3"></i>
           </button>
         </div>
-        <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm text-sm text-slate-800">
+        <div class="rounded-2xl rounded-tl-none px-4 py-3 shadow-sm text-sm text-slate-800" style="${bgStyle}">
           <p class="whitespace-pre-line">${highlightMessageContent(msg.content)}</p>
           ${attachHTML}
         </div>
@@ -1197,17 +1560,39 @@ document.addEventListener('DOMContentLoaded', () => {
       openPersonModal();
       return;
     }
+    if (content === '/couleurfond') {
+      clientChatInput.value = '';
+      openBgColorModal(clientChatInput);
+      return;
+    }
+    if (content.startsWith('/pensebete ')) {
+      const pbContent = content.slice('/pensebete '.length).trim();
+      if (pbContent) {
+        addTodo(activeClientId, pbContent);
+        clientChatInput.value = '';
+      }
+      return;
+    }
     if (!content && !clientFile) return;
-    await sendMessage(activeClientId, content, clientFile, async () => {
+    const bgColorToSave = pendingNoteBgColor;
+    await sendMessage(activeClientId, content, clientFile, async (msgData) => {
+      // Save bg color for this message
+      if (bgColorToSave && msgData?.id) {
+        noteBgs[msgData.id] = bgColorToSave;
+        saveNoteBgs();
+      }
+      pendingNoteBgColor = null;
       clientChatInput.value = '';
       clientFile = null;
       clientFilePreview.classList.add('hidden');
       clientFileInput.value = '';
-      clearSelectedMessageDates(); // Nettoyer la date planifiée
-      await loadClientMessages(false); // Eviter l'effet de clignotement de chargement
+      clearSelectedMessageDates();
+      await loadClientMessages(false);
       renderCalendar();
     }, selectedMessageDates);
   });
+
+  attachCommandPicker(clientChatInput);
 
   clientAttachBtn.addEventListener('click', () => clientFileInput.click());
   clientFileInput.addEventListener('change', e => {
@@ -1249,14 +1634,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const { error } = await sb.from('messages').insert(rows);
       if (error) { alert(`Erreur: ${error.message}`); return; }
     } else {
-      const { error } = await sb.from('messages').insert({
+      const { data: insertedData, error } = await sb.from('messages').insert({
         client_id: clientId,
         user_id: currentSession.user.id,
         content: content || null,
         file_url: fileUrl,
         file_name: fileName
-      });
+      }).select();
       if (error) { alert(`Erreur: ${error.message}`); return; }
+      if (onSuccess) await onSuccess(insertedData?.[0] || null);
+      return;
     }
 
     if (onSuccess) await onSuccess();

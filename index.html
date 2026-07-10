@@ -167,6 +167,33 @@
       <!-- PANNEAU DROIT DYNAMIQUE — VUE ACCUEIL (CHAT GLOBAL / COMMANDE IMPORT) -->
       <div id="main-global-view" class="flex-1 min-h-0 flex overflow-hidden bg-slate-50">
         <main class="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <!-- Bandeau de rappel pour le lendemain -->
+          <div id="tomorrow-notes-banner" class="hidden bg-amber-50 border-b border-amber-200 p-4 shrink-0 flex items-start gap-3 transition-all duration-200 z-20">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-bounce"></i>
+            <div class="flex-1 text-xs text-amber-800">
+              <p class="font-bold text-amber-900 mb-1 flex items-center gap-1.5">
+                <span>Notes prévues pour demain</span>
+                <span class="text-[10px] bg-amber-200/60 text-amber-900 px-1.5 py-0.5 rounded-full font-bold" id="tomorrow-notes-count">0</span>
+              </p>
+              <ul class="list-disc pl-4 space-y-1.5 mt-2 max-h-[120px] overflow-y-auto" id="tomorrow-notes-list"></ul>
+            </div>
+            <button id="close-tomorrow-banner-btn" class="text-amber-500 hover:text-amber-700 transition">✕</button>
+          </div>
+
+          <!-- Pense-bêtes collants en haut de l'accueil -->
+          <div id="global-todos-container" class="hidden px-6 pt-4 shrink-0">
+            <div class="bg-amber-50/40 border border-amber-200/60 rounded-xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between text-xs font-bold text-amber-900/80 uppercase tracking-wider shrink-0 cursor-pointer" id="global-todos-toggle">
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="pin" class="w-3.5 h-3.5 fill-amber-500 text-amber-500"></i>
+                  <span>Pense-bêtes actifs</span>
+                </span>
+                <i data-lucide="chevron-down" id="global-todos-chevron" class="w-3.5 h-3.5 text-amber-600 transition-transform duration-200"></i>
+              </div>
+              <div id="global-todos-list" class="space-y-2 max-h-[150px] overflow-y-auto text-xs"></div>
+            </div>
+          </div>
+
           <!-- Feed de messages global -->
           <div id="global-feed" class="flex-1 overflow-y-auto p-6 space-y-3"></div>
 
@@ -239,6 +266,20 @@
             </div>
           </div>
 
+          <!-- Pense-bêtes collants en haut du client -->
+          <div id="client-todos-container" class="hidden px-6 pt-4 shrink-0 bg-slate-50">
+            <div class="bg-amber-50/40 border border-amber-200/60 rounded-xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between text-xs font-bold text-amber-900/80 uppercase tracking-wider shrink-0 cursor-pointer" id="client-todos-toggle">
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="pin" class="w-3.5 h-3.5 fill-amber-500 text-amber-500"></i>
+                  <span>Pense-bêtes actifs</span>
+                </span>
+                <i data-lucide="chevron-down" id="client-todos-chevron" class="w-3.5 h-3.5 text-amber-600 transition-transform duration-200"></i>
+              </div>
+              <div id="client-todos-list" class="space-y-2 max-h-[150px] overflow-y-auto text-xs"></div>
+            </div>
+          </div>
+
           <!-- Messages du client -->
           <div id="client-chat-messages" class="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50"></div>
 
@@ -307,6 +348,22 @@
             <div id="date-filter-indicator" class="hidden mt-2 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-medium flex items-center justify-between">
               <span>📅 <span id="filtered-date-text"></span></span>
               <button id="clear-date-filter" class="hover:text-blue-900 transition ml-1">✕</button>
+            </div>
+          </div>
+
+          <!-- Widget Notes à venir -->
+          <div class="border-b border-slate-100 flex flex-col overflow-hidden max-h-[220px]">
+            <button id="upcoming-widget-toggle" class="flex items-center justify-between px-4 py-3 border-b border-slate-100 w-full text-left group shrink-0 hover:bg-slate-50 transition">
+              <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <i data-lucide="calendar-days" class="w-4 h-4 text-purple-500"></i>
+                <span>Notes à venir</span>
+              </h3>
+              <i data-lucide="chevron-down" id="upcoming-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200"></i>
+            </button>
+            <div id="upcoming-list-wrapper" class="flex-1 min-h-0 overflow-y-auto p-3 bg-slate-50/10">
+              <div id="upcoming-list" class="space-y-2">
+                <p class="text-xs text-slate-400 text-center py-4">Aucune note à venir.</p>
+              </div>
             </div>
           </div>
 
@@ -609,6 +666,36 @@
           <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">Ajouter</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MINI-MODALE COULEUR DE FOND (/couleurfond) -->
+  <div id="bg-color-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-end justify-center hidden">
+    <div id="bg-color-modal-panel" class="bg-white rounded-t-2xl border border-slate-200 shadow-2xl w-full max-w-sm mb-0 p-5 transform translate-y-4 opacity-0 transition-all duration-200">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-slate-900 flex items-center gap-2 text-sm">
+          <i data-lucide="palette" class="w-4 h-4 text-pink-500"></i>
+          Couleur de fond de la note
+        </h3>
+        <button id="close-bg-color-btn" class="text-slate-400 hover:text-slate-600 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="grid grid-cols-5 gap-3" id="bg-color-grid">
+        <!-- Rendu dynamique par app.js -->
+      </div>
+      <p class="text-[10px] text-slate-400 mt-3 text-center">La couleur s'appliquera à votre prochaine note envoyée</p>
+    </div>
+  </div>
+
+  <!-- COMMAND PICKER (Notion-style /) -->
+  <div id="command-picker" class="hidden fixed z-[60] bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden w-64 animate-fade-in-up">
+    <div class="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+      <i data-lucide="zap" class="w-3.5 h-3.5 text-blue-500"></i>
+      <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Commandes disponibles</span>
+    </div>
+    <div id="command-picker-list" class="max-h-60 overflow-y-auto py-1">
+      <!-- Rendu dynamique par app.js -->
     </div>
   </div>
 
