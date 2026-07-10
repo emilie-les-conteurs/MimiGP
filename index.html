@@ -13,12 +13,28 @@
     <h2>Inscription</h2>
     <form id="register-form">
       <div class="form-group">
+        <label for="register-firstname">Prénom</label>
+        <input type="text" id="register-firstname" required placeholder="Jean">
+      </div>
+      <div class="form-group">
+        <label for="register-lastname">Nom</label>
+        <input type="text" id="register-lastname" required placeholder="Dupont">
+      </div>
+      <div class="form-group">
+        <label for="register-position">Poste</label>
+        <input type="text" id="register-position" required placeholder="Développeur, Manager, etc.">
+      </div>
+      <div class="form-group">
         <label for="register-email">Adresse e-mail</label>
         <input type="email" id="register-email" required placeholder="nom@exemple.com">
       </div>
       <div class="form-group">
         <label for="register-password">Mot de passe</label>
         <input type="password" id="register-password" required minlength="6" placeholder="Min. 6 caractères">
+      </div>
+      <div class="form-group">
+        <label for="register-confirm-password">Confirmation du mot de passe</label>
+        <input type="password" id="register-confirm-password" required minlength="6" placeholder="Saisir à nouveau le mot de passe">
       </div>
       <button type="submit">S'inscrire</button>
     </form>
@@ -54,7 +70,7 @@
     <header style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
       <h1>MimiGP</h1>
       <div>
-        Bonjour <span id="user-display-name" style="font-weight: bold;"></span> !
+        Bonjour <span id="user-display-name" style="font-weight: bold;"></span> (<span id="user-display-position" style="font-style: italic;"></span>) !
         <button id="logout-btn" style="margin-left: 15px; background-color: #ff4d4f;">Déconnexion</button>
       </div>
     </header>

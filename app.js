@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('login-form');
   const logoutBtn = document.getElementById('logout-btn');
   const userDisplayName = document.getElementById('user-display-name');
+  const userDisplayPosition = document.getElementById('user-display-position');
 
   // Éléments du DOM - Liens de navigation entre écrans
   const goToLogin = document.getElementById('go-to-login');
@@ -45,7 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("Auth event:", event, session);
 
     if (session && session.user) {
-      userDisplayName.textContent = session.user.email;
+      const metadata = session.user.user_metadata || {};
+      const firstName = metadata.first_name || '';
+      const lastName = metadata.last_name || '';
+      const position = metadata.position || '';
+
+      userDisplayName.textContent = `${firstName} ${lastName}`.trim() || session.user.email;
+      userDisplayPosition.textContent = position || 'Non spécifié';
       showScreen(mainContent);
     } else {
       showScreen(loginScreen);
@@ -70,18 +77,34 @@ document.addEventListener('DOMContentLoaded', () => {
     registerError.textContent = '';
     registerSuccess.textContent = '';
 
+    const firstName = document.getElementById('register-firstname').value.trim();
+    const lastName = document.getElementById('register-lastname').value.trim();
+    const position = document.getElementById('register-position').value.trim();
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value;
+    const confirmPassword = document.getElementById('register-confirm-password').value;
 
-    if (!email || !password) {
+    if (!firstName || !lastName || !position || !email || !password || !confirmPassword) {
       registerError.textContent = 'Tous les champs sont requis.';
       return;
     }
 
-    // Appel API Supabase Auth
+    if (password !== confirmPassword) {
+      registerError.textContent = 'Les mots de passe ne correspondent pas.';
+      return;
+    }
+
+    // Appel API Supabase Auth avec metadata
     const { data, error } = await supabaseClient.auth.signUp({
       email: email,
-      password: password
+      password: password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          position: position
+        }
+      }
     });
 
     if (error) {
@@ -89,10 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Note: Par défaut, Supabase demande une confirmation par e-mail.
-    // Si la confirmation par e-mail est activée, l'utilisateur devra cliquer sur le lien reçu.
-    // Si elle est désactivée dans Supabase (Auth -> Providers -> Email -> Confirm email),
-    // l'utilisateur est connecté immédiatement.
     if (data.session) {
       registerSuccess.textContent = 'Inscription réussie ! Connexion automatique...';
       registerForm.reset();
