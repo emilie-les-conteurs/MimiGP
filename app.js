@@ -124,14 +124,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getClientBadgeStyle(clientId) {
-    const client = clients.find(c => c.id === clientId);
+    const client = clients.find(c => String(c.id) === String(clientId));
     const key = getClientColorKey(client || { id: clientId });
     const theme = key.startsWith('#') ? getCustomTheme(key) : (CLIENT_THEMES[key] || CLIENT_THEMES.blue);
     return `background-color: ${theme.light}; color: ${theme.accent}; border: 1px solid ${theme.accent}40;`;
   }
 
+  // Fonction conservée temporairement pour compatibilité
   function clientColor(clientId) {
-    const client = clients.find(c => c.id === clientId);
+    const client = clients.find(c => String(c.id) === String(clientId));
     const key = getClientColorKey(client || { id: clientId });
     if (key.startsWith('#')) return '';
     return CLIENT_THEMES[key]?.badgeClass || CLIENT_THEMES.blue.badgeClass;
@@ -351,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
       activeClientHeader.classList.remove('hidden');
       activeClientHeader.classList.add('flex');
 
-      const client = clients.find(c => c.id === id);
+      const client = clients.find(c => String(c.id) === String(id));
       clientViewName.textContent = client ? client.name : 'Client';
       
       // Appliquer le thème d'accentuation dynamique du client
@@ -1597,7 +1598,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedSettingsColor = 'blue';
 
   function openSettingsModal() {
-    const client = clients.find(c => c.id === activeClientId);
+    const client = clients.find(c => String(c.id) === String(activeClientId));
     if (!client) return;
 
     settingsClientName.value = client.name;
@@ -1675,7 +1676,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const newName = settingsClientName.value.trim();
     if (!newName) return;
 
-    const client = clients.find(c => c.id === activeClientId);
+    const client = clients.find(c => String(c.id) === String(activeClientId));
     if (!client) return;
 
     // Tenter la mise à jour complète dans Supabase
@@ -1713,7 +1714,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── PARAMÈTRES DU CLIENT (Fin) et fonctions utilitaires additionnelles ──────
   deleteClientBtn.addEventListener('click', async () => {
-    const client = clients.find(c => c.id === activeClientId);
+    const client = clients.find(c => String(c.id) === String(activeClientId));
     if (!client) return;
     if (!confirm(`Êtes-vous sûr de vouloir supprimer le client "${client.name}" ainsi que toutes ses notes ?\nCette action est irréversible.`)) return;
 
@@ -1933,7 +1934,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!colorStr) return '#3b82f6';
     if (colorStr.startsWith('client_')) {
       const clientId = colorStr.replace('client_', '');
-      const client = clients.find(c => c.id === clientId);
+      const client = clients.find(c => String(c.id) === String(clientId));
       if (client) {
         const colorKey = getClientColorKey(client);
         const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
@@ -2109,7 +2110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clientsListContainer.querySelectorAll('.settings-delete-client-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
-        const c = clients.find(cl => cl.id === id);
+        const c = clients.find(cl => String(cl.id) === String(id));
         if (!c) return;
         if (!confirm(`Êtes-vous sûr de vouloir supprimer le client "${c.name}" ainsi que toutes ses notes ?\nCette action est définitive.`)) return;
         
@@ -2147,7 +2148,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (isLinked) {
         const cId = p.color.replace('client_', '');
-        const cl = clients.find(c => c.id === cId);
+        const cl = clients.find(c => String(c.id) === String(cId));
         linkedClientName = cl ? cl.name : 'Client inconnu';
         resolvedColor = resolvePersonColor(p.color);
       } else {
