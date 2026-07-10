@@ -514,7 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
     filtered.forEach((c, i) => {
       const btn = document.createElement('button');
       const colorKey = getClientColorKey(c);
-      const theme = CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue;
+      const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
       const isSelected = activeClientId === c.id;
       
       btn.className = `client-item-btn w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 animate-fade-in-up`;
@@ -803,10 +803,11 @@ document.addEventListener('DOMContentLoaded', () => {
       autocompleteList.innerHTML = '';
       matches.forEach(c => {
         const item = document.createElement('div');
-        const color = clientColor(c.id);
+        const colorKey = getClientColorKey(c);
+        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
         item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm transition';
         item.innerHTML = `
-          <span class="w-2 h-2 rounded-full shrink-0 ${color.split(' ')[0].replace('bg-', 'bg-').replace('100', '400')}"></span>
+          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${theme.dotColor};"></span>
           <span class="font-medium text-slate-800">${c.name}</span>
         `;
         item.addEventListener('mousedown', e => {
@@ -836,10 +837,11 @@ document.addEventListener('DOMContentLoaded', () => {
       autocompleteList.innerHTML = '';
       matches.forEach(c => {
         const item = document.createElement('div');
-        const color = clientColor(c.id);
+        const colorKey = getClientColorKey(c);
+        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
         item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm transition';
         item.innerHTML = `
-          <span class="w-2 h-2 rounded-full shrink-0 ${color.split(' ')[0].replace('100', '400')}"></span>
+          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${theme.dotColor};"></span>
           <span class="font-medium text-slate-800">${c.name}</span>
         `;
         item.addEventListener('mousedown', e => {
