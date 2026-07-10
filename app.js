@@ -1020,24 +1020,64 @@ document.addEventListener('DOMContentLoaded', () => {
     clientTodosChevron.style.transform = clientTodosOpen ? '' : 'rotate(-90deg)';
   });
 
+  function getNextWorkingDay(dateObj = new Date()) {
+    const day = dateObj.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 5 = Vendredi, 6 = Samedi
+    const offset = (day === 5) ? 3 : (day === 6) ? 2 : 1;
+    const next = new Date(dateObj.getTime() + offset * 86400000);
+    return next.toISOString().split('T')[0];
+  }
+
   function renderTodos(contextClientId) {
     const today = new Date().toISOString().split('T')[0];
+    const nextWorkingDay = getNextWorkingDay(new Date());
 
-    // Pense-bêtes actifs globaux (non cochés ET (pas de date de fin OU date <= aujourd'hui))
-    const globalActive = todos.filter(t => 
-      !t.done && 
-      (!t.dueDate || t.dueDate <= today)
-    );
+    // 1. Liste des pense-bêtes actifs globaux (Home)
+    const globalActionable = todos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
+    const globalTomorrow = todos.filter(t => !t.done && t.dueDate === nextWorkingDay);
+    let globalPriority = [];
+    if (globalTomorrow.length > 0) {
+      globalPriority = globalTomorrow;
+    } else {
+      globalPriority = todos.filter(t => !t.done && t.dueDate && t.dueDate > today)
+                            .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+                            .slice(0, 3);
+    }
+    const globalActive = [...globalActionable];
+    globalPriority.forEach(t => {
+      if (!globalActive.some(x => x.id === t.id)) globalActive.push(t);
+    });
+    globalActive.sort((a, b) => {
+      if (!a.dueDate) return -1;
+      if (!b.dueDate) return 1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+
     globalTodosContainer.classList.toggle('hidden', globalActive.length === 0);
     globalTodosList.innerHTML = globalActive.map(t => renderTodoItem(t)).join('');
 
-    // Pense-bêtes actifs du client contextuel
+    // 2. Liste des pense-bêtes actifs spécifiques au client
     if (contextClientId) {
-      const clientActive = todos.filter(t => 
-        !t.done && 
-        String(t.clientId) === String(contextClientId) &&
-        (!t.dueDate || t.dueDate <= today)
-      );
+      const clientTodos = todos.filter(t => String(t.clientId) === String(contextClientId));
+      const clientActionable = clientTodos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
+      const clientTomorrow = clientTodos.filter(t => !t.done && t.dueDate === nextWorkingDay);
+      let clientPriority = [];
+      if (clientTomorrow.length > 0) {
+        clientPriority = clientTomorrow;
+      } else {
+        clientPriority = clientTodos.filter(t => !t.done && t.dueDate && t.dueDate > today)
+                                    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+                                    .slice(0, 3);
+      }
+      const clientActive = [...clientActionable];
+      clientPriority.forEach(t => {
+        if (!clientActive.some(x => x.id === t.id)) clientActive.push(t);
+      });
+      clientActive.sort((a, b) => {
+        if (!a.dueDate) return -1;
+        if (!b.dueDate) return 1;
+        return a.dueDate.localeCompare(b.dueDate);
+      });
+
       clientTodosContainer.classList.toggle('hidden', clientActive.length === 0);
       clientTodosList.innerHTML = clientActive.map(t => renderTodoItem(t)).join('');
     }
@@ -1084,7 +1124,6 @@ document.addEventListener('DOMContentLoaded', () => {
           todos = todos.filter(t => t.id !== btn.dataset.id);
           saveTodos();
           renderTodos(contextClientId);
-          // Actualiser le widget des notes à venir car un pense-bête planifié a pu être supprimé
           if (contextClientId) {
             renderUpcomingNotes(clientMessages);
           } else {
@@ -1093,16 +1132,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
     });
+
+    lucide.createIcons({ nodes: [globalTodosList, clientTodosList] });
   }
 
   function renderTodoItem(t) {
+    const client = clients.find(c => String(c.id) === String(t.clientId));
+    const colorKey = client ? getClientColorKey(client) : 'blue';
+    const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+    
+    const clientBadge = client 
+      ? `<span class="text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 border uppercase tracking-wider" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};">${client.name}</span>`
+      : `<span class="text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 border uppercase tracking-wider bg-slate-100 border-slate-200 text-slate-500">Général</span>`;
+
     const formattedDate = t.dueDate 
-      ? ` <span class="text-[10px] bg-amber-100 text-amber-800 px-1 py-0.5 rounded font-bold uppercase tracking-tight ml-1">Prévu le ${new Date(t.dueDate).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</span>`
-      : '';
-    return `<div class="todo-item${t.done ? ' done' : ''} items-center">
+      ? `<span class="text-[9px] bg-amber-50 border border-amber-200/60 text-amber-800 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0"><i data-lucide="calendar" class="w-3 h-3 text-amber-600"></i>${new Date(t.dueDate).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</span>`
+      : `<span class="text-[9px] bg-slate-50 border border-slate-200/60 text-slate-400 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0"><i data-lucide="zap" class="w-3 h-3 text-slate-400"></i>Immédiat</span>`;
+
+    return `<div class="todo-item${t.done ? ' done' : ''} flex items-center gap-2.5 py-2">
       <input type="checkbox" class="todo-checkbox" data-id="${t.id}" ${t.done ? 'checked' : ''}>
-      <span class="flex-1">${t.content}${formattedDate}</span>
-      <button class="todo-delete" data-id="${t.id}" title="Supprimer">✕</button>
+      ${clientBadge}
+      <span class="flex-1 font-medium text-slate-700 truncate leading-relaxed">${t.content}</span>
+      ${formattedDate}
+      <button class="todo-delete text-slate-300 hover:text-rose-500 transition ml-2" data-id="${t.id}" title="Supprimer">✕</button>
     </div>`;
   }
 
