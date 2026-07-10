@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let clientFile       = null;        // fichier sélectionné (chat client)
   let filesWidgetOpen  = true;
   let autocompleteCreateName = '';    // nom saisi après `/` pour créer un client
+  let selectedPersonClientColorId = null; // client couleur associé à la personne en cours de création
 
   // État de planification des messages
   let selectedMessageDates = [];      // dates sélectionnées pour la future note (format YYYY-MM-DD)
@@ -288,6 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsAddPersonColorHexField = document.getElementById('settings-add-person-color-hex-field');
   const settingsPersonsList    = document.getElementById('settings-persons-list');
   const settingsClientsList    = document.getElementById('settings-clients-list');
+  const settingsAddPersonClientLink = document.getElementById('settings-add-person-client-link');
 
   // ─── ROUTAGE SYNCHRONISÉ ────────────────────────────────────────
   function showScreen(authActive) {
@@ -1890,6 +1892,7 @@ document.addEventListener('DOMContentLoaded', () => {
   personName.addEventListener('input', updatePersonPreview);
   personColor.addEventListener('input', () => {
     personColorHex.textContent = personColor.value.toUpperCase();
+    selectedPersonClientColorId = null; // Unlink if manual color chosen
     personClientColorsGrid.querySelectorAll('.color-dot').forEach(b => b.classList.remove('active'));
     updatePersonPreview();
   });
@@ -1905,10 +1908,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Éviter les doublons
     const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
+    const finalColorValue = selectedPersonClientColorId ? `client_${selectedPersonClientColorId}` : personColor.value;
+
     if (existsIdx !== -1) {
-      persons[existsIdx].color = personColor.value;
+      persons[existsIdx].color = finalColorValue;
     } else {
-      persons.push({ name: nameVal, color: personColor.value });
+      persons.push({ name: nameVal, color: finalColorValue });
     }
 
     localStorage.setItem('mimi_persons', JSON.stringify(persons));
@@ -1921,6 +1926,22 @@ document.addEventListener('DOMContentLoaded', () => {
       loadGlobalFeed();
     }
   });
+
+  // Résoudre la couleur d'une personne (qu'elle soit liée à un client ou en code brut)
+  function resolvePersonColor(colorStr) {
+    if (!colorStr) return '#3b82f6';
+    if (colorStr.startsWith('client_')) {
+      const clientId = colorStr.replace('client_', '');
+      const client = clients.find(c => c.id === clientId);
+      if (client) {
+        const colorKey = getClientColorKey(client);
+        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+        return theme.dotColor;
+      }
+      return '#3b82f6';
+    }
+    return colorStr;
+  }
 
   // Fonction de surlignage des messages
   function highlightMessageContent(text) {
@@ -1938,8 +1959,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const escapedName = escapeRegExp(p.name);
       // Regex tolérant les accents et vérifiant les limites de mots
       const regex = new RegExp(`(?<![a-zA-Z0-9À-ÿ])${escapedName}(?![a-zA-Z0-9À-ÿ])`, 'gi');
+      
+      const resolvedColor = resolvePersonColor(p.color);
+      
       html = html.replace(regex, match => {
-        return `<span class="px-1.5 py-0.5 rounded font-semibold text-xs border" style="background-color: ${p.color}20; color: ${p.color}; border-color: ${p.color}40;">${match}</span>`;
+        return `<span class="px-1.5 py-0.5 rounded font-semibold text-xs border" style="background-color: ${resolvedColor}20; color: ${resolvedColor}; border-color: ${resolvedColor}40;">${match}</span>`;
       });
     });
 
@@ -2005,6 +2029,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── GESTION GLOBAL DE LA PAGE DES PARAMÈTRES ──────────────────────
   function renderSettingsManagement() {
+    // Remplir le dropdown de liaison client dans la création rapide
+    settingsAddPersonClientLink.innerHTML = '<option value="">-- Aucun lien (utiliser la couleur ci-dessus) --</option>';
+    clients.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.name;
+      settingsAddPersonClientLink.appendChild(opt);
+    });
+
     renderSettingsClients(settingsClientsList);
     renderSettingsPersons(settingsPersonsList);
   }
@@ -2023,7 +2056,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
       
       const div = document.createElement('div');
-      div.className = 'p-3 bg-slate-50 border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 transition-all hover:bg-slate-100/30';
+      div.className = 'p-3 bg-slate-50 border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 transition-all hover:bg-slate-100/35';
       div.innerHTML = `
         <div class="flex-1 min-w-0 flex items-center gap-3">
           <input type="text" value="${escapeHTML(c.name)}" class="edit-client-name-input bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-[180px]" data-id="${c.id}">
@@ -2107,18 +2140,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     persons.forEach((p, idx) => {
+      const isLinked = p.color && p.color.startsWith('client_');
+      let linkedClientName = '';
+      let resolvedColor = '#3b82f6';
+      
+      if (isLinked) {
+        const cId = p.color.replace('client_', '');
+        const cl = clients.find(c => c.id === cId);
+        linkedClientName = cl ? cl.name : 'Client inconnu';
+        resolvedColor = resolvePersonColor(p.color);
+      } else {
+        resolvedColor = p.color;
+      }
+
       const div = document.createElement('div');
       div.className = 'p-3 bg-slate-50 border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 transition-all hover:bg-slate-100/30';
+      
+      const linkBadgeHTML = isLinked ? `
+        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold border border-slate-200 text-[10px] max-w-[120px] truncate" title="Lié à la couleur de ${linkedClientName}">
+          <i data-lucide="link" class="w-3 h-3"></i>
+          ${escapeHTML(linkedClientName)}
+        </span>
+      ` : '';
+
       div.innerHTML = `
-        <div class="flex-1 min-w-0 flex items-center gap-3">
-          <input type="text" value="${escapeHTML(p.name)}" class="edit-person-name-input bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 w-full max-w-[140px]" data-idx="${idx}">
+        <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+          <input type="text" value="${escapeHTML(p.name)}" class="edit-person-name-input bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 w-full max-w-[120px]" data-idx="${idx}">
           
           <div class="flex items-center gap-1.5 shrink-0">
-            <input type="color" value="${p.color}" class="settings-row-person-color w-6 h-6 border border-slate-200 rounded cursor-pointer bg-transparent" data-idx="${idx}">
-            <span class="text-[10px] font-mono text-slate-400 uppercase hidden sm:inline">${p.color}</span>
+            <input type="color" value="${resolvedColor}" class="settings-row-person-color w-6 h-6 border border-slate-200 rounded cursor-pointer bg-transparent" data-idx="${idx}">
+            <span class="text-[10px] font-mono text-slate-400 uppercase hidden sm:inline">${resolvedColor}</span>
           </div>
+          
+          ${linkBadgeHTML}
 
-          <span class="px-1.5 py-0.5 rounded font-semibold text-[10px] border truncate max-w-[80px] hidden sm:inline" style="background-color: ${p.color}20; color: ${p.color}; border-color: ${p.color}40;">${escapeHTML(p.name)}</span>
+          <span class="px-1.5 py-0.5 rounded font-semibold text-[10px] border truncate max-w-[80px] hidden sm:inline" style="background-color: ${resolvedColor}20; color: ${resolvedColor}; border-color: ${resolvedColor}40;">${escapeHTML(p.name)}</span>
         </div>
         
         <div class="flex items-center gap-1">
@@ -2148,7 +2204,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const saved = localStorage.getItem('mimi_persons');
         const persons = saved ? JSON.parse(saved) : [];
         
-        persons[idx] = { name: newName, color: newColor };
+        const oldPerson = persons[idx];
+        let finalColor = newColor;
+        
+        // Conserver le lien client dynamique si la couleur n'a pas été modifiée manuellement
+        if (oldPerson.color && oldPerson.color.startsWith('client_')) {
+          const prevResolved = resolvePersonColor(oldPerson.color);
+          if (newColor.toLowerCase() === prevResolved.toLowerCase()) {
+            finalColor = oldPerson.color;
+          }
+        }
+        
+        persons[idx] = { name: newName, color: finalColor };
         localStorage.setItem('mimi_persons', JSON.stringify(persons));
         
         renderSettingsManagement();
@@ -2174,6 +2241,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Écouteurs de création rapide de personne dans les paramètres
   settingsAddPersonColor.addEventListener('input', () => {
     settingsAddPersonColorHexField.textContent = settingsAddPersonColor.value.toUpperCase();
+    settingsAddPersonClientLink.value = ''; // Réinitialiser le lien si on touche la palette
   });
 
   settingsAddPersonForm.addEventListener('submit', e => {
@@ -2184,11 +2252,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('mimi_persons');
     const persons = saved ? JSON.parse(saved) : [];
     
+    const clientLinkId = settingsAddPersonClientLink.value;
+    const finalColor = clientLinkId ? `client_${clientLinkId}` : settingsAddPersonColor.value;
+
     const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
     if (existsIdx !== -1) {
-      persons[existsIdx].color = settingsAddPersonColor.value;
+      persons[existsIdx].color = finalColor;
     } else {
-      persons.push({ name: nameVal, color: settingsAddPersonColor.value });
+      persons.push({ name: nameVal, color: finalColor });
     }
     
     localStorage.setItem('mimi_persons', JSON.stringify(persons));
@@ -2196,7 +2267,9 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsAddPersonName.value = '';
     settingsAddPersonColor.value = '#8b5cf6';
     settingsAddPersonColorHexField.textContent = '#8B5CF6';
+    settingsAddPersonClientLink.value = '';
     
     renderSettingsManagement();
   });
+});
 });
