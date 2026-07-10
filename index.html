@@ -13,12 +13,12 @@
     <h2>Inscription</h2>
     <form id="register-form">
       <div class="form-group">
-        <label for="register-username">Nom d'utilisateur</label>
-        <input type="text" id="register-username" required>
+        <label for="register-email">Adresse e-mail</label>
+        <input type="email" id="register-email" required placeholder="nom@exemple.com">
       </div>
       <div class="form-group">
         <label for="register-password">Mot de passe</label>
-        <input type="password" id="register-password" required>
+        <input type="password" id="register-password" required minlength="6" placeholder="Min. 6 caractères">
       </div>
       <button type="submit">S'inscrire</button>
     </form>
@@ -34,8 +34,8 @@
     <h2>Connexion</h2>
     <form id="login-form">
       <div class="form-group">
-        <label for="login-username">Nom d'utilisateur</label>
-        <input type="text" id="login-username" required>
+        <label for="login-email">Adresse e-mail</label>
+        <input type="email" id="login-email" required placeholder="nom@exemple.com">
       </div>
       <div class="form-group">
         <label for="login-password">Mot de passe</label>
@@ -60,10 +60,12 @@
     </header>
     <main style="margin-top: 20px;">
       <h2>Bienvenue sur MimiGP</h2>
-      <p>Ceci est l'espace membre sécurisé. Pour le moment, l'authentification est fonctionnelle.</p>
+      <p>Ceci est l'espace membre sécurisé connecté à Supabase. L'authentification fonctionne pour tout le monde !</p>
     </main>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
