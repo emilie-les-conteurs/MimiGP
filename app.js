@@ -1021,49 +1021,115 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function renderTodos(contextClientId) {
-    // Global todos (all non-done)
-    const globalActive = todos.filter(t => !t.done);
+    const today = new Date().toISOString().split('T')[0];
+
+    // Pense-bêtes actifs globaux (non cochés ET (pas de date de fin OU date <= aujourd'hui))
+    const globalActive = todos.filter(t => 
+      !t.done && 
+      (!t.dueDate || t.dueDate <= today)
+    );
     globalTodosContainer.classList.toggle('hidden', globalActive.length === 0);
     globalTodosList.innerHTML = globalActive.map(t => renderTodoItem(t)).join('');
 
-    // Client todos (filtered by clientId)
+    // Pense-bêtes actifs du client contextuel
     if (contextClientId) {
-      const clientActive = todos.filter(t => !t.done && String(t.clientId) === String(contextClientId));
+      const clientActive = todos.filter(t => 
+        !t.done && 
+        String(t.clientId) === String(contextClientId) &&
+        (!t.dueDate || t.dueDate <= today)
+      );
       clientTodosContainer.classList.toggle('hidden', clientActive.length === 0);
       clientTodosList.innerHTML = clientActive.map(t => renderTodoItem(t)).join('');
     }
 
-    // Bind events on both
+    // Lier les évènements de modification / suppression
     [globalTodosList, clientTodosList].forEach(container => {
       container.querySelectorAll('.todo-checkbox').forEach(cb => {
-        cb.addEventListener('change', () => {
+        cb.addEventListener('change', async () => {
           const id = cb.dataset.id;
           const todo = todos.find(t => t.id === id);
-          if (todo) { todo.done = cb.checked; saveTodos(); renderTodos(contextClientId); }
+          if (todo) {
+            todo.done = cb.checked;
+            saveTodos();
+            
+            // Si la tâche est cochée et liée à un client, on la convertit en note Supabase!
+            if (todo.done && todo.clientId) {
+              const noteContent = `Fait : ${todo.content}`;
+              const { error } = await sb.from('messages').insert({
+                client_id: todo.clientId,
+                user_id: currentSession.user.id,
+                content: noteContent
+              });
+              if (error) {
+                console.error("Erreur conversion pense-bête en note:", error.message);
+              } else {
+                // Supprimer le pense-bête local pour ne pas encombrer
+                todos = todos.filter(t => t.id !== id);
+                saveTodos();
+                
+                // Recharger les flux de messages
+                if (activeClientId) {
+                  await loadClientMessages(false);
+                } else {
+                  await loadGlobalFeed(false);
+                }
+              }
+            }
+            renderTodos(contextClientId);
+          }
         });
       });
       container.querySelectorAll('.todo-delete').forEach(btn => {
         btn.addEventListener('click', () => {
           todos = todos.filter(t => t.id !== btn.dataset.id);
-          saveTodos(); renderTodos(contextClientId);
+          saveTodos();
+          renderTodos(contextClientId);
+          // Actualiser le widget des notes à venir car un pense-bête planifié a pu être supprimé
+          if (contextClientId) {
+            renderUpcomingNotes(clientMessages);
+          } else {
+            renderUpcomingNotes(globalMessages);
+          }
         });
       });
     });
   }
 
   function renderTodoItem(t) {
-    return `<div class="todo-item${t.done ? ' done' : ''}">
+    const formattedDate = t.dueDate 
+      ? ` <span class="text-[10px] bg-amber-100 text-amber-800 px-1 py-0.5 rounded font-bold uppercase tracking-tight ml-1">Prévu le ${new Date(t.dueDate).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</span>`
+      : '';
+    return `<div class="todo-item${t.done ? ' done' : ''} items-center">
       <input type="checkbox" class="todo-checkbox" data-id="${t.id}" ${t.done ? 'checked' : ''}>
-      <span class="flex-1">${t.content}</span>
+      <span class="flex-1">${t.content}${formattedDate}</span>
       <button class="todo-delete" data-id="${t.id}" title="Supprimer">✕</button>
     </div>`;
   }
 
   function addTodo(clientId, content) {
-    const todo = { id: Date.now().toString(), clientId, content, done: false, createdAt: new Date().toISOString() };
+    // Si une date a été sélectionnée via le calendrier de planification (ex: /date)
+    const dueDate = selectedMessageDates.length > 0 ? selectedMessageDates[0] : null;
+    
+    const todo = { 
+      id: Date.now().toString(), 
+      clientId, 
+      content, 
+      done: false, 
+      createdAt: new Date().toISOString(),
+      dueDate 
+    };
+    
     todos.push(todo);
     saveTodos();
+    clearSelectedMessageDates(); // Nettoyer la date planifiée
     renderTodos(clientId);
+    
+    // Mettre à jour le widget d'accueil ou client
+    if (clientId) {
+      loadClientMessages(false);
+    } else {
+      loadGlobalFeed(false);
+    }
   }
 
   // ─── NOTES À VENIR ────────────────────────────────────────────────────
@@ -1081,26 +1147,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderUpcomingNotes(msgs) {
     const today = new Date().toISOString().split('T')[0];
-    const upcoming = msgs.filter(m => {
+    
+    // Notes futures provenant de Supabase
+    const upcomingMsgs = msgs.filter(m => {
       const d = new Date(m.created_at).toISOString().split('T')[0];
       return d > today;
-    }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    }).map(m => ({
+      date: new Date(m.created_at).toISOString().split('T')[0],
+      type: 'note',
+      content: m.content
+    }));
 
-    if (!upcomingList) return upcoming;
+    // Pense-bêtes futurs planifiés localement
+    const upcomingTodos = todos.filter(t => {
+      if (t.done) return false;
+      if (!t.dueDate) return false;
+      if (t.dueDate <= today) return false;
+      if (activeClientId && String(t.clientId) !== String(activeClientId)) return false;
+      return true;
+    }).map(t => ({
+      date: t.dueDate,
+      type: 'todo',
+      content: `📌 [Pense-bête] ${t.content}`
+    }));
 
-    if (upcoming.length === 0) {
+    // Combiner et trier chronologiquement
+    const allUpcoming = [...upcomingMsgs, ...upcomingTodos].sort((a, b) => a.date.localeCompare(b.date));
+
+    if (!upcomingList) return allUpcoming;
+
+    if (allUpcoming.length === 0) {
       upcomingList.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Aucune note à venir.</p>';
     } else {
-      upcomingList.innerHTML = upcoming.map(m => {
-        const d = new Date(m.created_at).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-        const preview = (m.content || '').slice(0, 80);
-        return `<div class="upcoming-note-item">
-          <span class="upcoming-date">${d}</span>
+      upcomingList.innerHTML = allUpcoming.map(item => {
+        const d = new Date(item.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+        const preview = (item.content || '').slice(0, 80);
+        
+        // Styles spécifiques pour différencier les pense-bêtes des notes planifiées
+        const style = item.type === 'todo'
+          ? 'background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-color: #fde68a; color: #78350f;'
+          : '';
+        const dateStyle = item.type === 'todo' ? 'color: #d97706;' : '';
+
+        return `<div class="upcoming-note-item" style="${style}">
+          <span class="upcoming-date" style="${dateStyle}">${d}</span>
           <span class="upcoming-content">${preview}</span>
         </div>`;
       }).join('');
     }
-    return upcoming;
+    return allUpcoming;
   }
 
   // ─── BANDEAU DE RAPPEL LENDEMAIN ──────────────────────────────────────
@@ -1116,25 +1211,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderTomorrowBanner(allMessages, allClients) {
     const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    
+    // Notes prévues pour demain (Supabase)
     const tomorrowMsgs = allMessages.filter(m => {
       const d = new Date(m.created_at).toISOString().split('T')[0];
       return d === tomorrow;
+    }).map(m => {
+      const client = allClients.find(c => String(c.id) === String(m.client_id));
+      const clientName = client ? client.name : 'Sans client';
+      const preview = (m.content || '').slice(0, 60);
+      return `<li><span class="font-bold">${clientName}</span> — ${preview}${(m.content || '').length > 60 ? '…' : ''}</li>`;
     });
 
-    if (tomorrowMsgs.length === 0) {
+    // Pense-bêtes prévus pour demain (local storage)
+    const tomorrowTodos = todos.filter(t => {
+      return !t.done && t.dueDate === tomorrow;
+    }).map(t => {
+      const client = allClients.find(c => String(c.id) === String(t.clientId));
+      const clientName = client ? client.name : 'Sans client';
+      const preview = t.content.slice(0, 60);
+      return `<li><span class="font-bold text-amber-600">${clientName} (Pense-bête)</span> — ${preview}${t.content.length > 60 ? '…' : ''}</li>`;
+    });
+
+    const allTomorrowItems = [...tomorrowMsgs, ...tomorrowTodos];
+
+    if (allTomorrowItems.length === 0) {
       tomorrowBanner.classList.add('hidden');
       tomorrowBanner.classList.remove('flex');
       return;
     }
 
-    tomorrowNotesList.innerHTML = tomorrowMsgs.map(m => {
-      const client = allClients.find(c => String(c.id) === String(m.client_id));
-      const clientName = client ? client.name : 'Sans client';
-      const preview = (m.content || '').slice(0, 60);
-      return `<li><span class="font-bold">${clientName}</span> — ${preview}${(m.content || '').length > 60 ? '…' : ''}</li>`;
-    }).join('');
-
-    tomorrowNotesCount.textContent = tomorrowMsgs.length;
+    tomorrowNotesList.innerHTML = allTomorrowItems.join('');
+    tomorrowNotesCount.textContent = allTomorrowItems.length;
     tomorrowBanner.classList.remove('hidden');
     tomorrowBanner.classList.add('flex');
     lucide.createIcons({ nodes: [tomorrowBanner] });
