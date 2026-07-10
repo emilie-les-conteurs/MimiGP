@@ -160,6 +160,7 @@ body.auth-body {
 }
 
 /* ─── DYNAMIC THEME SCOPING ────────────────────────── */
+#navbar-header,
 #main-client-view,
 #active-client-header,
 #date-picker-modal,

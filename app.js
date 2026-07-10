@@ -315,6 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateDateFilterUI();
       await loadClientMessages();
       renderCalendar();
+      renderClientList(); // Rafraîchir l'état actif dans la sidebar
     } else {
       // Mode Dashboard Accueil Global
       activeClientId = null;
@@ -336,6 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.history.replaceState(null, '', '#dashboard');
       }
       await loadGlobalFeed();
+      renderClientList(); // Effacer la sélection de la sidebar
     }
   }
 
@@ -663,46 +665,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const val = globalChatInput.value;
 
     if (val.trim() === '/date') {
-      // Suggestion d'ouverture du calendrier
-      autocompleteList.innerHTML = '';
-      const item = document.createElement('div');
-      item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm text-blue-600 font-bold transition';
-      item.innerHTML = `
-        <i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i>
-        <span>📅 Dater cette note... (/date)</span>
-      `;
-      item.addEventListener('mousedown', e => {
-        e.preventDefault();
-        globalChatInput.value = '';
-        hideAutocomplete();
-        openDatePicker();
-      });
-      autocompleteList.appendChild(item);
-      autocompleteCreate.classList.add('hidden');
-      lucide.createIcons();
-      autocompleteDropdown.classList.remove('hidden');
+      globalChatInput.value = '';
+      hideAutocomplete();
+      openDatePicker();
       return;
     }
 
     if (val.trim() === '/personne') {
-      // Suggestion d'ajout de personne
-      autocompleteList.innerHTML = '';
-      const item = document.createElement('div');
-      item.className = 'px-3 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-sm text-purple-600 font-bold transition';
-      item.innerHTML = `
-        <i data-lucide="user-plus" class="w-4 h-4 text-purple-500"></i>
-        <span>👤 Ajouter une personne... (/personne)</span>
-      `;
-      item.addEventListener('mousedown', e => {
-        e.preventDefault();
-        globalChatInput.value = '';
-        hideAutocomplete();
-        openPersonModal();
-      });
-      autocompleteList.appendChild(item);
-      autocompleteCreate.classList.add('hidden');
-      lucide.createIcons();
-      autocompleteDropdown.classList.remove('hidden');
+      globalChatInput.value = '';
+      hideAutocomplete();
+      openPersonModal();
       return;
     }
     
@@ -1433,11 +1405,15 @@ document.addEventListener('DOMContentLoaded', () => {
   globalDateBtn.addEventListener('click', openDatePicker);
   clientDateBtn.addEventListener('click', openDatePicker);
 
-  // Écouter /date dans l'input client
+  // Écouter /date et /personne dans l'input client pour ouverture instantanée
   clientChatInput.addEventListener('input', () => {
-    if (clientChatInput.value.trim() === '/date') {
+    const val = clientChatInput.value.trim();
+    if (val === '/date') {
       clientChatInput.value = '';
       openDatePicker();
+    } else if (val === '/personne') {
+      clientChatInput.value = '';
+      openPersonModal();
     }
   });
 
