@@ -736,6 +736,100 @@ document.addEventListener('DOMContentLoaded', () => {
     return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  function parseDateString(str) {
+    if (!str) return null;
+    str = str.toLowerCase().trim();
+    if (str === 'demain') {
+      const d = new Date(Date.now() + 86400000);
+      return d.toISOString().split('T')[0];
+    }
+    if (str === 'aujourdhui' || str === "aujourd'hui") {
+      return new Date().toISOString().split('T')[0];
+    }
+    const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    if (days.includes(str)) {
+      const targetDay = days.indexOf(str);
+      const today = new Date();
+      const currentDay = today.getDay();
+      let diff = targetDay - currentDay;
+      if (diff <= 0) diff += 7; // Semaine prochaine
+      const d = new Date(today.getTime() + diff * 86400000);
+      return d.toISOString().split('T')[0];
+    }
+    // Format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    // Format DD-MM-YYYY ou DD/MM/YYYY
+    const frMatch = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    if (frMatch) {
+      return `${frMatch[3]}-${frMatch[2]}-${frMatch[1]}`;
+    }
+    // Format DD-MM ou DD/MM (année courante)
+    const frShortMatch = str.match(/^(\d{2})[-/](\d{2})$/);
+    if (frShortMatch) {
+      const currentYear = new Date().getFullYear();
+      return `${currentYear}-${frShortMatch[2]}-${frShortMatch[1]}`;
+    }
+    // Format YYYY/MM/DD
+    if (/^\d{4}\/\d{2}\/\d{2}$/.test(str)) return str.replace(/\//g, '-');
+    return null;
+  }
+
+  function initResizeTodos() {
+    document.querySelectorAll('.todos-resize-handle').forEach(handle => {
+      const targetId = handle.dataset.target;
+      const targetEl = document.getElementById(targetId);
+      if (!targetEl) return;
+
+      // Restore saved height if any
+      const savedHeight = localStorage.getItem(`todos-height-${targetId}`);
+      if (savedHeight) {
+        targetEl.style.height = `${savedHeight}px`;
+      } else {
+        targetEl.style.height = '130px'; // default
+      }
+
+      const startDrag = (clientY) => {
+        const startY = clientY;
+        const startHeight = targetEl.offsetHeight;
+
+        const onMouseMove = (moveEvent) => {
+          const clientYMove = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+          const deltaY = clientYMove - startY;
+          let newHeight = startHeight + deltaY;
+
+          // Capper à la hauteur du contenu réel (scrollHeight)
+          const contentHeight = targetEl.scrollHeight;
+          if (newHeight < 80) newHeight = 80;
+          if (newHeight > contentHeight) newHeight = contentHeight;
+
+          targetEl.style.height = `${newHeight}px`;
+          localStorage.setItem(`todos-height-${targetId}`, newHeight);
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          document.removeEventListener('touchmove', onMouseMove);
+          document.removeEventListener('touchend', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('touchmove', onMouseMove, { passive: false });
+        document.addEventListener('touchend', onMouseUp);
+      };
+
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startDrag(e.clientY);
+      });
+
+      handle.addEventListener('touchstart', (e) => {
+        startDrag(e.touches[0].clientY);
+      });
+    });
+  }
+
   // ─── COMMAND PICKER (Notion-style) ──────────────────────────────────
   const commandPickerEl = document.getElementById('command-picker');
   const commandPickerList = document.getElementById('command-picker-list');
@@ -1241,6 +1335,31 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       });
+    });
+
+    // Ajuster dynamiquement la hauteur pour éviter le vide/vide en bas
+    [
+      { list: globalTodosList, id: 'global-todos-list' },
+      { list: clientTodosList, id: 'client-todos-list' }
+    ].forEach(({ list, id }) => {
+      if (!list) return;
+      
+      // Temporairement réinitialiser pour lire la vraie hauteur de défilement (scrollHeight)
+      const prevHeight = list.style.height;
+      list.style.height = 'auto';
+      const contentHeight = list.scrollHeight;
+      list.style.height = prevHeight;
+
+      // Lire la hauteur souhaitée (localStorage ou défaut 130px)
+      const saved = localStorage.getItem(`todos-height-${id}`);
+      const preferredHeight = saved ? parseInt(saved) : 130;
+
+      // Capper la hauteur finale
+      let finalHeight = Math.min(preferredHeight, contentHeight);
+      if (finalHeight < 80 && contentHeight > 0) finalHeight = 80;
+      if (contentHeight === 0) finalHeight = 0;
+
+      list.style.height = `${finalHeight}px`;
     });
 
     lucide.createIcons({ nodes: [globalTodosList, clientTodosList] });
@@ -1792,7 +1911,7 @@ document.addEventListener('DOMContentLoaded', () => {
               updatedFields.content = updatedContent;
               
               if (parsed.clientId) {
-                updatedFields.client_id = parsed.clientId;
+                updatedFields.client_id = (parsed.clientId === 'none') ? null : parsed.clientId;
               }
               if (parsed.date) {
                 const formattedDate = parseDateString(parsed.date);
@@ -1863,10 +1982,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const clRegex = /\/cl\s+(?:"([^"]+)"|'([^']+)'|([^\s/]+))/i;
     const clMatch = text.match(clRegex);
     if (clMatch) {
-      const clientName = clMatch[1] || clMatch[2] || clMatch[3];
-      const found = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
-      if (found) {
-        clientId = found.id;
+      const clientName = (clMatch[1] || clMatch[2] || clMatch[3] || '').trim().toLowerCase();
+      if (['aucun', 'general', 'général', 'none', 'clear'].includes(clientName)) {
+        clientId = 'none'; // Spécifie explicitement de dissocier le client
+      } else {
+        const found = clients.find(c => 
+          c.name.toLowerCase() === clientName || 
+          c.name.toLowerCase().includes(clientName)
+        );
+        if (found) {
+          clientId = found.id;
+        }
       }
       text = text.replace(clRegex, '');
     }
@@ -1878,14 +2004,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const clientShortcutRegex = /^\/(?:"([^"]+)"|'([^']+)'|([a-zA-Z0-9À-ÿ_]+))(?:\s+|$)/i;
       const shortcutMatch = text.match(clientShortcutRegex);
       if (shortcutMatch) {
-        const potentialName = (shortcutMatch[1] || shortcutMatch[2] || shortcutMatch[3] || '').trim();
+        const potentialName = (shortcutMatch[1] || shortcutMatch[2] || shortcutMatch[3] || '').trim().toLowerCase();
         // Vérifier que ce n'est pas une commande système connue
-        const isSystemCmd = ['date', 'personne', 'couleurfond', 'pensebete'].includes(potentialName.toLowerCase());
+        const isSystemCmd = ['date', 'personne', 'couleurfond', 'pensebete'].includes(potentialName);
         if (!isSystemCmd) {
-          const found = clients.find(c => c.name.toLowerCase() === potentialName.toLowerCase());
-          if (found) {
-            clientId = found.id;
+          if (['aucun', 'general', 'général', 'none', 'clear'].includes(potentialName)) {
+            clientId = 'none';
             text = text.replace(clientShortcutRegex, '');
+          } else {
+            const found = clients.find(c => 
+              c.name.toLowerCase() === potentialName || 
+              c.name.toLowerCase().includes(potentialName)
+            );
+            if (found) {
+              clientId = found.id;
+              text = text.replace(clientShortcutRegex, '');
+            }
           }
         }
       }
@@ -1923,8 +2057,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const personneRegex = /\/personne(?:\s+([^\s]+))?/gi;
     text = text.replace(personneRegex, '');
 
-    // Nettoyer les espaces superflus
-    text = text.replace(/\s+/g, ' ').trim();
+    // Nettoyer les espaces superflus (sans écraser les retours à la ligne)
+    text = text.replace(/[ \t]+/g, ' ').trim();
 
     return {
       content: text,
@@ -2233,7 +2367,7 @@ document.addEventListener('DOMContentLoaded', () => {
               updatedFields.content = updatedContent;
               
               if (parsed.clientId) {
-                updatedFields.client_id = parsed.clientId;
+                updatedFields.client_id = (parsed.clientId === 'none') ? null : parsed.clientId;
               }
               if (parsed.date) {
                 const formattedDate = parseDateString(parsed.date);
@@ -3445,5 +3579,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     renderSettingsManagement();
   });
+
+  initResizeTodos();
 });
 // Redéploiement manuel pour contourner la limite de taux (rate limit) Vercel passée.
