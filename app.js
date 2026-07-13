@@ -365,7 +365,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Réinitialiser les classes mobiles hidden/flex par défaut lors de la navigation
     if (leftSidebar) { leftSidebar.classList.add('hidden'); leftSidebar.classList.remove('flex'); }
-    if (rightSidebar) { rightSidebar.classList.add('hidden'); rightSidebar.classList.remove('flex'); }
+    if (rightSidebar) {
+      if (window.innerWidth >= 1024) {
+        const isClosed = localStorage.getItem('right-sidebar-closed') === 'true';
+        rightSidebar.classList.toggle('hidden', isClosed);
+        rightSidebar.classList.toggle('flex', !isClosed);
+      } else {
+        rightSidebar.classList.add('hidden');
+        rightSidebar.classList.remove('flex');
+      }
+    }
 
     if (hash.startsWith('#client/')) {
       const id = hash.replace('#client/', '');
@@ -3631,6 +3640,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const isHidden = rightSidebar.classList.contains('hidden');
       rightSidebar.classList.toggle('hidden', !isHidden);
       rightSidebar.classList.toggle('flex', isHidden);
+      
+      // Si on est sur ordinateur, on mémorise le choix de l'utilisateur
+      if (window.innerWidth >= 1024) {
+        localStorage.setItem('right-sidebar-closed', !isHidden ? 'true' : 'false');
+      }
+
       // Fermer le panneau gauche sur mobile si on ouvre le droit
       if (isHidden && window.innerWidth < 768 && leftSidebar) {
         leftSidebar.classList.add('hidden');
