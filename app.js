@@ -1718,18 +1718,43 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `background-color: ${bgColor}; border-color: transparent;`
         : 'background-color: white; border-color: #e2e8f0;';
 
+      const editedRegex = /\s*\[edited:([^\]]+)\]$/;
+      const editedMatch = msg.content.match(editedRegex);
+      const editedAt = editedMatch ? editedMatch[1] : null;
+      const cleanContent = msg.content.replace(editedRegex, '');
+
+      let editedBadge = '';
+      if (editedAt) {
+        const editDate = new Date(editedAt);
+        const editTimeStr = editDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const editDateStr = editDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+        editedBadge = `
+          <span class="text-[9px] text-slate-400 font-medium" title="Modifié le ${editDate.toLocaleDateString()} à ${editTimeStr}">
+            • modifié le ${editDateStr} à ${editTimeStr}
+          </span>
+        `;
+      }
+
       const div = document.createElement('div');
       div.className = 'flex flex-col space-y-0.5 max-w-[85%] animate-fade-in-up';
       div.style.animationDelay = `${Math.min(i * 20, 300)}ms`;
       div.innerHTML = `
         <div class="flex items-center justify-between gap-4 mb-0.5 w-full">
-          <span class="text-[10px] text-slate-400 font-bold tracking-tight">${timeStr}</span>
-          <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
-            <i data-lucide="trash-2" class="w-3 h-3"></i>
-          </button>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[10px] text-slate-400 font-bold tracking-tight">${timeStr}</span>
+            ${editedBadge}
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button class="edit-msg-btn text-slate-300 hover:text-blue-600 transition" data-id="${msg.id}" title="Modifier cette note">
+              <i data-lucide="edit-3" class="w-3 h-3"></i>
+            </button>
+            <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
+              <i data-lucide="trash-2" class="w-3 h-3"></i>
+            </button>
+          </div>
         </div>
-        <div class="rounded-2xl rounded-tl-none px-4 py-3 shadow-sm text-sm text-slate-800" style="${bgStyle}">
-          <p class="whitespace-pre-line">${highlightMessageContent(msg.content)}</p>
+        <div class="msg-content-container rounded-2xl rounded-tl-none px-4 py-3 shadow-sm text-sm text-slate-800" style="${bgStyle}" data-id="${msg.id}">
+          <p class="whitespace-pre-line msg-text">${highlightMessageContent(cleanContent)}</p>
           ${attachHTML}
         </div>
       `;
@@ -1750,6 +1775,53 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    clientChatMessages.querySelectorAll('.edit-msg-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const msg = clientMessages.find(m => String(m.id) === String(id));
+        if (msg) {
+          const cardDiv = btn.closest('.flex-col');
+          const contentContainer = cardDiv.querySelector('.msg-content-container');
+          
+          const editedRegex = /\s*\[edited:([^\]]+)\]$/;
+          const cleanText = msg.content.replace(editedRegex, '');
+          
+          contentContainer.innerHTML = `
+            <div class="mt-2 space-y-2">
+              <textarea class="w-full text-sm text-slate-800 p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 msg-edit-textarea" rows="3">${cleanText}</textarea>
+              <div class="flex items-center gap-2">
+                <button class="save-msg-btn text-xs font-semibold px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">Enregistrer</button>
+                <button class="cancel-msg-btn text-xs font-semibold px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">Annuler</button>
+              </div>
+            </div>
+          `;
+          
+          const textarea = contentContainer.querySelector('.msg-edit-textarea');
+          textarea.focus();
+          
+          contentContainer.querySelector('.save-msg-btn').addEventListener('click', async () => {
+            const newText = textarea.value.trim();
+            if (newText) {
+              const updatedContent = `${newText} [edited:${new Date().toISOString()}]`;
+              const { error } = await sb.from('messages').update({ content: updatedContent }).eq('id', id);
+              if (error) {
+                alert("Erreur lors de la modification : " + error.message);
+              } else {
+                await loadClientMessages(false);
+              }
+            } else {
+              await loadClientMessages(false);
+            }
+          });
+          
+          contentContainer.querySelector('.cancel-msg-btn').addEventListener('click', () => {
+            renderClientMessages();
+          });
+        }
+      });
+    });
     clientChatMessages.querySelectorAll('.delete-msg-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.preventDefault();

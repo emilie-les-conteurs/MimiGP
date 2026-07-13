@@ -450,3 +450,14 @@ body.auth-body {
   overflow: hidden;
 }
 
+/* Zone étirable pour les pense-bêtes */
+#global-todos-list, #client-todos-list {
+  resize: vertical;
+  overflow-y: auto !important;
+  min-height: 80px;
+  height: 130px;
+  max-height: 400px;
+  padding-bottom: 6px;
+}
+
+
