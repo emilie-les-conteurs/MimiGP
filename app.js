@@ -2857,3 +2857,4 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSettingsManagement();
   });
 });
+// Redéploiement manuel pour contourner la limite de taux (rate limit) Vercel passée.
