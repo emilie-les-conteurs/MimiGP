@@ -535,6 +535,21 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => loginForm.reset(), 1000);
   });
 
+  const googleLoginBtn = document.getElementById('google-login-btn');
+  googleLoginBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    loginError.textContent = '';
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) {
+      loginError.textContent = error.message;
+    }
+  });
+
   logoutBtn.addEventListener('click', async () => {
     await sb.auth.signOut();
     clients = []; globalMessages = []; clientMessages = [];
