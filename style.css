@@ -460,4 +460,10 @@ body.auth-body {
   padding-bottom: 6px;
 }
 
+/* Curseur d'étirement pour l'indicateur visuel */
+.pointer-events-none.select-none:has([data-lucide="grip-horizontal"]) {
+  cursor: ns-resize;
+  pointer-events: auto !important;
+}
+
 

@@ -1147,8 +1147,90 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       });
+      container.querySelectorAll('.todo-client-badge').forEach(badge => {
+        badge.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.location.hash = `#client/${badge.dataset.clientId}`;
+        });
+      });
+      container.querySelectorAll('.todo-edit').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          const todo = todos.find(t => t.id === id);
+          if (todo) {
+            const todoItemRow = btn.closest('.todo-item');
+            const originalContent = todo.content;
+            
+            // On affiche le texte original pour édition
+            todoItemRow.innerHTML = `
+              <div class="flex items-center gap-2 w-full py-1">
+                <input type="text" class="flex-1 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 todo-edit-input" value="${originalContent}">
+                <button class="todo-save-btn text-green-600 hover:text-green-800 font-bold text-xs px-2 py-1 border border-green-200 rounded bg-green-50">✓</button>
+                <button class="todo-cancel-btn text-slate-500 hover:text-slate-700 font-bold text-xs px-2 py-1 border border-slate-200 rounded bg-slate-50">✕</button>
+              </div>
+            `;
+            
+            const input = todoItemRow.querySelector('.todo-edit-input');
+            input.focus();
+            
+            const saveHandler = () => {
+              const newContent = input.value.trim();
+              if (newContent) {
+                const parsed = parseInputCommands(newContent);
+                
+                // Mettre à jour le client si /cl est spécifié
+                if (parsed.clientId) {
+                  todo.clientId = parsed.clientId;
+                }
+                
+                // Mettre à jour la date si /date est spécifié
+                if (parsed.date) {
+                  todo.dueDate = parseDateString(parsed.date);
+                }
+                
+                todo.content = parsed.content;
+                todo.editedAt = new Date().toISOString();
+                saveTodos();
+              }
+              renderTodos(contextClientId);
+              if (contextClientId) {
+                renderUpcomingNotes(clientMessages);
+              } else {
+                renderUpcomingNotes(globalMessages);
+              }
+            };
+
+            todoItemRow.querySelector('.todo-save-btn').addEventListener('click', (evt) => {
+              evt.preventDefault();
+              evt.stopPropagation();
+              saveHandler();
+            });
+            
+            todoItemRow.querySelector('.todo-cancel-btn').addEventListener('click', (evt) => {
+              evt.preventDefault();
+              evt.stopPropagation();
+              renderTodos(contextClientId);
+            });
+
+            input.addEventListener('keydown', e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                saveHandler();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                renderTodos(contextClientId);
+              }
+            });
+          }
+        });
+      });
       container.querySelectorAll('.todo-delete').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           todos = todos.filter(t => t.id !== btn.dataset.id);
           saveTodos();
           renderTodos(contextClientId);
@@ -1170,19 +1252,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
     
     const clientBadge = client 
-      ? `<span class="text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 border uppercase tracking-wider" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};">${client.name}</span>`
+      ? `<button class="todo-client-badge text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 border uppercase tracking-wider hover:opacity-85 transition" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`
       : `<span class="text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 border uppercase tracking-wider bg-slate-100 border-slate-200 text-slate-500">Général</span>`;
 
     const formattedDate = t.dueDate 
       ? `<span class="text-[9px] bg-amber-50 border border-amber-200/60 text-amber-800 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0"><i data-lucide="calendar" class="w-3 h-3 text-amber-600"></i>${new Date(t.dueDate).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</span>`
       : `<span class="text-[9px] bg-slate-50 border border-slate-200/60 text-slate-400 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0"><i data-lucide="zap" class="w-3 h-3 text-slate-400"></i>Immédiat</span>`;
 
+    let editedLabel = '';
+    if (t.editedAt) {
+      const editDate = new Date(t.editedAt);
+      const editTimeStr = editDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const editDateStr = editDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      editedLabel = `
+        <span class="text-[9px] text-slate-400 font-medium shrink-0" title="Modifié le ${editDate.toLocaleDateString()} à ${editTimeStr}">
+          (modifié le ${editDateStr})
+        </span>
+      `;
+    }
+
     return `<div class="todo-item${t.done ? ' done' : ''} flex items-center gap-2.5 py-2">
       <input type="checkbox" class="todo-checkbox" data-id="${t.id}" ${t.done ? 'checked' : ''}>
       ${clientBadge}
-      <span class="flex-1 font-medium text-slate-700 truncate leading-relaxed">${t.content}</span>
+      <span class="flex-1 font-medium text-slate-700 truncate leading-relaxed todo-text" data-id="${t.id}">${t.content}</span>
+      ${editedLabel}
       ${formattedDate}
-      <button class="todo-delete text-slate-300 hover:text-rose-500 transition ml-2" data-id="${t.id}" title="Supprimer">✕</button>
+      <button class="todo-edit text-slate-300 hover:text-blue-600 transition ml-2" data-id="${t.id}" title="Modifier">
+        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+      </button>
+      <button class="todo-delete text-slate-300 hover:text-rose-500 transition ml-1" data-id="${t.id}" title="Supprimer">✕</button>
     </div>`;
   }
 
@@ -1233,9 +1331,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const d = new Date(m.created_at).toISOString().split('T')[0];
       return d > today;
     }).map(m => ({
+      id: m.id,
       date: new Date(m.created_at).toISOString().split('T')[0],
       type: 'note',
-      content: m.content
+      content: m.content,
+      clientId: m.client_id
     }));
 
     // Pense-bêtes futurs planifiés localement
@@ -1246,9 +1346,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (activeClientId && String(t.clientId) !== String(activeClientId)) return false;
       return true;
     }).map(t => ({
+      id: t.id,
       date: t.dueDate,
       type: 'todo',
-      content: `📌 [Pense-bête] ${t.content}`
+      content: t.content,
+      clientId: t.clientId
     }));
 
     // Combiner et trier chronologiquement
@@ -1261,7 +1363,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       upcomingList.innerHTML = allUpcoming.map(item => {
         const d = new Date(item.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-        const preview = (item.content || '').slice(0, 80);
         
         // Styles spécifiques pour différencier les pense-bêtes des notes planifiées
         const style = item.type === 'todo'
@@ -1269,12 +1370,192 @@ document.addEventListener('DOMContentLoaded', () => {
           : '';
         const dateStyle = item.type === 'todo' ? 'color: #d97706;' : '';
 
-        return `<div class="upcoming-note-item" style="${style}">
-          <span class="upcoming-date" style="${dateStyle}">${d}</span>
-          <span class="upcoming-content">${preview}</span>
+        // Boutons d'action
+        const deleteBtn = `<button class="upcoming-delete text-slate-400 hover:text-rose-500 font-bold ml-1 transition" data-id="${item.id}" data-type="${item.type}" title="Supprimer">✕</button>`;
+        const editBtn = `<button class="upcoming-edit text-slate-400 hover:text-blue-600 transition ml-1" data-id="${item.id}" data-type="${item.type}" title="Modifier">
+          <i data-lucide="edit-3" class="w-3 h-3"></i>
+        </button>`;
+
+        // Badge client cliquable
+        let clientBadge = '';
+        const client = clients.find(c => String(c.id) === String(item.clientId));
+        if (client) {
+          const colorKey = getClientColorKey(client);
+          const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+          clientBadge = `<button class="upcoming-client-badge text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider hover:opacity-85 transition shrink-0" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`;
+        }
+
+        const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+        const cleanContent = (item.content || '').replace(editedRegex, '');
+        const preview = cleanContent.slice(0, 80) + (cleanContent.length > 80 ? '…' : '');
+
+        return `<div class="upcoming-note-item p-2 bg-white border border-slate-100 rounded-lg shadow-sm flex flex-col gap-1.5" style="${style}">
+          <div class="flex items-center justify-between gap-2 w-full">
+            <div class="flex items-center gap-1.5">
+              <span class="upcoming-date font-bold text-[10px] uppercase tracking-wider text-purple-600 shrink-0" style="${dateStyle}">${d}</span>
+              ${clientBadge}
+            </div>
+            <div class="flex items-center gap-1">
+              ${editBtn}
+              ${deleteBtn}
+            </div>
+          </div>
+          <span class="upcoming-content text-[11px] text-purple-900 msg-content-container" data-id="${item.id}" data-type="${item.type}">
+            ${item.type === 'todo' ? '📌 [Pense-bête] ' : ''}${preview}
+          </span>
         </div>`;
       }).join('');
+
+      // Lier les évènements pour le widget à venir
+      upcomingList.querySelectorAll('.upcoming-client-badge').forEach(badge => {
+        badge.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.location.hash = `#client/${badge.dataset.clientId}`;
+        });
+      });
+
+      upcomingList.querySelectorAll('.upcoming-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          const type = btn.dataset.type;
+          if (type === 'note') {
+            if (confirm("Supprimer cette note planifiée ?")) {
+              await deleteMessage(id);
+            }
+          } else {
+            if (confirm("Supprimer ce pense-bête ?")) {
+              todos = todos.filter(t => t.id !== id);
+              saveTodos();
+              renderTodos(activeClientId);
+              if (activeClientId) {
+                await loadClientMessages(false);
+              } else {
+                await loadGlobalFeed(false);
+              }
+            }
+          }
+        });
+      });
+
+      upcomingList.querySelectorAll('.upcoming-edit').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          const type = btn.dataset.type;
+          const container = btn.closest('.upcoming-note-item').querySelector('.msg-content-container');
+          
+          let originalText = "";
+          if (type === 'note') {
+            const msg = (activeClientId ? clientMessages : globalMessages).find(m => String(m.id) === String(id));
+            if (msg) {
+              const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+              originalText = msg.content.replace(editedRegex, '');
+            }
+          } else {
+            const todo = todos.find(t => t.id === id);
+            if (todo) {
+              originalText = todo.content;
+            }
+          }
+          
+          container.innerHTML = `
+            <div class="mt-1 space-y-1.5 w-full">
+              <textarea class="w-full text-xs p-1 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 upcoming-edit-textarea" rows="2">${originalText}</textarea>
+              <div class="flex items-center gap-1">
+                <button class="upcoming-save-btn text-[10px] font-bold px-2 py-0.5 bg-blue-600 text-white rounded">Ok</button>
+                <button class="upcoming-cancel-btn text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded border">X</button>
+              </div>
+            </div>
+          `;
+          
+          const textarea = container.querySelector('.upcoming-edit-textarea');
+          textarea.focus();
+          
+          container.querySelector('.upcoming-save-btn').addEventListener('click', async (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            const newText = textarea.value.trim();
+            if (newText) {
+              const parsed = parseInputCommands(newText);
+              
+              if (type === 'note') {
+                const msg = (activeClientId ? clientMessages : globalMessages).find(m => String(m.id) === String(id));
+                if (parsed.isTodo) {
+                  // Conversion note planifiée -> todo planifié
+                  await sb.from('messages').delete().eq('id', id);
+                  const dueDate = parsed.date ? parseDateString(parsed.date) : (msg ? new Date(msg.created_at).toISOString().split('T')[0] : null);
+                  todos.push({
+                    id: Date.now().toString(),
+                    clientId: parsed.clientId || (msg ? msg.client_id : null),
+                    content: parsed.content || "À faire",
+                    done: false,
+                    createdAt: new Date().toISOString(),
+                    dueDate: dueDate
+                  });
+                  saveTodos();
+                } else {
+                  const updatedFields = {};
+                  const updatedContent = `${parsed.content} [edited:${new Date().toISOString()}]`;
+                  updatedFields.content = updatedContent;
+                  if (parsed.clientId) updatedFields.client_id = parsed.clientId;
+                  if (parsed.date) {
+                    const formattedDate = parseDateString(parsed.date);
+                    if (formattedDate && msg) {
+                      const origDate = new Date(msg.created_at);
+                      const timeStr = `${String(origDate.getHours()).padStart(2, '0')}:${String(origDate.getMinutes()).padStart(2, '0')}:${String(origDate.getSeconds()).padStart(2, '0')}`;
+                      updatedFields.created_at = `${formattedDate}T${timeStr}Z`;
+                    }
+                  }
+                  if (parsed.bgColor) {
+                    noteBgs[id] = parsed.bgColor;
+                    saveNoteBgs();
+                  }
+                  await sb.from('messages').update(updatedFields).eq('id', id);
+                }
+              } else {
+                // Modification du todo planifié
+                const todo = todos.find(t => t.id === id);
+                if (todo) {
+                  if (parsed.clientId) todo.clientId = parsed.clientId;
+                  if (parsed.date) todo.dueDate = parseDateString(parsed.date);
+                  todo.content = parsed.content;
+                  todo.editedAt = new Date().toISOString();
+                  saveTodos();
+                }
+              }
+              
+              if (activeClientId) {
+                await loadClientMessages(false);
+              } else {
+                await loadGlobalFeed(false);
+              }
+            } else {
+              if (activeClientId) {
+                await loadClientMessages(false);
+              } else {
+                await loadGlobalFeed(false);
+              }
+            }
+          });
+          
+          container.querySelector('.upcoming-cancel-btn').addEventListener('click', (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (activeClientId) {
+              renderClientMessages();
+            } else {
+              renderGlobalFeed();
+            }
+          });
+        });
+      });
     }
+
+    lucide.createIcons({ nodes: [upcomingList] });
     return allUpcoming;
   }
 
@@ -1396,19 +1677,44 @@ document.addEventListener('DOMContentLoaded', () => {
       const bgColor = noteBgs[msg.id];
       const bgStyle = bgColor ? `background-color: ${bgColor}; border-color: transparent;` : '';
 
+      const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+      const editedMatch = msg.content.match(editedRegex);
+      const editedAt = editedMatch ? editedMatch[1] : null;
+      const cleanContent = msg.content.replace(editedRegex, '');
+
+      let editedBadge = '';
+      if (editedAt) {
+        const editDate = new Date(editedAt);
+        const editTimeStr = editDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const editDateStr = editDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+        editedBadge = `
+          <span class="text-[10px] text-slate-400 font-medium shrink-0" title="Modifié le ${editDate.toLocaleDateString()} à ${editTimeStr}">
+            • modifié le ${editDateStr} à ${editTimeStr}
+          </span>
+        `;
+      }
+
       div.innerHTML = `
         <div class="flex-1 rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition" style="${bgStyle || 'background-color: white;'}">
           <div class="flex items-center justify-between gap-2 mb-1.5 w-full">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-80 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
               <span class="text-xs text-slate-400 font-semibold">${timeStr}</span>
+              ${editedBadge}
             </div>
-            <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-            </button>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button class="edit-msg-btn text-slate-300 hover:text-blue-600 transition" data-id="${msg.id}" title="Modifier cette note">
+                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="delete-msg-btn text-slate-300 hover:text-rose-600 transition" data-id="${msg.id}" title="Supprimer cette note">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
-          <p class="text-sm text-slate-800 whitespace-pre-line">${highlightMessageContent(msg.content)}</p>
-          ${attachHTML}
+          <div class="msg-content-container" data-id="${msg.id}">
+            <p class="text-sm text-slate-800 whitespace-pre-line msg-text">${highlightMessageContent(cleanContent)}</p>
+            ${attachHTML}
+          </div>
         </div>
       `;
       globalFeed.appendChild(div);
@@ -1427,6 +1733,94 @@ document.addEventListener('DOMContentLoaded', () => {
           downloadFile(path, name);
         } else {
           openFileViewer(path, name);
+        }
+      });
+    });
+    globalFeed.querySelectorAll('.edit-msg-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const msg = globalMessages.find(m => String(m.id) === String(id));
+        if (msg) {
+          const cardDiv = btn.closest('.flex-1');
+          const contentContainer = cardDiv.querySelector('.msg-content-container');
+          
+          const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+          const cleanText = msg.content.replace(editedRegex, '');
+          
+          contentContainer.innerHTML = `
+            <div class="mt-2 space-y-2">
+              <textarea class="w-full text-sm text-slate-800 p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 msg-edit-textarea" rows="3">${cleanText}</textarea>
+              <div class="flex items-center gap-2">
+                <button class="save-msg-btn text-xs font-semibold px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">Enregistrer</button>
+                <button class="cancel-msg-btn text-xs font-semibold px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">Annuler</button>
+              </div>
+            </div>
+          `;
+          
+          const textarea = contentContainer.querySelector('.msg-edit-textarea');
+          textarea.focus();
+          
+          contentContainer.querySelector('.save-msg-btn').addEventListener('click', async () => {
+            const newText = textarea.value.trim();
+            if (newText) {
+              const parsed = parseInputCommands(newText);
+              
+              if (parsed.isTodo) {
+                // Conversion de la note en pense-bête!
+                await sb.from('messages').delete().eq('id', id);
+                
+                const dueDate = parsed.date ? parseDateString(parsed.date) : null;
+                todos.push({
+                  id: Date.now().toString(),
+                  clientId: parsed.clientId || msg.client_id,
+                  content: parsed.content || "À faire",
+                  done: false,
+                  createdAt: new Date().toISOString(),
+                  dueDate: dueDate
+                });
+                saveTodos();
+                
+                await loadGlobalFeed(false);
+                return;
+              }
+
+              // Modification classique de la note
+              const updatedFields = {};
+              const updatedContent = `${parsed.content} [edited:${new Date().toISOString()}]`;
+              updatedFields.content = updatedContent;
+              
+              if (parsed.clientId) {
+                updatedFields.client_id = parsed.clientId;
+              }
+              if (parsed.date) {
+                const formattedDate = parseDateString(parsed.date);
+                if (formattedDate) {
+                  const origDate = new Date(msg.created_at);
+                  const timeStr = `${String(origDate.getHours()).padStart(2, '0')}:${String(origDate.getMinutes()).padStart(2, '0')}:${String(origDate.getSeconds()).padStart(2, '0')}`;
+                  updatedFields.created_at = `${formattedDate}T${timeStr}Z`;
+                }
+              }
+              if (parsed.bgColor) {
+                noteBgs[id] = parsed.bgColor;
+                saveNoteBgs();
+              }
+              
+              const { error } = await sb.from('messages').update(updatedFields).eq('id', id);
+              if (error) {
+                alert("Erreur lors de la modification : " + error.message);
+              } else {
+                await loadGlobalFeed(false);
+              }
+            } else {
+              await loadGlobalFeed(false);
+            }
+          });
+          
+          contentContainer.querySelector('.cancel-msg-btn').addEventListener('click', () => {
+            renderGlobalFeed();
+          });
         }
       });
     });
@@ -1514,9 +1908,16 @@ document.addEventListener('DOMContentLoaded', () => {
       text = text.replace(cfRegex, '');
     }
 
-    // 5. Nettoyer /date
-    const dateRegex = /\/date(?:\s+([^\s]+))?/gi;
-    text = text.replace(dateRegex, '');
+    // 5. Parser /date <argument> (ex: /date 15/07/2026 ou /date 2026-07-15)
+    let date = null;
+    const dateRegex = /\/date\s+([0-9a-zA-Z\/-]+)/i;
+    const dateMatch = text.match(dateRegex);
+    if (dateMatch) {
+      date = dateMatch[1].trim();
+      text = text.replace(dateRegex, '');
+    } else {
+      text = text.replace(/\/date(?:\s+|$)/gi, '');
+    }
 
     // 6. Nettoyer /personne
     const personneRegex = /\/personne(?:\s+([^\s]+))?/gi;
@@ -1529,7 +1930,8 @@ document.addEventListener('DOMContentLoaded', () => {
       content: text,
       clientId,
       isTodo,
-      bgColor
+      bgColor,
+      date
     };
   }
 
@@ -1785,7 +2187,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const cardDiv = btn.closest('.flex-col');
           const contentContainer = cardDiv.querySelector('.msg-content-container');
           
-          const editedRegex = /\s*\[edited:([^\]]+)\]$/;
+          const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
           const cleanText = msg.content.replace(editedRegex, '');
           
           contentContainer.innerHTML = `
@@ -1804,8 +2206,49 @@ document.addEventListener('DOMContentLoaded', () => {
           contentContainer.querySelector('.save-msg-btn').addEventListener('click', async () => {
             const newText = textarea.value.trim();
             if (newText) {
-              const updatedContent = `${newText} [edited:${new Date().toISOString()}]`;
-              const { error } = await sb.from('messages').update({ content: updatedContent }).eq('id', id);
+              const parsed = parseInputCommands(newText);
+              
+              if (parsed.isTodo) {
+                // Conversion de la note en pense-bête!
+                await sb.from('messages').delete().eq('id', id);
+                
+                const dueDate = parsed.date ? parseDateString(parsed.date) : null;
+                todos.push({
+                  id: Date.now().toString(),
+                  clientId: parsed.clientId || msg.client_id,
+                  content: parsed.content || "À faire",
+                  done: false,
+                  createdAt: new Date().toISOString(),
+                  dueDate: dueDate
+                });
+                saveTodos();
+                
+                await loadClientMessages(false);
+                return;
+              }
+
+              // Modification classique de la note
+              const updatedFields = {};
+              const updatedContent = `${parsed.content} [edited:${new Date().toISOString()}]`;
+              updatedFields.content = updatedContent;
+              
+              if (parsed.clientId) {
+                updatedFields.client_id = parsed.clientId;
+              }
+              if (parsed.date) {
+                const formattedDate = parseDateString(parsed.date);
+                if (formattedDate) {
+                  const origDate = new Date(msg.created_at);
+                  const timeStr = `${String(origDate.getHours()).padStart(2, '0')}:${String(origDate.getMinutes()).padStart(2, '0')}:${String(origDate.getSeconds()).padStart(2, '0')}`;
+                  updatedFields.created_at = `${formattedDate}T${timeStr}Z`;
+                }
+              }
+              if (parsed.bgColor) {
+                noteBgs[id] = parsed.bgColor;
+                saveNoteBgs();
+              }
+              
+              const { error } = await sb.from('messages').update(updatedFields).eq('id', id);
               if (error) {
                 alert("Erreur lors de la modification : " + error.message);
               } else {
