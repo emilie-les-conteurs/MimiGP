@@ -1447,12 +1447,12 @@ document.addEventListener('DOMContentLoaded', () => {
       text = text.replace(clRegex, '');
     }
 
-    // 2. Parser le raccourci /ClientName
+    // 2. Parser le raccourci /ClientName (ex: /ClientA ou /"Client avec espace")
     if (!clientId) {
-      const clientShortcutRegex = /^\/([a-zA-Z0-9À-ÿ\s]+)(?:\s+|$)/i;
+      const clientShortcutRegex = /^\/(?:"([^"]+)"|'([^']+)'|([a-zA-Z0-9À-ÿ_\s]+))(?:\s+|$)/i;
       const shortcutMatch = text.match(clientShortcutRegex);
       if (shortcutMatch) {
-        const potentialName = shortcutMatch[1].trim();
+        const potentialName = (shortcutMatch[1] || shortcutMatch[2] || shortcutMatch[3] || '').trim();
         // Vérifier que ce n'est pas une commande système connue
         const isSystemCmd = ['date', 'personne', 'couleurfond', 'pensebete'].includes(potentialName.toLowerCase());
         if (!isSystemCmd) {
