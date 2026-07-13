@@ -1336,6 +1336,8 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTomorrowBanner(globalMessages, clients);
     renderTodos(null);
 
+    globalFeed.innerHTML = '';
+
     if (presentMsgs.length === 0) {
       globalFeed.innerHTML = `
         <div class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
