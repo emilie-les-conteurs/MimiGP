@@ -104,9 +104,12 @@
   <div id="dashboard-view" class="hidden h-screen flex flex-col overflow-hidden w-full">
 
     <!-- Navbar unique partagée -->
-    <header id="navbar-header" class="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0 z-30 transition-all duration-200">
-      <div class="flex items-center space-x-3">
-        <button id="back-to-dashboard" class="hidden items-center gap-1.5 text-slate-500 hover:text-blue-600 text-sm font-semibold transition group mr-2">
+    <header id="navbar-header" class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 z-30 transition-all duration-200">
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <button id="toggle-left-sidebar" class="md:hidden p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg transition" title="Menu clients">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+        <button id="back-to-dashboard" class="hidden items-center gap-1.5 text-slate-500 hover:text-blue-600 text-sm font-semibold transition group mr-1 sm:mr-2">
           <i data-lucide="arrow-left" class="w-4 h-4 transition-transform group-hover:-translate-x-0.5"></i>
           <span>Accueil</span>
         </button>
@@ -129,6 +132,9 @@
           <p class="text-sm font-semibold leading-tight" id="user-display-name"></p>
           <p class="text-xs text-slate-500" id="user-display-position"></p>
         </div>
+        <button id="toggle-right-sidebar" class="xl:hidden p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg transition" title="Widgets de la colonne">
+          <i data-lucide="sidebar" class="w-5 h-5"></i>
+        </button>
         <a href="#settings" id="settings-nav-btn" class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-semibold transition" title="Paramètres du compte">
           <i data-lucide="settings" class="w-4 h-4"></i>
           <span class="hidden sm:inline">Paramètres</span>
@@ -144,7 +150,7 @@
     <div class="flex-1 min-h-0 flex overflow-hidden">
 
       <!-- COLONNE GAUCHE FIXE : Liste des Clients (Toujours présente) -->
-      <aside id="sidebar-clients" class="w-64 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
+      <aside id="left-sidebar" class="hidden md:flex w-64 shrink-0 border-r border-slate-200 bg-white flex-col overflow-hidden">
         <div class="p-4 border-b border-slate-100">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Clients</h3>
@@ -317,7 +323,7 @@
         </main>
 
         <!-- Sidebar droite des Widgets spécifiques (Calendrier + Fichiers) -->
-        <aside class="w-72 shrink-0 bg-white flex flex-col overflow-hidden">
+        <aside id="right-sidebar" class="hidden xl:flex w-72 shrink-0 bg-white flex-col overflow-hidden">
           
           <!-- Widget Calendrier -->
           <div class="p-4 border-b border-slate-100 bg-slate-50/30">
@@ -348,7 +354,7 @@
           </div>
 
           <!-- Widget Notes à venir -->
-          <div class="border-b border-slate-100 flex flex-col overflow-hidden max-h-[220px]">
+          <div class="border-b border-slate-100 flex flex-col overflow-hidden" id="upcoming-widget-container">
             <button id="upcoming-widget-toggle" class="flex items-center justify-between px-4 py-3 border-b border-slate-100 w-full text-left group shrink-0 hover:bg-slate-50 transition">
               <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
                 <i data-lucide="calendar-days" class="w-4 h-4 text-purple-500"></i>
@@ -356,15 +362,19 @@
               </h3>
               <i data-lucide="chevron-down" id="upcoming-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200"></i>
             </button>
-            <div id="upcoming-list-wrapper" class="flex-1 min-h-0 overflow-y-auto p-3 bg-slate-50/10">
+            <div id="upcoming-list-wrapper" class="overflow-y-auto p-3 bg-slate-50/10" style="height: 180px;">
               <div id="upcoming-list" class="space-y-2">
                 <p class="text-xs text-slate-400 text-center py-4">Aucune note à venir.</p>
               </div>
             </div>
+            <!-- Resize handle -->
+            <div class="todos-resize-handle flex justify-center py-1 cursor-ns-resize border-t border-slate-100 select-none hover:bg-slate-100/50 transition" data-target="upcoming-list-wrapper">
+              <i data-lucide="grip-horizontal" class="w-4 h-4 text-slate-400/40"></i>
+            </div>
           </div>
 
           <!-- Widget Fichiers Partagés -->
-          <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div class="flex flex-col overflow-hidden" id="files-widget-container">
             <button id="files-widget-toggle" class="flex items-center justify-between px-4 py-3 border-b border-slate-100 w-full text-left group shrink-0 hover:bg-slate-50 transition">
               <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
                 <i data-lucide="file-text" class="w-4 h-4 client-text-accented"></i>
@@ -372,10 +382,14 @@
               </h3>
               <i data-lucide="chevron-down" id="files-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200"></i>
             </button>
-            <div id="files-list-wrapper" class="flex-1 min-h-0 overflow-y-auto p-3 bg-slate-50/10">
+            <div id="files-list-wrapper" class="overflow-y-auto p-3 bg-slate-50/10" style="height: 200px;">
               <div id="files-list" class="space-y-2">
                 <p class="text-xs text-slate-400 text-center py-6">Aucun fichier partagé.</p>
               </div>
+            </div>
+            <!-- Resize handle -->
+            <div class="todos-resize-handle flex justify-center py-1 cursor-ns-resize border-t border-slate-100 select-none hover:bg-slate-100/50 transition" data-target="files-list-wrapper">
+              <i data-lucide="grip-horizontal" class="w-4 h-4 text-slate-400/40"></i>
             </div>
           </div>
         </aside>

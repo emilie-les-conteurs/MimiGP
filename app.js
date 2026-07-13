@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchClient        = document.getElementById('search-client');
   const addClientBtn        = document.getElementById('add-client-btn');
   const navbarHeader        = document.getElementById('navbar-header');
-  const sidebarClients      = document.getElementById('sidebar-clients');
+  const sidebarClients      = document.getElementById('left-sidebar');
 
   // Chat Global (Vue Accueil)
   const globalFeed          = document.getElementById('global-feed');
@@ -363,6 +363,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Toujours charger la liste de gauche à jour
     await loadClients();
 
+    // Réinitialiser les classes mobiles hidden/flex par défaut lors de la navigation
+    if (leftSidebar) { leftSidebar.classList.add('hidden'); leftSidebar.classList.remove('flex'); }
+    if (rightSidebar) { rightSidebar.classList.add('hidden'); rightSidebar.classList.remove('flex'); }
+
     if (hash.startsWith('#client/')) {
       const id = hash.replace('#client/', '');
       activeClientId = id;
@@ -382,6 +386,10 @@ document.addEventListener('DOMContentLoaded', () => {
       backSeparator.classList.remove('hidden');
       activeClientHeader.classList.remove('hidden');
       activeClientHeader.classList.add('flex');
+
+      // Visibilité des boutons sidebars mobiles
+      if (toggleLeftSidebarBtn) toggleLeftSidebarBtn.classList.add('hidden');
+      if (toggleRightSidebarBtn) toggleRightSidebarBtn.classList.remove('hidden');
 
       const client = clients.find(c => String(c.id) === String(id));
       clientViewName.textContent = client ? client.name : 'Client';
@@ -411,6 +419,10 @@ document.addEventListener('DOMContentLoaded', () => {
       activeClientHeader.classList.add('hidden');
       activeClientHeader.classList.remove('flex');
 
+      // Masquer les boutons sidebars sur les paramètres
+      if (toggleLeftSidebarBtn) toggleLeftSidebarBtn.classList.add('hidden');
+      if (toggleRightSidebarBtn) toggleRightSidebarBtn.classList.add('hidden');
+
       renderSettingsManagement();
       renderClientList(); // Effacer la sélection de la sidebar
     } else {
@@ -430,6 +442,10 @@ document.addEventListener('DOMContentLoaded', () => {
       backSeparator.classList.add('hidden');
       activeClientHeader.classList.add('hidden');
       activeClientHeader.classList.remove('flex');
+
+      // Afficher le bouton gauche uniquement sur l'accueil (pas de barre latérale droite sur l'accueil)
+      if (toggleLeftSidebarBtn) toggleLeftSidebarBtn.classList.remove('hidden');
+      if (toggleRightSidebarBtn) toggleRightSidebarBtn.classList.add('hidden');
 
       if (!hash || hash === '#dashboard') {
         window.history.replaceState(null, '', '#dashboard');
@@ -797,10 +813,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const deltaY = clientYMove - startY;
           let newHeight = startHeight + deltaY;
 
-          // Capper à la hauteur du contenu réel (scrollHeight)
+          // Capper à la hauteur du contenu réel pour les todos uniquement, sinon capper à 600px
+          const isTodoList = targetId.includes('todos-list');
           const contentHeight = targetEl.scrollHeight;
           if (newHeight < 80) newHeight = 80;
-          if (newHeight > contentHeight) newHeight = contentHeight;
+          if (isTodoList && newHeight > contentHeight) {
+            newHeight = contentHeight;
+          } else if (!isTodoList && newHeight > 600) {
+            newHeight = 600;
+          }
 
           targetEl.style.height = `${newHeight}px`;
           localStorage.setItem(`todos-height-${targetId}`, newHeight);
@@ -1520,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
           <span class="upcoming-content text-[11px] text-purple-900 msg-content-container" data-id="${item.id}" data-type="${item.type}">
-            ${item.type === 'todo' ? '📌 [Pense-bête] ' : ''}${preview}
+            ${item.type === 'todo' ? '📌 ' : ''}${preview}
           </span>
         </div>`;
       }).join('');
@@ -3581,5 +3602,53 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initResizeTodos();
+
+  // Gestion de la responsivité des panneaux latéraux (sidebars)
+  const toggleLeftSidebarBtn = document.getElementById('toggle-left-sidebar');
+  const toggleRightSidebarBtn = document.getElementById('toggle-right-sidebar');
+  const leftSidebar = document.getElementById('left-sidebar');
+  const rightSidebar = document.getElementById('right-sidebar');
+
+  toggleLeftSidebarBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (leftSidebar) {
+      const isHidden = leftSidebar.classList.contains('hidden');
+      leftSidebar.classList.toggle('hidden', !isHidden);
+      leftSidebar.classList.toggle('flex', isHidden);
+      // Fermer le panneau droit sur mobile si on ouvre le gauche
+      if (isHidden && window.innerWidth < 768 && rightSidebar) {
+        rightSidebar.classList.add('hidden');
+        rightSidebar.classList.remove('flex');
+      }
+    }
+  });
+
+  toggleRightSidebarBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (rightSidebar) {
+      const isHidden = rightSidebar.classList.contains('hidden');
+      rightSidebar.classList.toggle('hidden', !isHidden);
+      rightSidebar.classList.toggle('flex', isHidden);
+      // Fermer le panneau gauche sur mobile si on ouvre le droit
+      if (isHidden && window.innerWidth < 768 && leftSidebar) {
+        leftSidebar.classList.add('hidden');
+        leftSidebar.classList.remove('flex');
+      }
+    }
+  });
+
+  // Fermer les panneaux quand on clique sur le reste du document sur mobile
+  document.addEventListener('click', () => {
+    if (window.innerWidth < 768 && leftSidebar && !leftSidebar.classList.contains('hidden')) {
+      leftSidebar.classList.add('hidden');
+      leftSidebar.classList.remove('flex');
+    }
+    if (window.innerWidth < 1280 && rightSidebar && !rightSidebar.classList.contains('hidden')) {
+      rightSidebar.classList.add('hidden');
+      rightSidebar.classList.remove('flex');
+    }
+  });
 });
 // Redéploiement manuel pour contourner la limite de taux (rate limit) Vercel passée.
