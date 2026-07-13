@@ -480,7 +480,7 @@ body.auth-body {
   }
 }
 
-@media (max-width: 1279px) {
+@media (max-width: 1023px) {
   #right-sidebar {
     position: absolute !important;
     top: 57px;

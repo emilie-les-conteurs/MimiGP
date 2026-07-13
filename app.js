@@ -3645,7 +3645,7 @@ document.addEventListener('DOMContentLoaded', () => {
       leftSidebar.classList.add('hidden');
       leftSidebar.classList.remove('flex');
     }
-    if (window.innerWidth < 1280 && rightSidebar && !rightSidebar.classList.contains('hidden')) {
+    if (window.innerWidth < 1024 && rightSidebar && !rightSidebar.classList.contains('hidden')) {
       rightSidebar.classList.add('hidden');
       rightSidebar.classList.remove('flex');
     }
