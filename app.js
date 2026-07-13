@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let dpRangeEnd       = null;        // fin de la plage sélectionnée (YYYY-MM-DD)
 
   // ─── PENSE-BÊTES ─────────────────────────────────────────────────
+  let isSending = false;
   // { id, clientId, content, done, createdAt }
   let todos = JSON.parse(localStorage.getItem('mimi_todos') || '[]');
   function saveTodos() { localStorage.setItem('mimi_todos', JSON.stringify(todos)); }
@@ -528,9 +529,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── CLIENTS ────────────────────────────────────────────────────
   async function loadClients() {
-    const { data } = await sb.from('clients').select('*').order('name');
-    clients = data || [];
-    renderClientList();
+    try {
+      const { data, error } = await sb.from('clients').select('*').order('name');
+      if (error) throw error;
+      clients = data || [];
+      renderClientList();
+    } catch (err) {
+      console.error("Erreur chargement clients:", err);
+    }
   }
 
   function renderClientList(filter = '') {
@@ -702,12 +708,23 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="text-sm">Chargement des notes...</p>
       </div>`;
     }
-    const { data } = await sb
-      .from('messages')
-      .select('*, clients(*)')
-      .order('created_at', { ascending: true });
-    globalMessages = data || [];
-    renderGlobalFeed();
+    try {
+      const { data, error } = await sb
+        .from('messages')
+        .select('*, clients(*)')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      globalMessages = data || [];
+      renderGlobalFeed();
+    } catch (err) {
+      console.error("Erreur chargement feed global:", err);
+      globalFeed.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-rose-500 p-4 text-center">
+        <i data-lucide="alert-triangle" class="w-8 h-8 mb-2"></i>
+        <p class="text-sm font-semibold">Impossible de charger les notes.</p>
+        <p class="text-xs text-slate-400 mt-1">${err.message || err}</p>
+      </div>`;
+      lucide.createIcons({ nodes: [globalFeed] });
+    }
   }
 
   function formatDateHeader(dateStr) {
@@ -1047,6 +1064,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!globalActive.some(x => x.id === t.id)) globalActive.push(t);
     });
     globalActive.sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
       if (!a.dueDate) return -1;
       if (!b.dueDate) return 1;
       return a.dueDate.localeCompare(b.dueDate);
@@ -1073,6 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!clientActive.some(x => x.id === t.id)) clientActive.push(t);
       });
       clientActive.sort((a, b) => {
+        if (!a.dueDate && !b.dueDate) return 0;
         if (!a.dueDate) return -1;
         if (!b.dueDate) return 1;
         return a.dueDate.localeCompare(b.dueDate);
@@ -1088,26 +1107,36 @@ document.addEventListener('DOMContentLoaded', () => {
         cb.addEventListener('change', async () => {
           const id = cb.dataset.id;
           const todo = todos.find(t => t.id === id);
-          if (todo) {
-            todo.done = cb.checked;
+          if (!todo) return;
+
+          const isChecked = cb.checked;
+
+          if (isChecked) {
+            // Mise à jour optimiste instantanée : on retire le pense-bête de la liste
+            todos = todos.filter(t => t.id !== id);
             saveTodos();
             
-            // Si la tâche est cochée et liée à un client, on la convertit en note Supabase!
-            if (todo.done && todo.clientId) {
+            // On rafraîchit l'affichage immédiatement
+            renderTodos(contextClientId);
+
+            // Si la tâche était liée à un client, on l'insère dans Supabase
+            if (todo.clientId) {
               const noteContent = `Fait : ${todo.content}`;
               const { error } = await sb.from('messages').insert({
                 client_id: todo.clientId,
                 user_id: currentSession.user.id,
                 content: noteContent
               });
+              
               if (error) {
                 console.error("Erreur conversion pense-bête en note:", error.message);
-              } else {
-                // Supprimer le pense-bête local pour ne pas encombrer
-                todos = todos.filter(t => t.id !== id);
+                // En cas d'erreur de réseau/Supabase, on restaure la tâche
+                todo.done = false;
+                todos.push(todo);
                 saveTodos();
-                
-                // Recharger les flux de messages
+                renderTodos(contextClientId);
+              } else {
+                // Recharger les messages pour faire apparaître la note "Fait : ..."
                 if (activeClientId) {
                   await loadClientMessages(false);
                 } else {
@@ -1115,7 +1144,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
               }
             }
-            renderTodos(contextClientId);
           }
         });
       });
@@ -1499,6 +1527,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Envoi avec tri automatique et multi-commandes
   globalChatForm.addEventListener('submit', async e => {
     e.preventDefault();
+    if (isSending) return;
+
     const rawVal = globalChatInput.value.trim();
     if (!rawVal && !globalFile) return;
 
@@ -1537,27 +1567,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorToSave = parsed.bgColor;
     const isTodo = parsed.isTodo;
 
-    if (isTodo) {
-      addTodo(targetClientId, content || "À faire");
-      globalChatInput.value = '';
-      pendingNoteBgColor = null;
-      return;
-    }
+    isSending = true;
+    const sendBtn = globalChatForm.querySelector('button[type="submit"]');
+    if (sendBtn) sendBtn.disabled = true;
 
-    await sendMessage(targetClientId, content, globalFile, async (msgData) => {
-      if (bgColorToSave && msgData?.id) {
-        noteBgs[msgData.id] = bgColorToSave;
-        saveNoteBgs();
+    try {
+      if (isTodo) {
+        addTodo(targetClientId, content || "À faire");
+        globalChatInput.value = '';
+        pendingNoteBgColor = null;
+        return;
       }
-      pendingNoteBgColor = null;
-      globalChatInput.value = '';
-      pendingClientId = null;
-      globalFile = null;
-      globalFilePreview.classList.add('hidden');
-      globalFileInput.value = '';
-      clearSelectedMessageDates();
-      await loadGlobalFeed(false);
-    }, selectedMessageDates);
+
+      await sendMessage(targetClientId, content, globalFile, async (msgData) => {
+        if (bgColorToSave && msgData?.id) {
+          noteBgs[msgData.id] = bgColorToSave;
+          saveNoteBgs();
+        }
+        pendingNoteBgColor = null;
+        globalChatInput.value = '';
+        pendingClientId = null;
+        globalFile = null;
+        globalFilePreview.classList.add('hidden');
+        globalFileInput.value = '';
+        clearSelectedMessageDates();
+        await loadGlobalFeed(false);
+      }, selectedMessageDates);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      isSending = false;
+      if (sendBtn) sendBtn.disabled = false;
+    }
   });
 
   globalAttachBtn.addEventListener('click', () => globalFileInput.click());
@@ -1582,14 +1623,25 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="text-sm">Chargement du client...</p>
       </div>`;
     }
-    const { data } = await sb
-      .from('messages')
-      .select('*')
-      .eq('client_id', activeClientId)
-      .order('created_at', { ascending: true });
-    clientMessages = data || [];
-    renderClientMessages();
-    renderFilesList();
+    try {
+      const { data, error } = await sb
+        .from('messages')
+        .select('*')
+        .eq('client_id', activeClientId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      clientMessages = data || [];
+      renderClientMessages();
+      renderFilesList();
+    } catch (err) {
+      console.error("Erreur chargement messages client:", err);
+      clientChatMessages.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-rose-500 p-4 text-center">
+        <i data-lucide="alert-triangle" class="w-8 h-8 mb-2"></i>
+        <p class="text-sm font-semibold">Impossible de charger les messages.</p>
+        <p class="text-xs text-slate-400 mt-1">${err.message || err}</p>
+      </div>`;
+      lucide.createIcons({ nodes: [clientChatMessages] });
+    }
   }
 
   function renderClientMessages() {
@@ -1718,6 +1770,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   clientChatForm.addEventListener('submit', async e => {
     e.preventDefault();
+    if (isSending) return;
+
     const rawVal = clientChatInput.value.trim();
     if (!rawVal && !clientFile) return;
 
@@ -1728,28 +1782,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorToSave = parsed.bgColor;
     const isTodo = parsed.isTodo;
 
-    if (isTodo) {
-      addTodo(targetClientId, content || "À faire");
-      clientChatInput.value = '';
-      pendingNoteBgColor = null;
-      return;
-    }
+    isSending = true;
+    const sendBtn = clientChatForm.querySelector('button[type="submit"]');
+    if (sendBtn) sendBtn.disabled = true;
 
-    await sendMessage(targetClientId, content, clientFile, async (msgData) => {
-      // Enregistrer la couleur de fond du message
-      if (bgColorToSave && msgData?.id) {
-        noteBgs[msgData.id] = bgColorToSave;
-        saveNoteBgs();
+    try {
+      if (isTodo) {
+        addTodo(targetClientId, content || "À faire");
+        clientChatInput.value = '';
+        pendingNoteBgColor = null;
+        return;
       }
-      pendingNoteBgColor = null;
-      clientChatInput.value = '';
-      clientFile = null;
-      clientFilePreview.classList.add('hidden');
-      clientFileInput.value = '';
-      clearSelectedMessageDates();
-      await loadClientMessages(false);
-      renderCalendar();
-    }, selectedMessageDates);
+
+      await sendMessage(targetClientId, content, clientFile, async (msgData) => {
+        // Enregistrer la couleur de fond du message
+        if (bgColorToSave && msgData?.id) {
+          noteBgs[msgData.id] = bgColorToSave;
+          saveNoteBgs();
+        }
+        pendingNoteBgColor = null;
+        clientChatInput.value = '';
+        clientFile = null;
+        clientFilePreview.classList.add('hidden');
+        clientFileInput.value = '';
+        clearSelectedMessageDates();
+        await loadClientMessages(false);
+        renderCalendar();
+      }, selectedMessageDates);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      isSending = false;
+      if (sendBtn) sendBtn.disabled = false;
+    }
   });
 
   attachCommandPicker(clientChatInput);
