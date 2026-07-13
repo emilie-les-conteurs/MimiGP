@@ -1465,7 +1465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isTodo = false;
     let bgColor = pendingNoteBgColor;
 
-    // 1. Parser la commande /cl
+    // 1. Parser la commande /cl (ex: /cl "Bisca Grand Lacs" ou /cl Bisca)
     const clRegex = /\/cl\s+(?:"([^"]+)"|'([^']+)'|([^\s/]+))/i;
     const clMatch = text.match(clRegex);
     if (clMatch) {
@@ -1476,10 +1476,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       text = text.replace(clRegex, '');
     }
+    // Nettoyer un éventuel /cl traînant sans argument
+    text = text.replace(/\/cl(?:\s+|$)/gi, '');
 
     // 2. Parser le raccourci /ClientName (ex: /ClientA ou /"Client avec espace")
     if (!clientId) {
-      const clientShortcutRegex = /^\/(?:"([^"]+)"|'([^']+)'|([a-zA-Z0-9À-ÿ_\s]+))(?:\s+|$)/i;
+      const clientShortcutRegex = /^\/(?:"([^"]+)"|'([^']+)'|([a-zA-Z0-9À-ÿ_]+))(?:\s+|$)/i;
       const shortcutMatch = text.match(clientShortcutRegex);
       if (shortcutMatch) {
         const potentialName = (shortcutMatch[1] || shortcutMatch[2] || shortcutMatch[3] || '').trim();
@@ -1503,17 +1505,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 4. Parser /couleurfond
-    const cfRegex = /\/couleurfond(?:\s+(\#[0-9a-fA-F]{6}|[a-zA-Z]+))?/i;
+    const cfRegex = /\/couleurfond(?:\s+([^\s]+))?/i;
     const cfMatch = text.match(cfRegex);
     if (cfMatch) {
-      if (cfMatch[1]) {
+      if (cfMatch[1] && cfMatch[1].startsWith('#')) {
         bgColor = cfMatch[1];
       }
       text = text.replace(cfRegex, '');
     }
 
     // 5. Nettoyer /date
-    text = text.replace(/\/date(?:\s+|$)/gi, '');
+    const dateRegex = /\/date(?:\s+([^\s]+))?/gi;
+    text = text.replace(dateRegex, '');
+
+    // 6. Nettoyer /personne
+    const personneRegex = /\/personne(?:\s+([^\s]+))?/gi;
+    text = text.replace(personneRegex, '');
 
     // Nettoyer les espaces superflus
     text = text.replace(/\s+/g, ' ').trim();
