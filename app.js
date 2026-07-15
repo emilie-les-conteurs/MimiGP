@@ -527,10 +527,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // 2. Shift + Enter -> retour à la ligne / Enter -> soumettre
+      // (ne pas soumettre si le picker de commandes est ouvert — il gère lui-même le Enter)
       if (e.key === 'Enter') {
         if (!e.shiftKey) {
-          e.preventDefault();
-          if (onSubmit) onSubmit();
+          const pickerVisible = commandPickerEl && !commandPickerEl.classList.contains('hidden');
+          if (!pickerVisible) {
+            e.preventDefault();
+            if (onSubmit) onSubmit();
+          }
         } else {
           setTimeout(adjustHeight, 10);
         }
