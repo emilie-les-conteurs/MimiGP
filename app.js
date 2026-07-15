@@ -1957,79 +1957,58 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons({ nodes: [tomorrowBanner] });
   }
 
+  let todayNotesExpanded = false;
+
   function renderGlobalFeed() {
     const today = getLocalDateString();
-    // Séparer les messages passés/présents des messages futurs
+    
+    // Notes passées et présentes (Supabase)
     const presentMsgs = globalMessages.filter(m => getLocalDateString(new Date(m.created_at)) <= today);
+    const sortedPresent = [...presentMsgs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    const lastMsg = sortedPresent[0];
+    
+    // Notes de la journée uniquement (today)
+    const todayMsgs = globalMessages.filter(m => getLocalDateString(new Date(m.created_at)) === today);
+    
+    // Mettre à jour les widgets secondaires
     renderUpcomingNotes(globalMessages);
     renderTomorrowBanner(globalMessages, clients);
     renderTodos(null);
 
-    globalFeed.innerHTML = '';
-
     if (presentMsgs.length === 0) {
       globalFeed.innerHTML = `
-        <div class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
-          <i data-lucide="message-square-plus" class="w-12 h-12 text-slate-300"></i>
+        <div class="mb-6 animate-fade-in-up">
+          <h1 class="text-xl font-bold text-slate-800">Mon Tableau de Bord</h1>
+          <p class="text-xs text-slate-500">Bienvenue sur votre cockpit MimiGP. Voici l'état de votre journée.</p>
+        </div>
+        <div class="flex flex-col items-center justify-center h-48 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-100 p-6 shadow-sm animate-fade-in-up">
+          <i data-lucide="message-square-plus" class="w-10 h-10 text-slate-300"></i>
           <p class="text-sm font-medium">Tapez <span class="font-mono bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded text-xs">/client</span> puis votre note pour commencer.</p>
         </div>`;
       lucide.createIcons();
       return;
     }
 
-    let lastDateStr = null;
-
-    presentMsgs.forEach((msg, i) => {
-      const client = msg.clients;
-      const badgeStyle = getClientBadgeStyle(msg.client_id);
-      const date   = new Date(msg.created_at);
-      const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = getLocalDateString(date);
-
-      // Séparateur de date collant
-      if (dateStr !== lastDateStr) {
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'sticky-date-header animate-fade-in-up';
-        headerDiv.innerHTML = `
-          <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
-          <span>${formatDateHeader(dateStr)}</span>
-        `;
-        globalFeed.appendChild(headerDiv);
-        lastDateStr = dateStr;
-      }
-
-      const div = document.createElement('div');
-      div.className = 'flex items-start gap-3 animate-fade-in-up';
-      div.style.animationDelay = `${Math.min(i * 15, 300)}ms`;
-
-      let attachHTML = '';
-      if (msg.file_url && msg.file_name) {
-        const pinned = isPinned(msg.id);
-        attachHTML = `
-          <div class="mt-1.5 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs w-fit max-w-full shadow-sm">
-            <i data-lucide="file" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
-            <span class="truncate font-medium text-slate-700 max-w-[160px] cursor-pointer hover:underline hover:text-blue-600 file-name-link" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
-            
-            <button class="pin-btn text-slate-300 hover:text-amber-500 transition ${pinned ? 'text-amber-500' : ''}" data-id="${msg.id}" title="${pinned ? 'Désépingler' : 'Épingler'}">
-              <i data-lucide="pin" class="w-3.5 h-3.5 ${pinned ? 'fill-amber-500 text-amber-500' : ''}"></i>
-            </button>
-            <button class="rename-btn text-slate-300 hover:text-blue-600 transition" data-id="${msg.id}" data-name="${msg.file_name}" title="Renommer">
-              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
-            </button>
-            <button class="download-btn text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i>
-            </button>
-          </div>`;
-      }
-
+    // Helper pour générer le HTML d'une note
+    const renderNoteCard = (msg, isRecent = false) => {
+      const client = clients.find(c => String(c.id) === String(msg.client_id));
+      const colorKey = client ? getClientColorKey(client) : 'blue';
+      const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+      const badgeStyle = `background-color: ${theme.light}; color: ${theme.accent}; border: 1px solid ${theme.accent}20;`;
+      
+      const timeObj = new Date(msg.created_at);
+      const timeStr = timeObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const dateStr = timeObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      
       const bgColor = noteBgs[msg.id];
       const bgStyle = bgColor ? `background-color: ${bgColor}; border-color: transparent;` : '';
-
+      
       const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
       const editedMatch = msg.content.match(editedRegex);
       const editedAt = editedMatch ? editedMatch[1] : null;
       const cleanContent = cleanMessageCommands(msg.content).replace(editedRegex, '');
-
+      
       let editedBadge = '';
       if (editedAt) {
         const editDate = new Date(editedAt);
@@ -2050,13 +2029,33 @@ document.addEventListener('DOMContentLoaded', () => {
           </span>
         `;
       }
+      
+      let attachHTML = '';
+      if (msg.file_url && msg.file_name) {
+        const pinned = isPinned(msg.id);
+        attachHTML = `
+          <div class="mt-2 flex items-center gap-2 bg-slate-50 border border-slate-200/60 rounded-lg px-3 py-2 text-xs w-fit max-w-full">
+            <i data-lucide="file" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
+            <span class="truncate font-medium text-slate-700 max-w-[150px] cursor-pointer hover:underline hover:text-blue-600 file-name-link" data-path="${msg.file_url}" data-name="${msg.file_name}">${msg.file_name}</span>
+            
+            <button class="pin-btn text-slate-300 hover:text-amber-500 transition ${pinned ? 'text-amber-500' : ''}" data-id="${msg.id}" title="${pinned ? 'Désépingler' : 'Épingler'}">
+              <i data-lucide="pin" class="w-3.5 h-3.5 ${pinned ? 'fill-amber-500 text-amber-500' : ''}"></i>
+            </button>
+            <button class="rename-btn text-slate-300 hover:text-blue-600 transition" data-id="${msg.id}" data-name="${msg.file_name}" title="Renommer">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+            </button>
+            <button class="download-btn text-slate-400 hover:text-blue-600 transition" data-path="${msg.file_url}" data-name="${msg.file_name}">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>`;
+      }
 
-      div.innerHTML = `
-        <div class="flex-1 rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition" style="${bgStyle || 'background-color: white;'}">
+      return `
+        <div class="rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition card-item-container" style="${bgStyle || 'background-color: white;'}">
           <div class="flex items-center justify-between gap-2 mb-1.5 w-full">
             <div class="flex items-center gap-2 flex-wrap">
-              <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-80 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
-              <span class="text-xs text-slate-400 font-semibold">${timeStr}</span>
+              <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-85 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
+              <span class="text-xs text-slate-400 font-semibold">${dateStr} à ${timeStr}</span>
               ${deadlineBadge}
               ${editedBadge}
             </div>
@@ -2075,12 +2074,88 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
       `;
-      globalFeed.appendChild(div);
+    };
+
+    let html = `
+      <!-- Cockpit Dashboard Header -->
+      <div class="mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in-up">
+        <div>
+          <h1 class="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+            <span>Tableau de Bord</span>
+            <span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">Live</span>
+          </h1>
+          <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Suivez l'état de votre journée en un coup d'œil.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-1.5 text-center">
+            <span class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Clients</span>
+            <span class="text-xs font-extrabold text-slate-700">${clients.length}</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-1.5 text-center">
+            <span class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aujourd'hui</span>
+            <span class="text-xs font-extrabold text-blue-600">${todayMsgs.length}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. Dernier message en Visu Direct -->
+      <div class="mb-5 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in-up" style="animation-delay: 50ms;">
+        <h2 class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>
+          Dernière note enregistrée
+        </h2>
+        <div id="last-note-container">
+          ${lastMsg ? renderNoteCard(lastMsg, true) : `<p class="text-xs text-slate-400 py-2 text-center">Aucune note enregistrée.</p>`}
+        </div>
+      </div>
+
+      <!-- 2. Notes du jour en faisant une action (Collapsible) -->
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-16 animate-fade-in-up" style="animation-delay: 100ms;">
+        <button id="today-notes-toggle-btn" class="flex items-center justify-between w-full px-5 py-4 text-left font-bold text-slate-700 hover:bg-slate-50 transition border-b border-slate-50">
+          <span class="flex items-center gap-2 text-xs uppercase tracking-wider font-extrabold text-slate-500">
+            <i data-lucide="layers" class="w-4 h-4 text-blue-500"></i>
+            Notes d'aujourd'hui
+            <span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-extrabold">${todayMsgs.length}</span>
+          </span>
+          <i data-lucide="chevron-down" id="today-notes-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200" style="${todayNotesExpanded ? '' : 'transform: rotate(-90deg);'}"></i>
+        </button>
+        
+        <div id="today-notes-content" class="p-5 space-y-3 bg-slate-50/20" style="display: ${todayNotesExpanded ? 'block' : 'none'};">
+          ${todayMsgs.length > 0 
+            ? todayMsgs.map(m => renderNoteCard(m)).join('') 
+            : `<p class="text-xs text-slate-400 py-4 text-center">Aucune autre note pour aujourd'hui.</p>`}
+        </div>
+      </div>
+    `;
+
+    globalFeed.innerHTML = html;
+    lucide.createIcons({ nodes: [globalFeed] });
+
+    // ─── LISTENERS ───
+    
+    // Toggle Notes d'aujourd'hui
+    const toggleBtn = document.getElementById('today-notes-toggle-btn');
+    const toggleContent = document.getElementById('today-notes-content');
+    const toggleChevron = document.getElementById('today-notes-chevron');
+    
+    toggleBtn?.addEventListener('click', () => {
+      todayNotesExpanded = !todayNotesExpanded;
+      if (toggleContent) toggleContent.style.display = todayNotesExpanded ? 'block' : 'none';
+      if (toggleChevron) {
+        toggleChevron.style.transform = todayNotesExpanded ? '' : 'rotate(-90deg)';
+      }
     });
 
+    // Clic bouton go-client
     globalFeed.querySelectorAll('.go-client-btn').forEach(btn => {
-      btn.addEventListener('click', () => { window.location.hash = `#client/${btn.dataset.id}`; });
+      btn.addEventListener('click', () => { 
+        if (btn.dataset.id && btn.dataset.id !== 'null') {
+          window.location.hash = `#client/${btn.dataset.id}`; 
+        }
+      });
     });
+
+    // Clic pièces jointes
     globalFeed.querySelectorAll('[data-path]').forEach(el => {
       el.addEventListener('click', e => {
         e.preventDefault();
@@ -2094,6 +2169,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     });
+
+    // Modifier note
     globalFeed.querySelectorAll('.edit-msg-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.preventDefault();
@@ -2101,7 +2178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = btn.dataset.id;
         const msg = globalMessages.find(m => String(m.id) === String(id));
         if (msg) {
-          const cardDiv = btn.closest('.flex-1');
+          const cardDiv = btn.closest('.card-item-container');
           const contentContainer = cardDiv.querySelector('.msg-content-container');
           
           const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
@@ -2138,7 +2215,6 @@ document.addEventListener('DOMContentLoaded', () => {
               const parsed = parseInputCommands(newText);
               
               if (parsed.isTodo) {
-                // Conversion de la note en pense-bête!
                 await sb.from('messages').delete().eq('id', id);
                 
                 const dueDate = parsed.date ? parseDateString(parsed.date) : null;
@@ -2151,12 +2227,10 @@ document.addEventListener('DOMContentLoaded', () => {
                   dueDate: dueDate
                 });
                 saveTodos();
-                
                 await loadGlobalFeed(false);
                 return;
               }
 
-              // Modification classique de la note
               const updatedFields = {};
               let contentToUpdate = parsed.content;
               if (parsed.isDeadline) {
