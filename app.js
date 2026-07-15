@@ -886,15 +886,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function isMessageDeadline(content) {
     if (!content) return false;
-    return /(?:\s|^)\/dl(?:\s|$)/i.test(content);
+    return /(?:\s|^)\/dl(?:\s|$)/i.test(content) || /\[deadline\]/i.test(content);
   }
 
   function cleanMessageCommands(rawText) {
     if (!rawText) return '';
     let text = rawText;
 
-    // Enlever /dl
+    // Enlever /dl et [deadline]
     let mainText = text.replace(/(?:\s|^)\/dl(?:\s|$)/gi, ' ');
+    mainText = mainText.replace(/\s*\[deadline\]\s*$/gi, '');
 
     // 1. Enlever [edited:...]
     const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
@@ -1538,6 +1539,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderTodos(contextClientId) {
+    if (!globalTodosContainer || !globalTodosList) return;
     if (!contextClientId) {
       globalTodosContainer.classList.add('hidden');
       return;
@@ -2105,27 +2107,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let html = `
-      <!-- Cockpit Dashboard Header -->
-      <div class="mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in-up">
-        <div>
-          <h1 class="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-            <span>Tableau de Bord</span>
-            <span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">Live</span>
-          </h1>
-          <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Suivez l'état de votre journée en un coup d'œil.</p>
-        </div>
-        <div class="flex items-center gap-3">
-          <div class="bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-1.5 text-center">
-            <span class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Clients</span>
-            <span class="text-xs font-extrabold text-slate-700">${clients.length}</span>
-          </div>
-          <div class="bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-1.5 text-center">
-            <span class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aujourd'hui</span>
-            <span class="text-xs font-extrabold text-blue-600">${todayMsgs.length}</span>
-          </div>
-        </div>
-      </div>
-
       <!-- 1. Dernier message en Visu Direct -->
       <div class="mb-5 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in-up" style="animation-delay: 50ms;">
         <h2 class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
@@ -2997,6 +2978,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── WIDGET FICHIERS ─────────────────────────────────────────────
   function renderFilesList() {
+    if (!filesList) return;
     filesList.innerHTML = '';
     const fileMessages = clientMessages.filter(m => m.file_url && m.file_name);
     if (fileMessages.length === 0) {
@@ -3071,14 +3053,15 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   }
 
-  filesWidgetToggle.addEventListener('click', () => {
+  filesWidgetToggle?.addEventListener('click', () => {
     filesWidgetOpen = !filesWidgetOpen;
-    filesListWrapper.style.display = filesWidgetOpen ? '' : 'none';
-    filesChevron.style.transform = filesWidgetOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+    if (filesListWrapper) filesListWrapper.style.display = filesWidgetOpen ? '' : 'none';
+    if (filesChevron) filesChevron.style.transform = filesWidgetOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
   });
 
   // ─── WIDGET CALENDRIER ───────────────────────────────────────────
   function renderCalendar() {
+    if (!calMonthYear || !calDays) return;
     const year  = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
     calMonthYear.textContent = calendarDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -3117,24 +3100,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  prevMonthBtn.addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() - 1); renderCalendar(); });
-  nextMonthBtn.addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() + 1); renderCalendar(); });
+  prevMonthBtn?.addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() - 1); renderCalendar(); });
+  nextMonthBtn?.addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() + 1); renderCalendar(); });
 
   function updateDateFilterUI() {
     if (selectedDateFilter) {
       const label = new Date(selectedDateFilter).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-      filteredDateText.textContent = label;
-      filteredDateChat.textContent = label;
-      dateFilterIndicator.classList.remove('hidden');
-      dateFilterChat.classList.remove('hidden');
+      if (filteredDateText) filteredDateText.textContent = label;
+      if (filteredDateChat) filteredDateChat.textContent = label;
+      if (dateFilterIndicator) dateFilterIndicator.classList.remove('hidden');
+      if (dateFilterChat) dateFilterChat.classList.remove('hidden');
     } else {
-      dateFilterIndicator.classList.add('hidden');
-      dateFilterChat.classList.add('hidden');
+      if (dateFilterIndicator) dateFilterIndicator.classList.add('hidden');
+      if (dateFilterChat) dateFilterChat.classList.add('hidden');
     }
   }
 
-  clearDateFilter.addEventListener('click', () => { selectedDateFilter = null; updateDateFilterUI(); renderClientMessages(); renderCalendar(); });
-  clearDateFilterChat.addEventListener('click', () => { selectedDateFilter = null; updateDateFilterUI(); renderClientMessages(); renderCalendar(); });
+  clearDateFilter?.addEventListener('click', () => { selectedDateFilter = null; updateDateFilterUI(); renderClientMessages(); renderCalendar(); });
+  clearDateFilterChat?.addEventListener('click', () => { selectedDateFilter = null; updateDateFilterUI(); renderClientMessages(); renderCalendar(); });
 
   // ─── INIT ────────────────────────────────────────────────────────
   applyRoute();

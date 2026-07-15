@@ -151,7 +151,7 @@
           <p class="text-sm font-semibold leading-tight" id="user-display-name"></p>
           <p class="text-xs text-slate-500" id="user-display-position"></p>
         </div>
-        <button id="toggle-right-sidebar" class="lg:hidden p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg transition" title="Widgets de la colonne">
+        <button id="toggle-right-sidebar" class="p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg transition" title="Widgets de la colonne">
           <i data-lucide="sidebar" class="w-5 h-5"></i>
         </button>
         <a href="#settings" id="settings-nav-btn" class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-semibold transition" title="Paramètres du compte">
@@ -314,92 +314,22 @@
         </main>
       </div>
 
-      <!-- Sidebar droite des Widgets spécifiques (Calendrier + Pense-bêtes + Fichiers) -->
+      <!-- Sidebar droite des Widgets spécifiques (Notes à venir uniquement) -->
       <aside id="right-sidebar" class="hidden lg:flex w-72 shrink-0 bg-white flex-col overflow-hidden border-l border-slate-200">
         
-        <!-- Widget Calendrier -->
-        <div class="p-4 border-b border-slate-100 bg-slate-50/30">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-              <i data-lucide="calendar" class="w-4 h-4 client-text-accented"></i>
-              <span>Calendrier</span>
-            </h3>
-            <div class="flex items-center gap-0.5">
-              <button id="prev-month-btn" class="p-1 hover:bg-slate-100 rounded-lg text-slate-500 transition">
-                <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
-              </button>
-              <span id="calendar-month-year" class="text-xs font-semibold text-slate-600 min-w-[72px] text-center"></span>
-              <button id="next-month-btn" class="p-1 hover:bg-slate-100 rounded-lg text-slate-500 transition">
-                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
-              </button>
-            </div>
-          </div>
-          <div class="calendar-grid text-center text-[10px] font-bold text-slate-400 mb-1">
-            <div>Lu</div><div>Ma</div><div>Me</div><div>Je</div><div>Ve</div><div>Sa</div><div>Di</div>
-          </div>
-          <div id="calendar-days" class="calendar-grid"></div>
-          <!-- Badge filtre actif -->
-          <div id="date-filter-indicator" class="hidden mt-2 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-medium flex items-center justify-between">
-            <span>📅 <span id="filtered-date-text"></span></span>
-            <button id="clear-date-filter" class="hover:text-blue-900 transition ml-1">✕</button>
-          </div>
-        </div>
-
-        <!-- Widget Pense-bêtes actifs -->
-        <div class="border-b border-slate-100 flex flex-col overflow-hidden" id="global-todos-container">
-          <button id="global-todos-toggle" class="flex items-center justify-between px-4 py-3 border-b border-slate-100 w-full text-left group shrink-0 hover:bg-slate-50 transition">
-            <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-              <i data-lucide="pin" class="w-4 h-4 fill-amber-500 text-amber-500 animate-pulse"></i>
-              <span>Pense-bêtes actifs</span>
-            </h3>
-            <i data-lucide="chevron-down" id="global-todos-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200"></i>
-          </button>
-          <div id="global-todos-list-wrapper" class="overflow-y-auto p-3 bg-slate-50/10" style="height: 150px;">
-            <div id="global-todos-list" class="space-y-2 text-xs"></div>
-          </div>
-          <!-- Resize handle -->
-          <div class="todos-resize-handle flex justify-center py-1 cursor-ns-resize border-t border-slate-100 select-none hover:bg-slate-100/50 transition" data-target="global-todos-list-wrapper">
-            <i data-lucide="grip-horizontal" class="w-4 h-4 text-slate-400/40"></i>
-          </div>
-        </div>
-
         <!-- Widget Notes à venir -->
-        <div class="border-b border-slate-100 flex flex-col overflow-hidden" id="upcoming-widget-container">
-          <button id="upcoming-widget-toggle" class="flex items-center justify-between px-4 py-3 border-b border-slate-100 w-full text-left group shrink-0 hover:bg-slate-50 transition">
-            <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+        <div class="flex-1 flex flex-col overflow-hidden" id="upcoming-widget-container">
+          <button id="upcoming-widget-toggle" class="flex items-center justify-between px-4 py-3.5 border-b border-slate-100 w-full text-left bg-slate-50/50 shrink-0 group hover:bg-slate-100 transition">
+            <h3 class="text-sm font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
               <i data-lucide="calendar-days" class="w-4 h-4 text-purple-500"></i>
               <span>Notes à venir</span>
             </h3>
             <i data-lucide="chevron-down" id="upcoming-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200"></i>
           </button>
-          <div id="upcoming-list-wrapper" class="overflow-y-auto p-3 bg-slate-50/10" style="height: 180px;">
-            <div id="upcoming-list" class="space-y-2">
+          <div id="upcoming-list-wrapper" class="overflow-y-auto p-4 bg-white flex-1">
+            <div id="upcoming-list" class="space-y-3">
               <p class="text-xs text-slate-400 text-center py-4">Aucune note à venir.</p>
             </div>
-          </div>
-          <!-- Resize handle -->
-          <div class="todos-resize-handle flex justify-center py-1 cursor-ns-resize border-t border-slate-100 select-none hover:bg-slate-100/50 transition" data-target="upcoming-list-wrapper">
-            <i data-lucide="grip-horizontal" class="w-4 h-4 text-slate-400/40"></i>
-          </div>
-        </div>
-
-        <!-- Widget Fichiers Partagés -->
-        <div class="flex flex-col overflow-hidden" id="files-widget-container">
-          <button id="files-widget-toggle" class="flex items-center justify-between px-4 py-3 border-b border-slate-100 w-full text-left group shrink-0 hover:bg-slate-50 transition">
-            <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-              <i data-lucide="file-text" class="w-4 h-4 client-text-accented"></i>
-              <span>Fichiers partagés</span>
-            </h3>
-            <i data-lucide="chevron-down" id="files-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200"></i>
-          </button>
-          <div id="files-list-wrapper" class="overflow-y-auto p-3 bg-slate-50/10" style="height: 200px;">
-            <div id="files-list" class="space-y-2">
-              <p class="text-xs text-slate-400 text-center py-6">Aucun fichier partagé.</p>
-            </div>
-          </div>
-          <!-- Resize handle -->
-          <div class="todos-resize-handle flex justify-center py-1 cursor-ns-resize border-t border-slate-100 select-none hover:bg-slate-100/50 transition" data-target="files-list-wrapper">
-            <i data-lucide="grip-horizontal" class="w-4 h-4 text-slate-400/40"></i>
           </div>
         </div>
       </aside>
