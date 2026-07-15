@@ -542,6 +542,9 @@ document.addEventListener('DOMContentLoaded', () => {
         options.onCancel();
       }
     });
+
+    // 4. Activer le picker de commandes Notion-like
+    attachCommandPicker(textarea);
   }
 
   // Initialize main inputs
