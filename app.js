@@ -1359,63 +1359,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return getLocalDateString(next);
   }
 
-  function renderTodos(contextClientId) {
-    const today = getLocalDateString();
-    const nextWorkingDay = getNextWorkingDay(new Date());
-
-    let activeTodos = [];
-
-    if (contextClientId) {
-      const clientTodos = todos.filter(t => String(t.clientId) === String(contextClientId));
-      const clientActionable = clientTodos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
-      const clientTomorrow = clientTodos.filter(t => !t.done && t.dueDate === nextWorkingDay);
-      let clientPriority = [];
-      if (clientTomorrow.length > 0) {
-        clientPriority = clientTomorrow;
-      } else {
-        clientPriority = clientTodos.filter(t => !t.done && t.dueDate && t.dueDate > today)
-                                    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-                                    .slice(0, 3);
-      }
-      activeTodos = [...clientActionable];
-      clientPriority.forEach(t => {
-        if (!activeTodos.some(x => x.id === t.id)) activeTodos.push(t);
-      });
-    } else {
-      const globalActionable = todos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
-      const globalTomorrow = todos.filter(t => !t.done && t.dueDate === nextWorkingDay);
-      let globalPriority = [];
-      if (globalTomorrow.length > 0) {
-        globalPriority = globalTomorrow;
-      } else {
-        globalPriority = todos.filter(t => !t.done && t.dueDate && t.dueDate > today)
-                              .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-                              .slice(0, 3);
-      }
-      activeTodos = [...globalActionable];
-      globalPriority.forEach(t => {
-        if (!activeTodos.some(x => x.id === t.id)) activeTodos.push(t);
-      });
-    }
-
-    activeTodos.sort((a, b) => {
-      if (!a.dueDate && !b.dueDate) return 0;
-      if (!a.dueDate) return -1;
-      if (!b.dueDate) return 1;
-      return a.dueDate.localeCompare(b.dueDate);
-    });
-
-    globalTodosContainer.classList.toggle('hidden', activeTodos.length === 0);
-    globalTodosList.innerHTML = activeTodos.map(t => renderTodoItem(t)).join('');
-
-    // Ajuster le titre du widget
-    const titleSpan = globalTodosToggle.querySelector('span span');
-    if (titleSpan) {
-      titleSpan.textContent = contextClientId ? "Pense-bêtes client" : "Pense-bêtes actifs";
-    }
-
-    // Lier les évènements de modification / suppression
-    globalTodosList.querySelectorAll('.todo-checkbox').forEach(cb => {
+  function bindTodoEvents(container, contextClientId) {
+    container.querySelectorAll('.todo-checkbox').forEach(cb => {
       cb.addEventListener('change', async () => {
         const id = cb.dataset.id;
         const todo = todos.find(t => t.id === id);
@@ -1428,8 +1373,11 @@ document.addEventListener('DOMContentLoaded', () => {
           todos = todos.filter(t => t.id !== id);
           saveTodos();
           
-          // On rafraîchit l'affichage immédiatement
-          renderTodos(contextClientId);
+          if (contextClientId === 'dashboard') {
+            await loadGlobalFeed(false);
+          } else {
+            renderTodos(contextClientId);
+          }
 
           // Si la tâche était liée à un client, on l'insère dans Supabase
           if (todo.clientId) {
@@ -1448,7 +1396,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 todo.done = false;
                 todos.push(todo);
                 saveTodos();
-                renderTodos(contextClientId);
+                if (contextClientId === 'dashboard') {
+                  await loadGlobalFeed(false);
+                } else {
+                  renderTodos(contextClientId);
+                }
               } else {
                 if (activeClientId) {
                   await loadClientMessages(false);
@@ -1461,106 +1413,174 @@ document.addEventListener('DOMContentLoaded', () => {
               todo.done = false;
               todos.push(todo);
               saveTodos();
-              renderTodos(contextClientId);
+              if (contextClientId === 'dashboard') {
+                await loadGlobalFeed(false);
+              } else {
+                renderTodos(contextClientId);
+              }
             }
           }
         }
       });
+    });
+
+    container.querySelectorAll('.todo-client-badge').forEach(badge => {
+      badge.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.hash = `#client/${badge.dataset.clientId}`;
       });
-      globalTodosList.querySelectorAll('.todo-client-badge').forEach(badge => {
-        badge.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          window.location.hash = `#client/${badge.dataset.clientId}`;
-        });
-      });
-      globalTodosList.querySelectorAll('.todo-edit').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const id = btn.dataset.id;
-          const todo = todos.find(t => t.id === id);
-          if (todo) {
-            const todoItemRow = btn.closest('.todo-item');
-            const originalContent = todo.content;
-            
-            // On affiche le texte original pour édition
-            todoItemRow.innerHTML = `
-              <div class="flex items-center gap-2 w-full py-1">
-                <input type="text" class="flex-1 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 todo-edit-input" value="${originalContent}">
-                <button class="todo-save-btn text-green-600 hover:text-green-800 font-bold text-xs px-2 py-1 border border-green-200 rounded bg-green-50">✓</button>
-                <button class="todo-cancel-btn text-slate-500 hover:text-slate-700 font-bold text-xs px-2 py-1 border border-slate-200 rounded bg-slate-50">✕</button>
-              </div>
-            `;
-            
-            const input = todoItemRow.querySelector('.todo-edit-input');
-            input.focus();
-            
-            const saveHandler = () => {
-              const newContent = input.value.trim();
-              if (newContent) {
-                const parsed = parseInputCommands(newContent);
-                
-                // Mettre à jour le client si /cl est spécifié
-                if (parsed.clientId) {
-                  todo.clientId = parsed.clientId;
-                }
-                
-                // Mettre à jour la date si /date est spécifié
-                if (parsed.date) {
-                  todo.dueDate = parseDateString(parsed.date);
-                }
-                
-                todo.content = parsed.content;
-                todo.editedAt = new Date().toISOString();
-                saveTodos();
+    });
+
+    container.querySelectorAll('.todo-edit').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const todo = todos.find(t => t.id === id);
+        if (todo) {
+          const todoItemRow = btn.closest('.todo-item');
+          const originalContent = todo.content;
+          
+          todoItemRow.innerHTML = `
+            <div class="flex items-center gap-2 w-full py-1">
+              <input type="text" class="flex-1 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 todo-edit-input" value="${originalContent}">
+              <button class="todo-save-btn text-green-600 hover:text-green-800 font-bold text-xs px-2 py-1 border border-green-200 rounded bg-green-50">✓</button>
+              <button class="todo-cancel-btn text-slate-500 hover:text-slate-700 font-bold text-xs px-2 py-1 border border-slate-200 rounded bg-slate-50">✕</button>
+            </div>
+          `;
+          
+          const input = todoItemRow.querySelector('.todo-edit-input');
+          input.focus();
+          
+          const saveHandler = () => {
+            const newContent = input.value.trim();
+            if (newContent) {
+              const parsed = parseInputCommands(newContent);
+              
+              // Mettre à jour le client si /cl est spécifié
+              if (parsed.clientId) {
+                todo.clientId = parsed.clientId;
               }
+              
+              // Mettre à jour la date si /date est spécifié
+              if (parsed.date) {
+                todo.dueDate = parseDateString(parsed.date);
+              }
+              
+              todo.content = parsed.content;
+              todo.editedAt = new Date().toISOString();
+              saveTodos();
+            }
+            if (contextClientId === 'dashboard') {
+              loadGlobalFeed(false);
+            } else {
               renderTodos(contextClientId);
               if (contextClientId) {
                 renderUpcomingNotes(clientMessages);
               } else {
                 renderUpcomingNotes(globalMessages);
               }
-            };
+            }
+          };
 
-            todoItemRow.querySelector('.todo-save-btn').addEventListener('click', (evt) => {
-              evt.preventDefault();
-              evt.stopPropagation();
-              saveHandler();
-            });
-            
-            todoItemRow.querySelector('.todo-cancel-btn').addEventListener('click', (evt) => {
-              evt.preventDefault();
-              evt.stopPropagation();
+          todoItemRow.querySelector('.todo-save-btn').addEventListener('click', (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            saveHandler();
+          });
+          
+          todoItemRow.querySelector('.todo-cancel-btn').addEventListener('click', (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (contextClientId === 'dashboard') {
+              loadGlobalFeed(false);
+            } else {
               renderTodos(contextClientId);
-            });
+            }
+          });
 
-            input.addEventListener('keydown', e => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                saveHandler();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
+          input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              saveHandler();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              if (contextClientId === 'dashboard') {
+                loadGlobalFeed(false);
+              } else {
                 renderTodos(contextClientId);
               }
-            });
-          }
-        });
+            }
+          });
+        }
       });
-      globalTodosList.querySelectorAll('.todo-delete').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          todos = todos.filter(t => t.id !== btn.dataset.id);
-          saveTodos();
+    });
+
+    container.querySelectorAll('.todo-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        todos = todos.filter(t => t.id !== btn.dataset.id);
+        saveTodos();
+        if (contextClientId === 'dashboard') {
+          loadGlobalFeed(false);
+        } else {
           renderTodos(contextClientId);
           if (contextClientId) {
             renderUpcomingNotes(clientMessages);
           } else {
             renderUpcomingNotes(globalMessages);
           }
-        });
+        }
       });
+    });
+  }
+
+  function renderTodos(contextClientId) {
+    if (!contextClientId) {
+      globalTodosContainer.classList.add('hidden');
+      return;
+    }
+
+    globalTodosContainer.classList.remove('hidden');
+    const today = getLocalDateString();
+    const nextWorkingDay = getNextWorkingDay(new Date());
+
+    let activeTodos = [];
+
+    const clientTodos = todos.filter(t => String(t.clientId) === String(contextClientId));
+    const clientActionable = clientTodos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
+    const clientTomorrow = clientTodos.filter(t => !t.done && t.dueDate === nextWorkingDay);
+    let clientPriority = [];
+    if (clientTomorrow.length > 0) {
+      clientPriority = clientTomorrow;
+    } else {
+      clientPriority = clientTodos.filter(t => !t.done && t.dueDate && t.dueDate > today)
+                                  .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+                                  .slice(0, 3);
+    }
+    activeTodos = [...clientActionable];
+    clientPriority.forEach(t => {
+      if (!activeTodos.some(x => x.id === t.id)) activeTodos.push(t);
+    });
+
+    activeTodos.sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return -1;
+      if (!b.dueDate) return 1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+
+    globalTodosList.innerHTML = activeTodos.map(t => renderTodoItem(t)).join('');
+
+    // Ajuster le titre du widget
+    const titleSpan = globalTodosToggle.querySelector('span span');
+    if (titleSpan) {
+      titleSpan.textContent = "Pense-bêtes client";
+    }
+
+    bindTodoEvents(globalTodosList, contextClientId);
 
     // Ajuster dynamiquement la hauteur pour éviter le vide/vide en bas
     const wrapper = globalTodosListWrapper;
@@ -1961,6 +1981,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let todayNotesExpanded = false;
+  let upcomingTodosExpanded = false;
 
   function renderGlobalFeed() {
     const today = getLocalDateString();
@@ -1974,12 +1995,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Notes de la journée uniquement (today)
     const todayMsgs = globalMessages.filter(m => getLocalDateString(new Date(m.created_at)) === today);
     
+    // Pense-bêtes du jour et futurs
+    const todayTodos = todos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
+    const upcomingTodos = todos.filter(t => !t.done && t.dueDate && t.dueDate > today);
+    
     // Mettre à jour les widgets secondaires
     renderUpcomingNotes(globalMessages);
     renderTomorrowBanner(globalMessages, clients);
     renderTodos(null);
 
-    if (presentMsgs.length === 0) {
+    if (presentMsgs.length === 0 && todayTodos.length === 0 && upcomingTodos.length === 0) {
       globalFeed.innerHTML = `
         <div class="mb-6 animate-fade-in-up">
           <h1 class="text-xl font-bold text-slate-800">Mon Tableau de Bord</h1>
@@ -2112,7 +2137,40 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
 
-      <!-- 2. Notes du jour en faisant une action (Collapsible) -->
+      <!-- 2. Pense-bêtes Dashboard Card -->
+      <div class="mb-5 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in-up" style="animation-delay: 75ms;">
+        <div class="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
+          <h2 class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <i data-lucide="pin" class="w-4 h-4 fill-amber-500 text-amber-500"></i>
+            Pense-bêtes actifs
+          </h2>
+          <span class="text-[10px] bg-slate-50 text-slate-500 px-2.5 py-0.5 rounded-full font-bold">Aujourd'hui / Retard</span>
+        </div>
+        <div id="dashboard-todos-list" class="space-y-1 text-xs">
+          ${todayTodos.length > 0 
+            ? todayTodos.map(t => renderTodoItem(t)).join('') 
+            : `<p class="text-xs text-slate-400 py-3 text-center">Aucun pense-bête actif pour aujourd'hui.</p>`}
+        </div>
+        
+        <!-- Button to expand upcoming ones -->
+        <div class="mt-3 border-t border-slate-50 pt-2">
+          <button id="upcoming-todos-toggle-btn" class="flex items-center justify-between w-full py-1 text-left font-bold text-slate-500 hover:text-slate-700 transition">
+            <span class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-extrabold">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-purple-500 shrink-0"></i>
+              Suivants (Notes à venir)
+              <span class="text-[9px] bg-purple-50 text-purple-600 px-1.5 py-0.2 rounded-full font-extrabold">${upcomingTodos.length}</span>
+            </span>
+            <i data-lucide="chevron-down" id="upcoming-todos-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200" style="${upcomingTodosExpanded ? '' : 'transform: rotate(-90deg);'}"></i>
+          </button>
+          <div id="dashboard-upcoming-todos-list" class="space-y-1 text-xs mt-2" style="display: ${upcomingTodosExpanded ? 'block' : 'none'};">
+            ${upcomingTodos.length > 0 
+              ? upcomingTodos.map(t => renderTodoItem(t)).join('') 
+              : `<p class="text-xs text-slate-400 py-2 text-center">Aucun pense-bête futur.</p>`}
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Notes du jour en faisant une action (Collapsible) -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-16 animate-fade-in-up" style="animation-delay: 100ms;">
         <button id="today-notes-toggle-btn" class="flex items-center justify-between w-full px-5 py-4 text-left font-bold text-slate-700 hover:bg-slate-50 transition border-b border-slate-50">
           <span class="flex items-center gap-2 text-xs uppercase tracking-wider font-extrabold text-slate-500">
@@ -2146,6 +2204,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (toggleContent) toggleContent.style.display = todayNotesExpanded ? 'block' : 'none';
       if (toggleChevron) {
         toggleChevron.style.transform = todayNotesExpanded ? '' : 'rotate(-90deg)';
+      }
+    });
+
+    // Toggle Pense-bêtes suivants
+    const upcomingToggleBtn = document.getElementById('upcoming-todos-toggle-btn');
+    const upcomingContent = document.getElementById('dashboard-upcoming-todos-list');
+    const upcomingChevron = document.getElementById('upcoming-todos-chevron');
+    
+    upcomingToggleBtn?.addEventListener('click', () => {
+      upcomingTodosExpanded = !upcomingTodosExpanded;
+      if (upcomingContent) upcomingContent.style.display = upcomingTodosExpanded ? 'block' : 'none';
+      if (upcomingChevron) {
+        upcomingChevron.style.transform = upcomingTodosExpanded ? '' : 'rotate(-90deg)';
       }
     });
 
@@ -2295,6 +2366,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renameFile(btn.dataset.id, btn.dataset.name);
       });
     });
+    // Lier tous les évènements de todos pour le dashboard
+    bindTodoEvents(globalFeed, 'dashboard');
 
     globalFeed.scrollTop = globalFeed.scrollHeight;
     lucide.createIcons();
