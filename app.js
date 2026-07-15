@@ -32,9 +32,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── PENSE-BÊTES ─────────────────────────────────────────────────
   let isSending = false;
-  // { id, clientId, content, done, createdAt }
-  let todos = JSON.parse(localStorage.getItem('mimi_todos') || '[]');
-  function saveTodos() { localStorage.setItem('mimi_todos', JSON.stringify(todos)); }
+  // { id, clientId, content, done, createdAt, dueDate }
+  let todos = [];
+
+  async function loadTodos() {
+    try {
+      const { data, error } = await sb.from('todos').select('*').order('created_at', { ascending: true });
+      if (error) throw error;
+      todos = (data || []).map(t => ({
+        id: String(t.id),
+        clientId: t.client_id ? String(t.client_id) : null,
+        content: t.content,
+        done: t.done,
+        dueDate: t.due_date || null,
+        createdAt: t.created_at,
+        editedAt: t.edited_at || null
+      }));
+    } catch (err) {
+      console.warn('Table todos inexistante, repli localStorage:', err.message);
+      todos = JSON.parse(localStorage.getItem('mimi_todos') || '[]');
+    }
+  }
+
+  async function saveTodos() {
+    // Sync complet : upsert tous les todos dans Supabase
+    try {
+      const rows = todos.map(t => ({
+        id: t.id,
+        client_id: t.clientId || null,
+        content: t.content,
+        done: t.done,
+        due_date: t.dueDate || null,
+        created_at: t.createdAt || new Date().toISOString(),
+        edited_at: t.editedAt || null
+      }));
+      if (rows.length > 0) await sb.from('todos').upsert(rows, { onConflict: 'id' });
+    } catch (err) {
+      console.warn('Erreur sync todos Supabase, fallback localStorage:', err.message);
+      localStorage.setItem('mimi_todos', JSON.stringify(todos));
+    }
+  }
+
+  async function deleteTodoById(id) {
+    todos = todos.filter(t => t.id !== id);
+    try {
+      await sb.from('todos').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Erreur suppression todo Supabase:', err.message);
+      localStorage.setItem('mimi_todos', JSON.stringify(todos));
+    }
+  }
 
   // ─── COULEUR DE FOND DES NOTES ───────────────────────────────────
   let pendingNoteBgColor = null; // couleur de fond sélectionnée pour la prochaine note
@@ -51,8 +98,28 @@ document.addEventListener('DOMContentLoaded', () => {
     { key: '#f8fafc',label: 'Gris',     bg: '#f8fafc', border: '#cbd5e1' },
   ];
   // Map msgId → bgColor persisté dans localStorage
-  let noteBgs = JSON.parse(localStorage.getItem('mimi_note_bgs') || '{}');
-  function saveNoteBgs() { localStorage.setItem('mimi_note_bgs', JSON.stringify(noteBgs)); }
+  let noteBgs = {};
+
+  async function loadNoteBgs() {
+    // Les bg_color sont sur la colonne messages.bg_color — on les charge depuis les messages
+    // Fallback : localStorage si la colonne n'existe pas encore
+    noteBgs = JSON.parse(localStorage.getItem('mimi_note_bgs') || '{}');
+  }
+
+  async function saveNoteBg(msgId, color) {
+    noteBgs[msgId] = color;
+    try {
+      await sb.from('messages').update({ bg_color: color || null }).eq('id', msgId);
+    } catch (err) {
+      console.warn('Erreur sauvegarde bg_color Supabase, fallback localStorage:', err.message);
+      localStorage.setItem('mimi_note_bgs', JSON.stringify(noteBgs));
+    }
+  }
+
+  function saveNoteBgs() {
+    // Compat : appelé dans le code existant, on persiste juste en localStorage en attendant
+    localStorage.setItem('mimi_note_bgs', JSON.stringify(noteBgs));
+  }
 
   // ─── COMMAND PICKER ───────────────────────────────────────────────
   const SLASH_COMMANDS = [
@@ -363,6 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Toujours charger la liste de gauche à jour
     await loadClients();
+    await loadTodos();
 
     // Réinitialiser les classes mobiles hidden/flex par défaut lors de la navigation
     if (leftSidebar) { leftSidebar.classList.add('hidden'); leftSidebar.classList.remove('flex'); }
@@ -4262,5 +4330,118 @@ document.addEventListener('DOMContentLoaded', () => {
       rightSidebar.classList.remove('flex');
     }
   });
+
+  // ─── MIGRATION LOCALSTORAGE → SUPABASE ─────────────────────────────────
+  (function setupMigrationBanner() {
+    const banner     = document.getElementById('migration-banner');
+    const details    = document.getElementById('migration-details');
+    const importBtn  = document.getElementById('migration-import-btn');
+    const dismissBtn = document.getElementById('migration-dismiss-btn');
+    const status     = document.getElementById('migration-status');
+    if (!banner) return;
+
+    // Ne plus afficher si déjà migré
+    if (localStorage.getItem('mimi-migration-done-v1') === 'true') return;
+
+    // Compter les données locales à migrer
+    const localTodos   = JSON.parse(localStorage.getItem('mimi_todos')   || '[]');
+    const localPersons = JSON.parse(localStorage.getItem('mimi_persons') || '[]');
+    const localNoteBgs = JSON.parse(localStorage.getItem('mimi_note_bgs')|| '{}');
+    const localPinned  = JSON.parse(localStorage.getItem('mimi_pinned_files') || '[]');
+
+    const noteBgCount  = Object.keys(localNoteBgs).length;
+    const total = localTodos.length + localPersons.length + noteBgCount + localPinned.length;
+    if (total === 0) return; // Rien à migrer
+
+    // Afficher les détails
+    const lines = [];
+    if (localTodos.length)   lines.push(`📌 ${localTodos.length} pense-bête(s)`);
+    if (localPersons.length) lines.push(`👤 ${localPersons.length} personne(s)`);
+    if (noteBgCount)         lines.push(`🎨 ${noteBgCount} couleur(s) de note`);
+    if (localPinned.length)  lines.push(`📎 ${localPinned.length} fichier(s) épinglé(s)`);
+    details.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+
+    banner.classList.remove('hidden');
+    lucide.createIcons({ nodes: [banner] });
+
+    dismissBtn.addEventListener('click', () => {
+      banner.classList.add('hidden');
+    });
+
+    importBtn.addEventListener('click', async () => {
+      importBtn.disabled = true;
+      importBtn.textContent = 'Migration en cours…';
+      status.className = 'text-xs text-center font-semibold rounded-lg py-1.5 bg-blue-50 text-blue-700';
+      status.textContent = 'Import en cours…';
+      status.classList.remove('hidden');
+
+      const sb2 = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      let errors = [];
+
+      // 1. Pense-bêtes
+      if (localTodos.length > 0) {
+        try {
+          const rows = localTodos.map(t => ({
+            id:         String(t.id),
+            client_id:  t.clientId || null,
+            content:    t.content,
+            done:       t.done || false,
+            due_date:   t.dueDate || null,
+            created_at: t.createdAt || new Date().toISOString(),
+            edited_at:  t.editedAt || null
+          }));
+          const { error } = await sb2.from('todos').upsert(rows, { onConflict: 'id' });
+          if (error) errors.push('Todos: ' + error.message);
+        } catch (e) { errors.push('Todos: ' + e.message); }
+      }
+
+      // 2. Personnes
+      if (localPersons.length > 0) {
+        try {
+          const rows = localPersons.map(p => ({
+            id:        String(p.id || crypto.randomUUID()),
+            name:      p.name,
+            role:      p.role || null,
+            client_id: p.clientId || null,
+            created_at: p.createdAt || new Date().toISOString()
+          }));
+          const { error } = await sb2.from('persons').upsert(rows, { onConflict: 'id' });
+          if (error) errors.push('Persons: ' + error.message);
+        } catch (e) { errors.push('Persons: ' + e.message); }
+      }
+
+      // 3. Couleurs de fond de notes
+      if (noteBgCount > 0) {
+        try {
+          for (const [msgId, color] of Object.entries(localNoteBgs)) {
+            await sb2.from('messages').update({ bg_color: color }).eq('id', msgId);
+          }
+        } catch (e) { errors.push('Couleurs: ' + e.message); }
+      }
+
+      // 4. Fichiers épinglés
+      if (localPinned.length > 0) {
+        try {
+          const rows = localPinned.map(id => ({ message_id: String(id) }));
+          const { error } = await sb2.from('pinned_files').upsert(rows, { onConflict: 'message_id' });
+          if (error) errors.push('Pinned: ' + error.message);
+        } catch (e) { errors.push('Pinned: ' + e.message); }
+      }
+
+      if (errors.length === 0) {
+        localStorage.setItem('mimi-migration-done-v1', 'true');
+        status.className = 'text-xs text-center font-semibold rounded-lg py-1.5 bg-green-50 text-green-700';
+        status.textContent = '✅ Migration réussie ! Données synchronisées.';
+        setTimeout(() => banner.classList.add('hidden'), 3000);
+      } else {
+        status.className = 'text-xs text-center font-semibold rounded-lg py-1.5 bg-rose-50 text-rose-700';
+        status.textContent = '⚠️ Erreurs : ' + errors.join(' | ') + ' — Tables créées dans Supabase ?';
+        importBtn.disabled = false;
+        importBtn.innerHTML = '<i data-lucide="upload-cloud" class="w-4 h-4"></i> Réessayer';
+        lucide.createIcons({ nodes: [importBtn] });
+      }
+    });
+  })();
+
 });
 // Redéploiement manuel pour contourner la limite de taux (rate limit) Vercel passée.
