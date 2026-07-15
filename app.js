@@ -1927,62 +1927,135 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── BANDEAU DE RAPPEL LENDEMAIN ──────────────────────────────────────
   const tomorrowBanner = document.getElementById('tomorrow-notes-banner');
-  const tomorrowNotesList = document.getElementById('tomorrow-notes-list');
-  const tomorrowNotesCount = document.getElementById('tomorrow-notes-count');
-  
-  let tomorrowBannerOpen = true;
-  const tomorrowBannerToggle = document.getElementById('tomorrow-banner-toggle');
-  const tomorrowNotesWrapper = document.getElementById('tomorrow-notes-wrapper');
-  const tomorrowBannerChevron = document.getElementById('tomorrow-banner-chevron');
 
-  tomorrowBannerToggle?.addEventListener('click', () => {
-    tomorrowBannerOpen = !tomorrowBannerOpen;
-    if (tomorrowNotesWrapper) {
-      tomorrowNotesWrapper.style.display = tomorrowBannerOpen ? '' : 'none';
-    }
-    if (tomorrowBannerChevron) {
-      tomorrowBannerChevron.style.transform = tomorrowBannerOpen ? '' : 'rotate(-90deg)';
-    }
+  // Section Deadlines
+  const bannerDeadlinesSection  = document.getElementById('banner-deadlines-section');
+  const bannerDeadlinesList     = document.getElementById('banner-deadlines-list');
+  const bannerDeadlinesCount    = document.getElementById('banner-deadlines-count');
+  const bannerDeadlinesToggle   = document.getElementById('banner-deadlines-toggle');
+  const bannerDeadlinesWrapper  = document.getElementById('banner-deadlines-wrapper');
+  const bannerDeadlinesChevron  = document.getElementById('banner-deadlines-chevron');
+  let bannerDeadlinesOpen = true;
+
+  bannerDeadlinesToggle?.addEventListener('click', () => {
+    bannerDeadlinesOpen = !bannerDeadlinesOpen;
+    if (bannerDeadlinesWrapper) bannerDeadlinesWrapper.style.display = bannerDeadlinesOpen ? '' : 'none';
+    if (bannerDeadlinesChevron) bannerDeadlinesChevron.style.transform = bannerDeadlinesOpen ? '' : 'rotate(-90deg)';
+  });
+
+  // Section Notes demain
+  const bannerTomorrowSection  = document.getElementById('banner-tomorrow-section');
+  const bannerTomorrowList     = document.getElementById('banner-tomorrow-list');
+  const bannerTomorrowCount    = document.getElementById('banner-tomorrow-count');
+  const bannerTomorrowToggle   = document.getElementById('banner-tomorrow-toggle');
+  const bannerTomorrowWrapper  = document.getElementById('banner-tomorrow-wrapper');
+  const bannerTomorrowChevron  = document.getElementById('banner-tomorrow-chevron');
+  let bannerTomorrowOpen = true;
+
+  bannerTomorrowToggle?.addEventListener('click', () => {
+    bannerTomorrowOpen = !bannerTomorrowOpen;
+    if (bannerTomorrowWrapper) bannerTomorrowWrapper.style.display = bannerTomorrowOpen ? '' : 'none';
+    if (bannerTomorrowChevron) bannerTomorrowChevron.style.transform = bannerTomorrowOpen ? '' : 'rotate(-90deg)';
   });
 
   function renderTomorrowBanner(allMessages, allClients) {
     const tomorrow = getLocalDateString(new Date(Date.now() + 86400000));
-    
-    // Notes prévues pour demain qui sont des deadlines (Supabase)
-    const tomorrowMsgs = allMessages.filter(m => {
-      const d = getLocalDateString(new Date(m.created_at));
-      return d === tomorrow && isMessageDeadline(m.content);
-    }).map(m => {
+    const today    = getLocalDateString();
+
+    // ── Deadlines : toutes les notes marquées /dl, quelle que soit leur date ──
+    const deadlineMsgs = allMessages.filter(m => isMessageDeadline(m.content));
+    const deadlineItems = deadlineMsgs.map(m => {
       const client = allClients.find(c => String(c.id) === String(m.client_id));
       const clientName = client ? client.name : 'Sans client';
       const cleanText = cleanMessageCommands(m.content);
-      const preview = cleanText.slice(0, 60);
-      return `<li><span class="font-bold">${clientName}</span> — ${preview}${cleanText.length > 60 ? '…' : ''}</li>`;
+      const preview = cleanText.slice(0, 80);
+      const dateObj = new Date(m.created_at);
+      const dateLabel = getLocalDateString(dateObj) === today ? 'Aujourd\'hui'
+                      : getLocalDateString(dateObj) === tomorrow ? 'Demain'
+                      : dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      return `
+        <div class="flex items-start gap-2 bg-white/15 rounded-lg px-3 py-2">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-white/90 shrink-0 mt-0.5"></i>
+          <div class="min-w-0">
+            <span class="text-[10px] font-black text-white/70 uppercase tracking-wider">${clientName}</span>
+            <span class="text-[10px] text-white/50 ml-1">· ${dateLabel}</span>
+            <p class="text-xs text-white font-semibold leading-snug truncate">${preview}${cleanText.length > 80 ? '…' : ''}</p>
+          </div>
+        </div>`;
     });
 
-    // Pense-bêtes prévus pour demain (local storage)
-    const tomorrowTodos = todos.filter(t => {
-      return !t.done && t.dueDate === tomorrow;
-    }).map(t => {
-      const client = allClients.find(c => String(c.id) === String(t.clientId));
-      const clientName = client ? client.name : 'Sans client';
-      const cleanText = cleanMessageCommands(t.content);
-      const preview = cleanText.slice(0, 60);
-      return `<li><span class="font-bold text-amber-600">${clientName} (Pense-bête)</span> — ${preview}${cleanText.length > 60 ? '…' : ''}</li>`;
+    // ── Notes du lendemain (sans deadline) ──
+    const tomorrowOnlyMsgs = allMessages.filter(m => {
+      const d = getLocalDateString(new Date(m.created_at));
+      return d === tomorrow && !isMessageDeadline(m.content);
     });
+    const tomorrowTodoItems = todos.filter(t => !t.done && t.dueDate === tomorrow);
 
-    const allTomorrowItems = [...tomorrowMsgs, ...tomorrowTodos];
+    const tomorrowItems = [
+      ...tomorrowOnlyMsgs.map(m => {
+        const client = allClients.find(c => String(c.id) === String(m.client_id));
+        const clientName = client ? client.name : 'Sans client';
+        const cleanText = cleanMessageCommands(m.content);
+        const preview = cleanText.slice(0, 70);
+        return `
+          <div class="flex items-start gap-2 bg-amber-100/60 rounded-lg px-3 py-2">
+            <i data-lucide="file-text" class="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5"></i>
+            <div class="min-w-0">
+              <span class="text-[10px] font-bold text-amber-700">${clientName}</span>
+              <p class="text-xs text-amber-900 leading-snug truncate">${preview}${cleanText.length > 70 ? '…' : ''}</p>
+            </div>
+          </div>`;
+      }),
+      ...tomorrowTodoItems.map(t => {
+        const client = allClients.find(c => String(c.id) === String(t.clientId));
+        const clientName = client ? client.name : 'Sans client';
+        const preview = t.content.slice(0, 70);
+        return `
+          <div class="flex items-start gap-2 bg-amber-100/60 rounded-lg px-3 py-2">
+            <i data-lucide="pin" class="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0 mt-0.5"></i>
+            <div class="min-w-0">
+              <span class="text-[10px] font-bold text-amber-700">${clientName} · Pense-bête</span>
+              <p class="text-xs text-amber-900 leading-snug truncate">${preview}${t.content.length > 70 ? '…' : ''}</p>
+            </div>
+          </div>`;
+      })
+    ];
 
-    if (allTomorrowItems.length === 0) {
+    const hasDeadlines = deadlineItems.length > 0;
+    const hasTomorrow  = tomorrowItems.length > 0;
+
+    if (!hasDeadlines && !hasTomorrow) {
       tomorrowBanner.classList.add('hidden');
       tomorrowBanner.classList.remove('flex');
       return;
     }
 
-    tomorrowNotesList.innerHTML = allTomorrowItems.join('');
-    tomorrowNotesCount.textContent = allTomorrowItems.length;
+    // Afficher le bandeau global
     tomorrowBanner.classList.remove('hidden');
     tomorrowBanner.classList.add('flex');
+
+    // Section Deadlines
+    if (hasDeadlines) {
+      bannerDeadlinesList.innerHTML = deadlineItems.join('');
+      bannerDeadlinesCount.textContent = deadlineItems.length;
+      bannerDeadlinesSection.classList.remove('hidden');
+      bannerDeadlinesSection.classList.add('flex');
+    } else {
+      bannerDeadlinesSection.classList.add('hidden');
+      bannerDeadlinesSection.classList.remove('flex');
+    }
+
+    // Section Demain
+    if (hasTomorrow) {
+      bannerTomorrowList.innerHTML = tomorrowItems.join('');
+      bannerTomorrowCount.textContent = tomorrowItems.length;
+      bannerTomorrowSection.classList.remove('hidden');
+      bannerTomorrowSection.classList.add('flex');
+    } else {
+      bannerTomorrowSection.classList.add('hidden');
+      bannerTomorrowSection.classList.remove('flex');
+    }
+
     lucide.createIcons({ nodes: [tomorrowBanner] });
   }
 
@@ -2058,8 +2131,8 @@ document.addEventListener('DOMContentLoaded', () => {
       let deadlineBadge = '';
       if (isMessageDeadline(msg.content)) {
         deadlineBadge = `
-          <span class="text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-            <i data-lucide="clock" class="w-3 h-3"></i>Deadline
+          <span class="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 shadow-sm">
+            <i data-lucide="clock" class="w-3 h-3 text-white"></i>DEADLINE
           </span>
         `;
       }
@@ -2678,8 +2751,8 @@ document.addEventListener('DOMContentLoaded', () => {
       let deadlineBadge = '';
       if (isMessageDeadline(msg.content)) {
         deadlineBadge = `
-          <span class="text-[9px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-            <i data-lucide="clock" class="w-2.5 h-2.5"></i>Deadline
+          <span class="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 shadow-sm">
+            <i data-lucide="clock" class="w-3 h-3 text-white"></i>DEADLINE
           </span>
         `;
       }
