@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { cmd: '/couleurfond',label: '/couleurfond',desc: 'Changer la couleur de fond',        icon: '🎨' },
     { cmd: '/date',      label: '/date',        desc: 'Planifier la note sur une date',    icon: '📅' },
     { cmd: '/personne',  label: '/personne',    desc: 'Ajouter/gérer une personne',        icon: '👤' },
+    { cmd: '/dl ',       label: '/dl',         desc: 'Marquer comme deadline',             icon: '🚨' },
   ];
   let commandPickerActiveIndex = -1;
 
@@ -454,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Afficher le bouton gauche uniquement sur l'accueil (pas de barre latérale droite sur l'accueil)
       if (toggleLeftSidebarBtn) toggleLeftSidebarBtn.classList.remove('hidden');
-      if (toggleRightSidebarBtn) toggleRightSidebarBtn.classList.add('hidden');
+      if (toggleRightSidebarBtn) toggleRightSidebarBtn.classList.remove('hidden');
 
       if (!hash || hash === '#dashboard') {
         window.history.replaceState(null, '', '#dashboard');
@@ -465,6 +466,94 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.addEventListener('hashchange', applyRoute);
+
+  // Auto-expansion, Shift+Enter and Cmd+K for Textareas
+  function setupTextareaFeatures(textarea, onSubmit, options = {}) {
+    if (!textarea) return;
+
+    const adjustHeight = () => {
+      textarea.style.height = 'auto';
+      const targetHeight = Math.min(textarea.scrollHeight, 250);
+      textarea.style.height = `${targetHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > 250 ? 'auto' : 'hidden';
+    };
+
+    textarea.style.resize = 'none';
+    textarea.style.overflowY = 'hidden';
+    
+    // Initial height calculation
+    setTimeout(adjustHeight, 50);
+
+    textarea.addEventListener('input', adjustHeight);
+
+    textarea.addEventListener('keydown', (e) => {
+      // 1. Cmd + K / Ctrl + K -> Insertion de lien markdown
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end);
+        
+        if (selectedText) {
+          const url = prompt("Entrez l'adresse du lien (URL) :");
+          if (url) {
+            let formattedUrl = url.trim();
+            if (!/^https?:\/\//i.test(formattedUrl)) {
+              formattedUrl = `https://${formattedUrl}`;
+            }
+            const replacement = `[${selectedText}](${formattedUrl})`;
+            textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+            textarea.selectionStart = start;
+            textarea.selectionEnd = start + replacement.length;
+            adjustHeight();
+          }
+        } else {
+          const text = prompt("Entrez le texte du lien :");
+          if (text) {
+            const url = prompt("Entrez l'adresse du lien (URL) :");
+            if (url) {
+              let formattedUrl = url.trim();
+              if (!/^https?:\/\//i.test(formattedUrl)) {
+                formattedUrl = `https://${formattedUrl}`;
+              }
+              const replacement = `[${text}](${formattedUrl})`;
+              textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+              textarea.selectionStart = start;
+              textarea.selectionEnd = start + replacement.length;
+              adjustHeight();
+            }
+          }
+        }
+      }
+
+      // 2. Shift + Enter -> retour à la ligne / Enter -> soumettre
+      if (e.key === 'Enter') {
+        if (!e.shiftKey) {
+          e.preventDefault();
+          if (onSubmit) onSubmit();
+        } else {
+          setTimeout(adjustHeight, 10);
+        }
+      }
+
+      // 3. Escape -> Annuler (si option fournie)
+      if (e.key === 'Escape' && options.onCancel) {
+        e.preventDefault();
+        options.onCancel();
+      }
+    });
+  }
+
+  // Initialize main inputs
+  setupTextareaFeatures(globalChatInput, () => {
+    const form = document.getElementById('global-chat-form');
+    if (form) form.dispatchEvent(new Event('submit'));
+  });
+
+  setupTextareaFeatures(clientChatInput, () => {
+    const form = document.getElementById('client-chat-form');
+    if (form) form.dispatchEvent(new Event('submit'));
+  });
 
   // Liens de redirection directs dans la navbar
   logoHome.addEventListener('click', () => { window.location.hash = '#dashboard'; });
@@ -792,14 +881,22 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${y}-${m}-${d}`;
   }
 
+  function isMessageDeadline(content) {
+    if (!content) return false;
+    return /(?:\s|^)\/dl(?:\s|$)/i.test(content);
+  }
+
   function cleanMessageCommands(rawText) {
     if (!rawText) return '';
     let text = rawText;
 
+    // Enlever /dl
+    let mainText = text.replace(/(?:\s|^)\/dl(?:\s|$)/gi, ' ');
+
     // 1. Enlever [edited:...]
     const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
-    const editedMatch = text.match(editedRegex);
-    let mainText = text.replace(editedRegex, '');
+    const editedMatch = mainText.match(editedRegex);
+    mainText = mainText.replace(editedRegex, '');
 
     // 2. Enlever /cl <argument> (avec ou sans guillemets)
     const clRegex = /\/cl\s+(?:"([^"]+)"|'([^']+)'|([^\s/]+))/i;
@@ -1236,23 +1333,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const globalTodosList = document.getElementById('global-todos-list');
   const globalTodosToggle = document.getElementById('global-todos-toggle');
   const globalTodosChevron = document.getElementById('global-todos-chevron');
-  const clientTodosContainer = document.getElementById('client-todos-container');
-  const clientTodosList = document.getElementById('client-todos-list');
-  const clientTodosToggle = document.getElementById('client-todos-toggle');
-  const clientTodosChevron = document.getElementById('client-todos-chevron');
+  const globalTodosListWrapper = document.getElementById('global-todos-list-wrapper');
 
   let globalTodosOpen = true;
-  let clientTodosOpen = true;
 
   globalTodosToggle?.addEventListener('click', () => {
     globalTodosOpen = !globalTodosOpen;
-    globalTodosList.style.display = globalTodosOpen ? '' : 'none';
+    if (globalTodosListWrapper) {
+      globalTodosListWrapper.style.display = globalTodosOpen ? '' : 'none';
+    }
+    const resizeHandle = globalTodosContainer?.querySelector('.todos-resize-handle');
+    if (resizeHandle) {
+      resizeHandle.style.display = globalTodosOpen ? '' : 'none';
+    }
     globalTodosChevron.style.transform = globalTodosOpen ? '' : 'rotate(-90deg)';
-  });
-  clientTodosToggle?.addEventListener('click', () => {
-    clientTodosOpen = !clientTodosOpen;
-    clientTodosList.style.display = clientTodosOpen ? '' : 'none';
-    clientTodosChevron.style.transform = clientTodosOpen ? '' : 'rotate(-90deg)';
   });
 
   function getNextWorkingDay(dateObj = new Date()) {
@@ -1266,32 +1360,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const today = getLocalDateString();
     const nextWorkingDay = getNextWorkingDay(new Date());
 
-    // 1. Liste des pense-bêtes actifs globaux (Home)
-    const globalActionable = todos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
-    const globalTomorrow = todos.filter(t => !t.done && t.dueDate === nextWorkingDay);
-    let globalPriority = [];
-    if (globalTomorrow.length > 0) {
-      globalPriority = globalTomorrow;
-    } else {
-      globalPriority = todos.filter(t => !t.done && t.dueDate && t.dueDate > today)
-                            .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-                            .slice(0, 3);
-    }
-    const globalActive = [...globalActionable];
-    globalPriority.forEach(t => {
-      if (!globalActive.some(x => x.id === t.id)) globalActive.push(t);
-    });
-    globalActive.sort((a, b) => {
-      if (!a.dueDate && !b.dueDate) return 0;
-      if (!a.dueDate) return -1;
-      if (!b.dueDate) return 1;
-      return a.dueDate.localeCompare(b.dueDate);
-    });
+    let activeTodos = [];
 
-    globalTodosContainer.classList.toggle('hidden', globalActive.length === 0);
-    globalTodosList.innerHTML = globalActive.map(t => renderTodoItem(t)).join('');
-
-    // 2. Liste des pense-bêtes actifs spécifiques au client
     if (contextClientId) {
       const clientTodos = todos.filter(t => String(t.clientId) === String(contextClientId));
       const clientActionable = clientTodos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
@@ -1304,60 +1374,73 @@ document.addEventListener('DOMContentLoaded', () => {
                                     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
                                     .slice(0, 3);
       }
-      const clientActive = [...clientActionable];
+      activeTodos = [...clientActionable];
       clientPriority.forEach(t => {
-        if (!clientActive.some(x => x.id === t.id)) clientActive.push(t);
+        if (!activeTodos.some(x => x.id === t.id)) activeTodos.push(t);
       });
-      clientActive.sort((a, b) => {
-        if (!a.dueDate && !b.dueDate) return 0;
-        if (!a.dueDate) return -1;
-        if (!b.dueDate) return 1;
-        return a.dueDate.localeCompare(b.dueDate);
+    } else {
+      const globalActionable = todos.filter(t => !t.done && (!t.dueDate || t.dueDate <= today));
+      const globalTomorrow = todos.filter(t => !t.done && t.dueDate === nextWorkingDay);
+      let globalPriority = [];
+      if (globalTomorrow.length > 0) {
+        globalPriority = globalTomorrow;
+      } else {
+        globalPriority = todos.filter(t => !t.done && t.dueDate && t.dueDate > today)
+                              .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+                              .slice(0, 3);
+      }
+      activeTodos = [...globalActionable];
+      globalPriority.forEach(t => {
+        if (!activeTodos.some(x => x.id === t.id)) activeTodos.push(t);
       });
+    }
 
-      clientTodosContainer.classList.toggle('hidden', clientActive.length === 0);
-      clientTodosList.innerHTML = clientActive.map(t => renderTodoItem(t)).join('');
+    activeTodos.sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return -1;
+      if (!b.dueDate) return 1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+
+    globalTodosContainer.classList.toggle('hidden', activeTodos.length === 0);
+    globalTodosList.innerHTML = activeTodos.map(t => renderTodoItem(t)).join('');
+
+    // Ajuster le titre du widget
+    const titleSpan = globalTodosToggle.querySelector('span span');
+    if (titleSpan) {
+      titleSpan.textContent = contextClientId ? "Pense-bêtes client" : "Pense-bêtes actifs";
     }
 
     // Lier les évènements de modification / suppression
-    [globalTodosList, clientTodosList].forEach(container => {
-      container.querySelectorAll('.todo-checkbox').forEach(cb => {
-        cb.addEventListener('change', async () => {
-          const id = cb.dataset.id;
-          const todo = todos.find(t => t.id === id);
-          if (!todo) return;
+    globalTodosList.querySelectorAll('.todo-checkbox').forEach(cb => {
+      cb.addEventListener('change', async () => {
+        const id = cb.dataset.id;
+        const todo = todos.find(t => t.id === id);
+        if (!todo) return;
 
-          const isChecked = cb.checked;
+        const isChecked = cb.checked;
 
-          if (isChecked) {
-            // Mise à jour optimiste instantanée : on retire le pense-bête de la liste
-            todos = todos.filter(t => t.id !== id);
-            saveTodos();
-            
-            // On rafraîchit l'affichage immédiatement
-            renderTodos(contextClientId);
+        if (isChecked) {
+          // Mise à jour optimiste instantanée : on retire le pense-bête de la liste
+          todos = todos.filter(t => t.id !== id);
+          saveTodos();
+          
+          // On rafraîchit l'affichage immédiatement
+          renderTodos(contextClientId);
 
-            // Si la tâche était liée à un client, on l'insère dans Supabase
-            if (todo.clientId) {
+          // Si la tâche était liée à un client, on l'insère dans Supabase
+          if (todo.clientId) {
+            try {
+              const client = clients.find(c => String(c.id) === String(todo.clientId));
+              const clientName = client ? client.name : "Client";
               const noteContent = `Fait : ${todo.content}`;
+              
+              // Insérer le message
               const { error } = await sb.from('messages').insert({
                 client_id: todo.clientId,
-                user_id: currentSession.user.id,
-                content: noteContent
+                content: noteContent,
+                created_at: new Date().toISOString()
               });
-              
-              if (error) {
-                console.error("Erreur conversion pense-bête en note:", error.message);
-                // En cas d'erreur de réseau/Supabase, on restaure la tâche
-                todo.done = false;
-                todos.push(todo);
-                saveTodos();
-                renderTodos(contextClientId);
-              } else {
-                // Recharger les messages pour faire apparaître la note "Fait : ..."
-                if (activeClientId) {
-                  await loadClientMessages(false);
-                } else {
                   await loadGlobalFeed(false);
                 }
               }
@@ -1462,31 +1545,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Ajuster dynamiquement la hauteur pour éviter le vide/vide en bas
-    [
-      { list: globalTodosList, id: 'global-todos-list' },
-      { list: clientTodosList, id: 'client-todos-list' }
-    ].forEach(({ list, id }) => {
-      if (!list) return;
-      
-      // Temporairement réinitialiser pour lire la vraie hauteur de défilement (scrollHeight)
-      const prevHeight = list.style.height;
-      list.style.height = 'auto';
-      const contentHeight = list.scrollHeight;
-      list.style.height = prevHeight;
+    const wrapper = globalTodosListWrapper;
+    if (wrapper) {
+      const prevHeight = wrapper.style.height;
+      wrapper.style.height = 'auto';
+      const contentHeight = wrapper.scrollHeight;
+      wrapper.style.height = prevHeight;
 
-      // Lire la hauteur souhaitée (localStorage ou défaut 130px)
-      const saved = localStorage.getItem(`todos-height-${id}`);
-      const preferredHeight = saved ? parseInt(saved) : 130;
+      const saved = localStorage.getItem('todos-height-global-todos-list-wrapper');
+      const preferredHeight = saved ? parseInt(saved) : 150;
 
-      // Capper la hauteur finale
       let finalHeight = Math.min(preferredHeight, contentHeight);
       if (finalHeight < 80 && contentHeight > 0) finalHeight = 80;
       if (contentHeight === 0) finalHeight = 0;
 
-      list.style.height = `${finalHeight}px`;
-    });
+      wrapper.style.height = `${finalHeight}px`;
+    }
 
-    lucide.createIcons({ nodes: [globalTodosList, clientTodosList] });
+    lucide.createIcons({ nodes: [globalTodosList] });
   }
 
   function renderTodoItem(t) {
@@ -1809,20 +1885,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const tomorrowBanner = document.getElementById('tomorrow-notes-banner');
   const tomorrowNotesList = document.getElementById('tomorrow-notes-list');
   const tomorrowNotesCount = document.getElementById('tomorrow-notes-count');
-  const closeTomorrowBannerBtn = document.getElementById('close-tomorrow-banner-btn');
+  
+  let tomorrowBannerOpen = true;
+  const tomorrowBannerToggle = document.getElementById('tomorrow-banner-toggle');
+  const tomorrowNotesWrapper = document.getElementById('tomorrow-notes-wrapper');
+  const tomorrowBannerChevron = document.getElementById('tomorrow-banner-chevron');
 
-  closeTomorrowBannerBtn?.addEventListener('click', () => {
-    tomorrowBanner.classList.add('hidden');
-    tomorrowBanner.classList.remove('flex');
+  tomorrowBannerToggle?.addEventListener('click', () => {
+    tomorrowBannerOpen = !tomorrowBannerOpen;
+    if (tomorrowNotesWrapper) {
+      tomorrowNotesWrapper.style.display = tomorrowBannerOpen ? '' : 'none';
+    }
+    if (tomorrowBannerChevron) {
+      tomorrowBannerChevron.style.transform = tomorrowBannerOpen ? '' : 'rotate(-90deg)';
+    }
   });
 
   function renderTomorrowBanner(allMessages, allClients) {
     const tomorrow = getLocalDateString(new Date(Date.now() + 86400000));
     
-    // Notes prévues pour demain (Supabase)
+    // Notes prévues pour demain qui sont des deadlines (Supabase)
     const tomorrowMsgs = allMessages.filter(m => {
       const d = getLocalDateString(new Date(m.created_at));
-      return d === tomorrow;
+      return d === tomorrow && isMessageDeadline(m.content);
     }).map(m => {
       const client = allClients.find(c => String(c.id) === String(m.client_id));
       const clientName = client ? client.name : 'Sans client';
@@ -1942,12 +2027,22 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       }
 
+      let deadlineBadge = '';
+      if (isMessageDeadline(msg.content)) {
+        deadlineBadge = `
+          <span class="text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+            <i data-lucide="clock" class="w-3 h-3"></i>Deadline
+          </span>
+        `;
+      }
+
       div.innerHTML = `
         <div class="flex-1 rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition" style="${bgStyle || 'background-color: white;'}">
           <div class="flex items-center justify-between gap-2 mb-1.5 w-full">
             <div class="flex items-center gap-2 flex-wrap">
               <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-80 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
               <span class="text-xs text-slate-400 font-semibold">${timeStr}</span>
+              ${deadlineBadge}
               ${editedBadge}
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
@@ -1995,7 +2090,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const contentContainer = cardDiv.querySelector('.msg-content-container');
           
           const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
-          const cleanText = msg.content.replace(editedRegex, '');
+          let cleanText = msg.content.replace(editedRegex, '');
+          if (isMessageDeadline(cleanText)) {
+            cleanText = `/dl ${cleanText.replace(/\s*\[deadline\]\s*$/i, '')}`;
+          }
           
           contentContainer.innerHTML = `
             <div class="mt-2 space-y-2">
@@ -2008,6 +2106,15 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
           
           const textarea = contentContainer.querySelector('.msg-edit-textarea');
+          setupTextareaFeatures(textarea, () => {
+            const saveBtn = contentContainer.querySelector('.save-msg-btn');
+            if (saveBtn) saveBtn.click();
+          }, {
+            onCancel: () => {
+              const cancelBtn = contentContainer.querySelector('.cancel-msg-btn');
+              if (cancelBtn) cancelBtn.click();
+            }
+          });
           textarea.focus();
           
           contentContainer.querySelector('.save-msg-btn').addEventListener('click', async () => {
@@ -2036,7 +2143,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
               // Modification classique de la note
               const updatedFields = {};
-              const updatedContent = `${parsed.content} [edited:${new Date().toISOString()}]`;
+              let contentToUpdate = parsed.content;
+              if (parsed.isDeadline) {
+                contentToUpdate = `${contentToUpdate} [deadline]`;
+              }
+              const updatedContent = `${contentToUpdate} [edited:${new Date().toISOString()}]`;
               updatedFields.content = updatedContent;
               
               if (parsed.clientId) {
@@ -2135,7 +2246,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (shortcutMatch) {
         const potentialName = (shortcutMatch[1] || shortcutMatch[2] || shortcutMatch[3] || '').trim().toLowerCase();
         // Vérifier que ce n'est pas une commande système connue
-        const isSystemCmd = ['date', 'personne', 'couleurfond', 'pensebete'].includes(potentialName);
+        const isSystemCmd = ['date', 'personne', 'couleurfond', 'pensebete', 'dl'].includes(potentialName);
         if (!isSystemCmd) {
           if (['aucun', 'general', 'général', 'none', 'clear'].includes(potentialName)) {
             clientId = 'none';
@@ -2182,7 +2293,15 @@ document.addEventListener('DOMContentLoaded', () => {
       text = text.replace(/\/date(?:\s+|$)/gi, '');
     }
 
-    // 6. Nettoyer /personne
+    // 6. Parser /dl (deadline)
+    let isDeadline = false;
+    const dlRegex = /\/dl(?:\s+|$)/i;
+    if (dlRegex.test(text)) {
+      isDeadline = true;
+      text = text.replace(dlRegex, '');
+    }
+
+    // 7. Nettoyer /personne
     const personneRegex = /\/personne(?:\s+([^\s]+))?/gi;
     text = text.replace(personneRegex, '');
 
@@ -2194,7 +2313,8 @@ document.addEventListener('DOMContentLoaded', () => {
       clientId,
       isTodo,
       bgColor,
-      date
+      date,
+      isDeadline
     };
   }
 
@@ -2253,7 +2373,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      await sendMessage(targetClientId, content, globalFile, async (msgData) => {
+      let contentToSave = content;
+      if (parsed.isDeadline) {
+        contentToSave = `${contentToSave} [deadline]`;
+      }
+
+      await sendMessage(targetClientId, contentToSave, globalFile, async (msgData) => {
         if (bgColorToSave && msgData?.id) {
           noteBgs[msgData.id] = bgColorToSave;
           saveNoteBgs();
@@ -2400,6 +2525,15 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       }
 
+      let deadlineBadge = '';
+      if (isMessageDeadline(msg.content)) {
+        deadlineBadge = `
+          <span class="text-[9px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+            <i data-lucide="clock" class="w-2.5 h-2.5"></i>Deadline
+          </span>
+        `;
+      }
+
       const div = document.createElement('div');
       div.className = 'flex flex-col space-y-0.5 max-w-[85%] animate-fade-in-up';
       div.style.animationDelay = `${Math.min(i * 20, 300)}ms`;
@@ -2407,6 +2541,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="flex items-center justify-between gap-4 mb-0.5 w-full">
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="text-[10px] text-slate-400 font-bold tracking-tight">${timeStr}</span>
+            ${deadlineBadge}
             ${editedBadge}
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
@@ -2451,7 +2586,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const contentContainer = cardDiv.querySelector('.msg-content-container');
           
           const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
-          const cleanText = msg.content.replace(editedRegex, '');
+          let cleanText = msg.content.replace(editedRegex, '');
+          if (isMessageDeadline(cleanText)) {
+            cleanText = `/dl ${cleanText.replace(/\s*\[deadline\]\s*$/i, '')}`;
+          }
           
           contentContainer.innerHTML = `
             <div class="mt-2 space-y-2">
@@ -2464,6 +2602,15 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
           
           const textarea = contentContainer.querySelector('.msg-edit-textarea');
+          setupTextareaFeatures(textarea, () => {
+            const saveBtn = contentContainer.querySelector('.save-msg-btn');
+            if (saveBtn) saveBtn.click();
+          }, {
+            onCancel: () => {
+              const cancelBtn = contentContainer.querySelector('.cancel-msg-btn');
+              if (cancelBtn) cancelBtn.click();
+            }
+          });
           textarea.focus();
           
           contentContainer.querySelector('.save-msg-btn').addEventListener('click', async () => {
@@ -2492,7 +2639,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
               // Modification classique de la note
               const updatedFields = {};
-              const updatedContent = `${parsed.content} [edited:${new Date().toISOString()}]`;
+              let contentToUpdate = parsed.content;
+              if (parsed.isDeadline) {
+                contentToUpdate = `${contentToUpdate} [deadline]`;
+              }
+              const updatedContent = `${contentToUpdate} [edited:${new Date().toISOString()}]`;
               updatedFields.content = updatedContent;
               
               if (parsed.clientId) {
@@ -2581,7 +2732,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      await sendMessage(targetClientId, content, clientFile, async (msgData) => {
+      let contentToSave = content;
+      if (parsed.isDeadline) {
+        contentToSave = `${contentToSave} [deadline]`;
+      }
+
+      await sendMessage(targetClientId, contentToSave, clientFile, async (msgData) => {
         // Enregistrer la couleur de fond du message
         if (bgColorToSave && msgData?.id) {
           noteBgs[msgData.id] = bgColorToSave;
@@ -3387,6 +3543,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const persons = saved ? JSON.parse(saved) : [];
     
     let html = escapeHTML(text);
+
+    // 1. Transformer les liens markdown [texte](url)
+    const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g;
+    html = html.replace(markdownLinkRegex, (match, linkText, url) => {
+      const cleanLinkText = linkText.replace(/&amp;/g, '&');
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline font-semibold inline-flex items-center gap-0.5"><i data-lucide="external-link" class="w-3.5 h-3.5 inline"></i>${cleanLinkText}</a>`;
+    });
+
     if (persons.length === 0) return html;
 
     // Trier pour éviter d'écraser des noms imbriqués
