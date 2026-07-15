@@ -1464,14 +1464,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
       });
-      container.querySelectorAll('.todo-client-badge').forEach(badge => {
+      globalTodosList.querySelectorAll('.todo-client-badge').forEach(badge => {
         badge.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
           window.location.hash = `#client/${badge.dataset.clientId}`;
         });
       });
-      container.querySelectorAll('.todo-edit').forEach(btn => {
+      globalTodosList.querySelectorAll('.todo-edit').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1544,7 +1544,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       });
-      container.querySelectorAll('.todo-delete').forEach(btn => {
+      globalTodosList.querySelectorAll('.todo-delete').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1558,7 +1558,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       });
-    });
 
     // Ajuster dynamiquement la hauteur pour éviter le vide/vide en bas
     const wrapper = globalTodosListWrapper;
