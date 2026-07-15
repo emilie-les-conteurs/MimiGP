@@ -195,32 +195,32 @@
           <!-- Bandeau de rappel pour le lendemain -->
           <div id="tomorrow-notes-banner" class="hidden shrink-0 flex-col transition-all duration-200 z-20 border-b border-slate-200">
 
-            <!-- Section 1 : Deadlines -->
-            <div id="banner-deadlines-section" class="hidden bg-rose-600 flex-col">
-              <div class="flex items-center justify-between px-4 py-2.5 cursor-pointer select-none hover:bg-rose-700/20 transition" id="banner-deadlines-toggle">
-                <div class="flex items-center gap-2.5">
-                  <div class="flex items-center gap-1.5 bg-white/20 px-2.5 py-1 rounded-lg">
-                    <i data-lucide="clock" class="w-4 h-4 text-white shrink-0"></i>
-                    <span class="font-black text-white text-xs uppercase tracking-wider">Deadlines</span>
+            <!-- Section 1 : Deadlines (fond blanc, accent rose) -->
+            <div id="banner-deadlines-section" class="hidden bg-white flex-col border-b border-rose-100">
+              <div class="flex items-center justify-between px-4 py-2 cursor-pointer select-none hover:bg-rose-50/60 transition" id="banner-deadlines-toggle">
+                <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-1.5">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-rose-500 shrink-0"></i>
+                    <span class="font-black text-rose-700 text-xs uppercase tracking-wider">Deadlines</span>
                   </div>
-                  <span class="text-[10px] bg-white text-rose-700 px-2 py-0.5 rounded-full font-black" id="banner-deadlines-count">0</span>
+                  <span class="text-[10px] bg-rose-600 text-white px-2 py-0.5 rounded-full font-black" id="banner-deadlines-count">0</span>
                 </div>
-                <i data-lucide="chevron-down" id="banner-deadlines-chevron" class="w-4 h-4 text-white/80 transition-transform duration-200"></i>
+                <i data-lucide="chevron-down" id="banner-deadlines-chevron" class="w-4 h-4 text-rose-400 transition-transform duration-200"></i>
               </div>
               <div id="banner-deadlines-wrapper" class="px-4 pb-3">
-                <div id="banner-deadlines-list" class="space-y-1.5 max-h-[140px] overflow-y-auto"></div>
+                <div id="banner-deadlines-list" class="space-y-1.5 max-h-[180px] overflow-y-auto"></div>
               </div>
             </div>
 
             <!-- Section 2 : Notes prévues pour demain -->
             <div id="banner-tomorrow-section" class="hidden bg-amber-50 flex-col">
-              <div class="flex items-center justify-between px-4 py-2.5 cursor-pointer select-none hover:bg-amber-100/50 transition border-t border-amber-200" id="banner-tomorrow-toggle">
+              <div class="flex items-center justify-between px-4 py-2 cursor-pointer select-none hover:bg-amber-100/50 transition" id="banner-tomorrow-toggle">
                 <div class="flex items-center gap-2">
-                  <i data-lucide="calendar-clock" class="w-4 h-4 text-amber-600 shrink-0"></i>
-                  <span class="font-bold text-amber-900 text-xs">Notes prévues pour demain</span>
+                  <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-amber-500 shrink-0"></i>
+                  <span class="font-bold text-amber-800 text-xs">Demain</span>
                   <span class="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-full font-bold" id="banner-tomorrow-count">0</span>
                 </div>
-                <i data-lucide="chevron-down" id="banner-tomorrow-chevron" class="w-4 h-4 text-amber-600 transition-transform duration-200"></i>
+                <i data-lucide="chevron-down" id="banner-tomorrow-chevron" class="w-4 h-4 text-amber-500 transition-transform duration-200"></i>
               </div>
               <div id="banner-tomorrow-wrapper" class="px-4 pb-3">
                 <div id="banner-tomorrow-list" class="space-y-1.5 max-h-[120px] overflow-y-auto"></div>

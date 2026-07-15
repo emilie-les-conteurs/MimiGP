@@ -1691,8 +1691,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderUpcomingNotes(msgs) {
     const today = getLocalDateString();
-    
-    // Notes futures provenant de Supabase
+
+    // Notes futures provenant de Supabase — on conserve isDeadline
     const upcomingMsgs = msgs.filter(m => {
       const d = getLocalDateString(new Date(m.created_at));
       return d > today;
@@ -1700,6 +1700,8 @@ document.addEventListener('DOMContentLoaded', () => {
       id: m.id,
       date: getLocalDateString(new Date(m.created_at)),
       type: 'note',
+      isDeadline: isMessageDeadline(m.content),
+      rawContent: m.content,
       content: cleanMessageCommands(m.content),
       clientId: m.client_id
     }));
@@ -1715,6 +1717,8 @@ document.addEventListener('DOMContentLoaded', () => {
       id: t.id,
       date: t.dueDate,
       type: 'todo',
+      isDeadline: false,
+      rawContent: t.content,
       content: cleanMessageCommands(t.content),
       clientId: t.clientId
     }));
@@ -1727,52 +1731,96 @@ document.addEventListener('DOMContentLoaded', () => {
     if (allUpcoming.length === 0) {
       upcomingList.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Aucune note à venir.</p>';
     } else {
-      upcomingList.innerHTML = allUpcoming.map(item => {
-        const d = new Date(item.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-        
-        // Styles spécifiques pour différencier les pense-bêtes des notes planifiées
-        const style = item.type === 'todo'
-          ? 'background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-color: #fde68a; color: #78350f;'
+      // Grouper par date
+      const byDate = {};
+      allUpcoming.forEach(item => {
+        if (!byDate[item.date]) byDate[item.date] = [];
+        byDate[item.date].push(item);
+      });
+
+      const tomorrow = getLocalDateString(new Date(Date.now() + 86400000));
+
+      let html = '';
+      Object.keys(byDate).sort().forEach(dateKey => {
+        const items = byDate[dateKey];
+        const dateObj = new Date(dateKey + 'T12:00:00');
+        const labelDay = dateKey === tomorrow ? 'Demain' :
+          dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+
+        const dlCount = items.filter(i => i.isDeadline).length;
+        const dlIndicator = dlCount > 0
+          ? `<span class="text-[9px] bg-rose-600 text-white px-1.5 py-0.5 rounded font-black">${dlCount} DL</span>`
           : '';
-        const dateStyle = item.type === 'todo' ? 'color: #d97706;' : '';
 
-        // Boutons d'action
-        const deleteBtn = `<button class="upcoming-delete text-slate-400 hover:text-rose-500 font-bold ml-1 transition" data-id="${item.id}" data-type="${item.type}" title="Supprimer">✕</button>`;
-        const editBtn = `<button class="upcoming-edit text-slate-400 hover:text-blue-600 transition ml-1" data-id="${item.id}" data-type="${item.type}" title="Modifier">
-          <i data-lucide="edit-3" class="w-3 h-3"></i>
-        </button>`;
+        html += `
+          <div class="flex items-center gap-2 mt-3 mb-1.5 first:mt-0">
+            <span class="text-[11px] font-black uppercase tracking-wider text-slate-600 whitespace-nowrap">${labelDay}</span>
+            ${dlIndicator}
+            <div class="flex-1 h-px bg-slate-200"></div>
+          </div>`;
 
-        // Badge client cliquable
-        let clientBadge = '';
-        const client = clients.find(c => String(c.id) === String(item.clientId));
-        if (client) {
-          const colorKey = getClientColorKey(client);
-          const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
-          clientBadge = `<button class="upcoming-client-badge text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider hover:opacity-85 transition shrink-0" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`;
-        }
+        items.forEach(item => {
+          const deleteBtn = `<button class="upcoming-delete p-1 text-slate-300 hover:text-rose-500 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Supprimer"><i data-lucide="trash-2" class="w-3 h-3"></i></button>`;
+          const editBtn = `<button class="upcoming-edit p-1 text-slate-300 hover:text-blue-600 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Modifier"><i data-lucide="pencil" class="w-3 h-3"></i></button>`;
 
-        const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
-        const cleanContent = (item.content || '').replace(editedRegex, '');
-        const preview = cleanContent.slice(0, 80) + (cleanContent.length > 80 ? '…' : '');
+          let clientBadge = '';
+          const client = clients.find(c => String(c.id) === String(item.clientId));
+          if (client) {
+            const colorKey = getClientColorKey(client);
+            const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+            clientBadge = `<button class="upcoming-client-badge text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider hover:opacity-85 transition shrink-0" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`;
+          }
 
-        return `<div class="upcoming-note-item p-2 bg-white border border-slate-100 rounded-lg shadow-sm flex flex-col gap-1.5" style="${style}">
-          <div class="flex items-center justify-between gap-2 w-full">
-            <div class="flex items-center gap-1.5">
-              <span class="upcoming-date font-bold text-[10px] uppercase tracking-wider text-purple-600 shrink-0" style="${dateStyle}">${d}</span>
-              ${clientBadge}
-            </div>
-            <div class="flex items-center gap-1">
-              ${editBtn}
-              ${deleteBtn}
-            </div>
-          </div>
-          <span class="upcoming-content text-[11px] text-purple-900 msg-content-container" data-id="${item.id}" data-type="${item.type}">
-            ${item.type === 'todo' ? '📌 ' : ''}${preview}
-          </span>
-        </div>`;
-      }).join('');
+          const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+          const cleanContent = (item.content || '').replace(editedRegex, '');
+          const preview = cleanContent.slice(0, 80) + (cleanContent.length > 80 ? '...' : '');
 
-      // Lier les évènements pour le widget à venir
+          if (item.isDeadline) {
+            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-rose-300 mb-1.5">
+              <div class="bg-rose-600 px-2.5 py-1 flex items-center justify-between gap-1">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="clock" class="w-3 h-3 text-white shrink-0"></i>
+                  <span class="text-[10px] font-black text-white uppercase tracking-widest">DEADLINE</span>
+                  ${clientBadge ? `<span class="text-white/40 text-[9px]">·</span>${clientBadge}` : ''}
+                </div>
+                <div class="flex items-center">${editBtn}${deleteBtn}</div>
+              </div>
+              <div class="bg-rose-50 px-2.5 py-2">
+                <span class="upcoming-content text-[11px] text-rose-900 leading-snug msg-content-container block" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+              </div>
+            </div>`;
+          } else if (item.type === 'todo') {
+            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-amber-200 mb-1.5">
+              <div class="bg-amber-50 px-2.5 py-1.5 flex items-start justify-between gap-1">
+                <div class="flex items-start gap-1.5 min-w-0">
+                  <i data-lucide="pin" class="w-3 h-3 text-amber-500 shrink-0 mt-0.5"></i>
+                  <div class="min-w-0">
+                    ${clientBadge}
+                    <span class="upcoming-content text-[11px] text-amber-900 leading-snug msg-content-container block mt-0.5" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+                  </div>
+                </div>
+                <div class="flex items-center shrink-0">${editBtn}${deleteBtn}</div>
+              </div>
+            </div>`;
+          } else {
+            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-slate-200 mb-1.5">
+              <div class="bg-white px-2.5 py-1.5 flex items-start justify-between gap-1">
+                <div class="flex items-start gap-1.5 min-w-0">
+                  <i data-lucide="file-text" class="w-3 h-3 text-slate-400 shrink-0 mt-0.5"></i>
+                  <div class="min-w-0">
+                    ${clientBadge}
+                    <span class="upcoming-content text-[11px] text-slate-700 leading-snug msg-content-container block mt-0.5" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+                  </div>
+                </div>
+                <div class="flex items-center shrink-0">${editBtn}${deleteBtn}</div>
+              </div>
+            </div>`;
+          }
+        });
+      });
+
+      upcomingList.innerHTML = html;
+
       upcomingList.querySelectorAll('.upcoming-client-badge').forEach(badge => {
         badge.addEventListener('click', (e) => {
           e.preventDefault();
@@ -1812,78 +1860,71 @@ document.addEventListener('DOMContentLoaded', () => {
           e.stopPropagation();
           const id = btn.dataset.id;
           const type = btn.dataset.type;
-          const container = btn.closest('.upcoming-note-item').querySelector('.msg-content-container');
-          
-          let originalText = "";
+          const card = btn.closest('.upcoming-note-item');
+          const container = card.querySelector('.msg-content-container');
+
+          let originalText = '';
           if (type === 'note') {
-            const msg = (activeClientId ? clientMessages : globalMessages).find(m => String(m.id) === String(id));
+            const msg = [...(clientMessages || []), ...globalMessages].find(m => String(m.id) === String(id));
             if (msg) {
               const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
               originalText = msg.content.replace(editedRegex, '');
             }
           } else {
             const todo = todos.find(t => t.id === id);
-            if (todo) {
-              originalText = todo.content;
-            }
+            if (todo) originalText = todo.content;
           }
-          
+
           container.innerHTML = `
             <div class="mt-1 space-y-1.5 w-full">
-              <textarea class="w-full text-xs p-1 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 upcoming-edit-textarea" rows="2">${originalText}</textarea>
+              <textarea class="w-full text-xs p-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 upcoming-edit-textarea" rows="2">${originalText}</textarea>
               <div class="flex items-center gap-1">
-                <button class="upcoming-save-btn text-[10px] font-bold px-2 py-0.5 bg-blue-600 text-white rounded">Ok</button>
-                <button class="upcoming-cancel-btn text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded border">X</button>
+                <button class="upcoming-save-btn text-[10px] font-bold px-2.5 py-1 bg-blue-600 text-white rounded-lg">Enregistrer</button>
+                <button class="upcoming-cancel-btn text-[10px] font-bold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border">Annuler</button>
               </div>
             </div>
           `;
-          
+
           const textarea = container.querySelector('.upcoming-edit-textarea');
+          setupTextareaFeatures(textarea, () => {
+            container.querySelector('.upcoming-save-btn')?.click();
+          }, {
+            onCancel: () => container.querySelector('.upcoming-cancel-btn')?.click()
+          });
           textarea.focus();
-          
+          textarea.select();
+
           container.querySelector('.upcoming-save-btn').addEventListener('click', async (evt) => {
             evt.preventDefault();
             evt.stopPropagation();
             const newText = textarea.value.trim();
             if (newText) {
               const parsed = parseInputCommands(newText);
-              
               if (type === 'note') {
-                const msg = (activeClientId ? clientMessages : globalMessages).find(m => String(m.id) === String(id));
+                const msg = [...(clientMessages || []), ...globalMessages].find(m => String(m.id) === String(id));
                 if (parsed.isTodo) {
-                  // Conversion note planifiée -> todo planifié
                   await sb.from('messages').delete().eq('id', id);
                   const dueDate = parsed.date ? parseDateString(parsed.date) : (msg ? getLocalDateString(new Date(msg.created_at)) : null);
-                  todos.push({
-                    id: Date.now().toString(),
-                    clientId: parsed.clientId || (msg ? msg.client_id : null),
-                    content: parsed.content || "À faire",
-                    done: false,
-                    createdAt: new Date().toISOString(),
-                    dueDate: dueDate
-                  });
+                  todos.push({ id: Date.now().toString(), clientId: parsed.clientId || (msg ? msg.client_id : null), content: parsed.content || 'A faire', done: false, createdAt: new Date().toISOString(), dueDate });
                   saveTodos();
                 } else {
                   const updatedFields = {};
-                  const updatedContent = `${parsed.content} [edited:${new Date().toISOString()}]`;
-                  updatedFields.content = updatedContent;
-                  if (parsed.clientId) updatedFields.client_id = parsed.clientId;
-                  if (parsed.date) {
+                  let contentToUpdate = parsed.content;
+                  if (parsed.isDeadline) contentToUpdate += ' [deadline]';
+                  updatedFields.content = `${contentToUpdate} [edited:${new Date().toISOString()}]`;
+                  if (parsed.clientId) updatedFields.client_id = (parsed.clientId === 'none') ? null : parsed.clientId;
+                  if (parsed.date && msg) {
                     const formattedDate = parseDateString(parsed.date);
-                    if (formattedDate && msg) {
+                    if (formattedDate) {
                       const origDate = new Date(msg.created_at);
-                      const timeStr = `${String(origDate.getHours()).padStart(2, '0')}:${String(origDate.getMinutes()).padStart(2, '0')}:${String(origDate.getSeconds()).padStart(2, '0')}`;
+                      const timeStr = `${String(origDate.getHours()).padStart(2,'0')}:${String(origDate.getMinutes()).padStart(2,'0')}:${String(origDate.getSeconds()).padStart(2,'0')}`;
                       updatedFields.created_at = `${formattedDate}T${timeStr}Z`;
                     }
                   }
-                  if (parsed.bgColor) {
-                    noteBgs[id] = parsed.bgColor;
-                    saveNoteBgs();
-                  }
+                  if (parsed.bgColor) { noteBgs[id] = parsed.bgColor; saveNoteBgs(); }
                   await sb.from('messages').update(updatedFields).eq('id', id);
                 }
               } else {
-                // Modification du todo planifié
                 const todo = todos.find(t => t.id === id);
                 if (todo) {
                   if (parsed.clientId) todo.clientId = parsed.clientId;
@@ -1893,29 +1934,19 @@ document.addEventListener('DOMContentLoaded', () => {
                   saveTodos();
                 }
               }
-              
-              if (activeClientId) {
-                await loadClientMessages(false);
-              } else {
-                await loadGlobalFeed(false);
-              }
+              if (activeClientId) await loadClientMessages(false);
+              else await loadGlobalFeed(false);
             } else {
-              if (activeClientId) {
-                await loadClientMessages(false);
-              } else {
-                await loadGlobalFeed(false);
-              }
+              if (activeClientId) renderClientMessages();
+              else renderGlobalFeed();
             }
           });
-          
+
           container.querySelector('.upcoming-cancel-btn').addEventListener('click', (evt) => {
             evt.preventDefault();
             evt.stopPropagation();
-            if (activeClientId) {
-              renderClientMessages();
-            } else {
-              renderGlobalFeed();
-            }
+            if (activeClientId) renderClientMessages();
+            else renderGlobalFeed();
           });
         });
       });
@@ -1962,27 +1993,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const tomorrow = getLocalDateString(new Date(Date.now() + 86400000));
     const today    = getLocalDateString();
 
-    // ── Deadlines : toutes les notes marquées /dl, quelle que soit leur date ──
+    // ── Deadlines : toutes les notes marquées /dl ──
     const deadlineMsgs = allMessages.filter(m => isMessageDeadline(m.content));
-    const deadlineItems = deadlineMsgs.map(m => {
-      const client = allClients.find(c => String(c.id) === String(m.client_id));
-      const clientName = client ? client.name : 'Sans client';
-      const cleanText = cleanMessageCommands(m.content);
-      const preview = cleanText.slice(0, 80);
-      const dateObj = new Date(m.created_at);
-      const dateLabel = getLocalDateString(dateObj) === today ? 'Aujourd\'hui'
-                      : getLocalDateString(dateObj) === tomorrow ? 'Demain'
-                      : dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-      return `
-        <div class="flex items-start gap-2 bg-white/15 rounded-lg px-3 py-2">
-          <i data-lucide="clock" class="w-3.5 h-3.5 text-white/90 shrink-0 mt-0.5"></i>
-          <div class="min-w-0">
-            <span class="text-[10px] font-black text-white/70 uppercase tracking-wider">${clientName}</span>
-            <span class="text-[10px] text-white/50 ml-1">· ${dateLabel}</span>
-            <p class="text-xs text-white font-semibold leading-snug truncate">${preview}${cleanText.length > 80 ? '…' : ''}</p>
-          </div>
-        </div>`;
-    });
 
     // ── Notes du lendemain (sans deadline) ──
     const tomorrowOnlyMsgs = allMessages.filter(m => {
@@ -1991,38 +2003,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const tomorrowTodoItems = todos.filter(t => !t.done && t.dueDate === tomorrow);
 
-    const tomorrowItems = [
-      ...tomorrowOnlyMsgs.map(m => {
-        const client = allClients.find(c => String(c.id) === String(m.client_id));
-        const clientName = client ? client.name : 'Sans client';
-        const cleanText = cleanMessageCommands(m.content);
-        const preview = cleanText.slice(0, 70);
-        return `
-          <div class="flex items-start gap-2 bg-amber-100/60 rounded-lg px-3 py-2">
-            <i data-lucide="file-text" class="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5"></i>
-            <div class="min-w-0">
-              <span class="text-[10px] font-bold text-amber-700">${clientName}</span>
-              <p class="text-xs text-amber-900 leading-snug truncate">${preview}${cleanText.length > 70 ? '…' : ''}</p>
-            </div>
-          </div>`;
-      }),
-      ...tomorrowTodoItems.map(t => {
-        const client = allClients.find(c => String(c.id) === String(t.clientId));
-        const clientName = client ? client.name : 'Sans client';
-        const preview = t.content.slice(0, 70);
-        return `
-          <div class="flex items-start gap-2 bg-amber-100/60 rounded-lg px-3 py-2">
-            <i data-lucide="pin" class="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0 mt-0.5"></i>
-            <div class="min-w-0">
-              <span class="text-[10px] font-bold text-amber-700">${clientName} · Pense-bête</span>
-              <p class="text-xs text-amber-900 leading-snug truncate">${preview}${t.content.length > 70 ? '…' : ''}</p>
-            </div>
-          </div>`;
-      })
-    ];
-
-    const hasDeadlines = deadlineItems.length > 0;
-    const hasTomorrow  = tomorrowItems.length > 0;
+    const hasDeadlines = deadlineMsgs.length > 0;
+    const hasTomorrow  = tomorrowOnlyMsgs.length > 0 || tomorrowTodoItems.length > 0;
 
     if (!hasDeadlines && !hasTomorrow) {
       tomorrowBanner.classList.add('hidden');
@@ -2030,25 +2012,151 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Afficher le bandeau global
     tomorrowBanner.classList.remove('hidden');
     tomorrowBanner.classList.add('flex');
 
-    // Section Deadlines
+    // ── Section Deadlines ──
     if (hasDeadlines) {
-      bannerDeadlinesList.innerHTML = deadlineItems.join('');
-      bannerDeadlinesCount.textContent = deadlineItems.length;
+      const dlHTML = deadlineMsgs.map(m => {
+        const client = allClients.find(c => String(c.id) === String(m.client_id));
+        const clientName = client ? client.name : 'Sans client';
+        const cleanText = cleanMessageCommands(m.content);
+        const preview = cleanText.slice(0, 90) + (cleanText.length > 90 ? '…' : '');
+        const dateObj = new Date(m.created_at);
+        const dateLabel = getLocalDateString(dateObj) === today ? 'Aujourd\'hui'
+                        : getLocalDateString(dateObj) === tomorrow ? 'Demain'
+                        : dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+        return `
+          <div class="flex items-center gap-2 bg-white border border-rose-200 rounded-lg px-2.5 py-2 group banner-dl-item" data-id="${m.id}">
+            <div class="w-1 h-full min-h-[28px] bg-rose-500 rounded-full shrink-0"></div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <span class="text-[10px] font-black text-rose-600 uppercase tracking-wider">${clientName}</span>
+                <span class="text-[10px] text-slate-400">· ${dateLabel}</span>
+              </div>
+              <p class="text-xs text-slate-700 leading-snug">${preview}</p>
+            </div>
+            <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition">
+              <button class="banner-dl-edit p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition" data-id="${m.id}" title="Modifier">
+                <i data-lucide="pencil" class="w-3 h-3"></i>
+              </button>
+              <button class="banner-dl-delete p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition" data-id="${m.id}" title="Supprimer">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+              </button>
+            </div>
+          </div>`;
+      }).join('');
+
+      bannerDeadlinesList.innerHTML = dlHTML;
+      bannerDeadlinesCount.textContent = deadlineMsgs.length;
       bannerDeadlinesSection.classList.remove('hidden');
       bannerDeadlinesSection.classList.add('flex');
+
+      // Bouton supprimer deadline
+      bannerDeadlinesList.querySelectorAll('.banner-dl-delete').forEach(btn => {
+        btn.addEventListener('click', async e => {
+          e.preventDefault(); e.stopPropagation();
+          if (confirm('Supprimer cette deadline ?')) {
+            await deleteMessage(btn.dataset.id);
+          }
+        });
+      });
+
+      // Bouton éditer deadline
+      bannerDeadlinesList.querySelectorAll('.banner-dl-edit').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.preventDefault(); e.stopPropagation();
+          const id = btn.dataset.id;
+          const card = btn.closest('.banner-dl-item');
+          const msg = allMessages.find(m => String(m.id) === String(id));
+          if (!msg) return;
+          const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+          const originalText = msg.content.replace(editedRegex, '');
+
+          card.innerHTML = `
+            <div class="w-full space-y-1.5 py-1">
+              <textarea class="w-full text-xs p-1.5 border border-rose-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-400 banner-dl-textarea" rows="2">${originalText}</textarea>
+              <div class="flex gap-1">
+                <button class="banner-dl-save text-[10px] font-bold px-2.5 py-1 bg-rose-600 text-white rounded-lg">Enregistrer</button>
+                <button class="banner-dl-cancel text-[10px] px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border">Annuler</button>
+              </div>
+            </div>`;
+
+          const textarea = card.querySelector('.banner-dl-textarea');
+          setupTextareaFeatures(textarea, () => card.querySelector('.banner-dl-save')?.click(), {
+            onCancel: () => card.querySelector('.banner-dl-cancel')?.click()
+          });
+          textarea.focus();
+
+          card.querySelector('.banner-dl-save').addEventListener('click', async evt => {
+            evt.preventDefault(); evt.stopPropagation();
+            const newText = textarea.value.trim();
+            if (!newText) return;
+            const parsed = parseInputCommands(newText);
+            const updatedFields = {};
+            let contentToUpdate = parsed.content;
+            if (parsed.isDeadline) contentToUpdate += ' [deadline]';
+            updatedFields.content = `${contentToUpdate} [edited:${new Date().toISOString()}]`;
+            if (parsed.clientId) updatedFields.client_id = (parsed.clientId === 'none') ? null : parsed.clientId;
+            if (parsed.date) {
+              const formattedDate = parseDateString(parsed.date);
+              if (formattedDate) {
+                const origDate = new Date(msg.created_at);
+                const timeStr = `${String(origDate.getHours()).padStart(2,'0')}:${String(origDate.getMinutes()).padStart(2,'0')}:${String(origDate.getSeconds()).padStart(2,'0')}`;
+                updatedFields.created_at = `${formattedDate}T${timeStr}Z`;
+              }
+            }
+            await sb.from('messages').update(updatedFields).eq('id', id);
+            if (activeClientId) await loadClientMessages(false);
+            else await loadGlobalFeed(false);
+          });
+
+          card.querySelector('.banner-dl-cancel').addEventListener('click', evt => {
+            evt.preventDefault(); evt.stopPropagation();
+            if (activeClientId) renderClientMessages();
+            else renderGlobalFeed();
+          });
+        });
+      });
     } else {
       bannerDeadlinesSection.classList.add('hidden');
       bannerDeadlinesSection.classList.remove('flex');
     }
 
-    // Section Demain
+    // ── Section Demain ──
     if (hasTomorrow) {
-      bannerTomorrowList.innerHTML = tomorrowItems.join('');
-      bannerTomorrowCount.textContent = tomorrowItems.length;
+      const tomorrowHTML = [
+        ...tomorrowOnlyMsgs.map(m => {
+          const client = allClients.find(c => String(c.id) === String(m.client_id));
+          const clientName = client ? client.name : 'Sans client';
+          const cleanText = cleanMessageCommands(m.content);
+          const preview = cleanText.slice(0, 70) + (cleanText.length > 70 ? '…' : '');
+          return `
+            <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+              <div class="w-1 min-h-[24px] bg-amber-400 rounded-full shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <span class="text-[10px] font-bold text-amber-700">${clientName}</span>
+                <p class="text-xs text-amber-900 leading-snug">${preview}</p>
+              </div>
+            </div>`;
+        }),
+        ...tomorrowTodoItems.map(t => {
+          const client = allClients.find(c => String(c.id) === String(t.clientId));
+          const clientName = client ? client.name : 'Sans client';
+          const preview = t.content.slice(0, 70) + (t.content.length > 70 ? '…' : '');
+          return `
+            <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+              <div class="w-1 min-h-[24px] bg-amber-300 rounded-full shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <span class="text-[10px] font-bold text-amber-600">${clientName} · Pense-bête</span>
+                <p class="text-xs text-amber-900 leading-snug">${preview}</p>
+              </div>
+            </div>`;
+        })
+      ].join('');
+
+      bannerTomorrowList.innerHTML = tomorrowHTML;
+      bannerTomorrowCount.textContent = tomorrowOnlyMsgs.length + tomorrowTodoItems.length;
       bannerTomorrowSection.classList.remove('hidden');
       bannerTomorrowSection.classList.add('flex');
     } else {
@@ -2058,6 +2166,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     lucide.createIcons({ nodes: [tomorrowBanner] });
   }
+
 
   let todayNotesExpanded = false;
   let upcomingTodosExpanded = false;
