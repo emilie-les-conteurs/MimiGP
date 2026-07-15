@@ -767,9 +767,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getLocalDateString(dateObj = new Date()) {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   function formatDateHeader(dateStr) {
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const today = getLocalDateString();
+    const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
     if (dateStr === today) return "Aujourd'hui";
     if (dateStr === yesterday) return "Hier";
     const date = new Date(dateStr);
@@ -781,10 +788,10 @@ document.addEventListener('DOMContentLoaded', () => {
     str = str.toLowerCase().trim();
     if (str === 'demain') {
       const d = new Date(Date.now() + 86400000);
-      return d.toISOString().split('T')[0];
+      return getLocalDateString(d);
     }
     if (str === 'aujourdhui' || str === "aujourd'hui") {
-      return new Date().toISOString().split('T')[0];
+      return getLocalDateString();
     }
     const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
     if (days.includes(str)) {
@@ -794,7 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let diff = targetDay - currentDay;
       if (diff <= 0) diff += 7; // Semaine prochaine
       const d = new Date(today.getTime() + diff * 86400000);
-      return d.toISOString().split('T')[0];
+      return getLocalDateString(d);
     }
     // Format YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
@@ -1180,11 +1187,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const day = dateObj.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 5 = Vendredi, 6 = Samedi
     const offset = (day === 5) ? 3 : (day === 6) ? 2 : 1;
     const next = new Date(dateObj.getTime() + offset * 86400000);
-    return next.toISOString().split('T')[0];
+    return getLocalDateString(next);
   }
 
   function renderTodos(contextClientId) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     const nextWorkingDay = getNextWorkingDay(new Date());
 
     // 1. Liste des pense-bêtes actifs globaux (Home)
@@ -1419,7 +1426,10 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `<button class="todo-client-badge text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 border uppercase tracking-wider hover:opacity-85 transition" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`
       : `<span class="text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 border uppercase tracking-wider bg-slate-100 border-slate-200 text-slate-500">Général</span>`;
 
-    const formattedDate = t.dueDate 
+    const todayStr = getLocalDateString();
+    const isDueNow = !t.dueDate || (t.dueDate <= todayStr);
+
+    const formattedDate = !isDueNow 
       ? `<span class="text-[9px] bg-amber-50 border border-amber-200/60 text-amber-800 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0"><i data-lucide="calendar" class="w-3 h-3 text-amber-600"></i>${new Date(t.dueDate).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</span>`
       : `<span class="text-[9px] bg-slate-50 border border-slate-200/60 text-slate-400 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0"><i data-lucide="zap" class="w-3 h-3 text-slate-400"></i>Immédiat</span>`;
 
@@ -1488,15 +1498,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function renderUpcomingNotes(msgs) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     
     // Notes futures provenant de Supabase
     const upcomingMsgs = msgs.filter(m => {
-      const d = new Date(m.created_at).toISOString().split('T')[0];
+      const d = getLocalDateString(new Date(m.created_at));
       return d > today;
     }).map(m => ({
       id: m.id,
-      date: new Date(m.created_at).toISOString().split('T')[0],
+      date: getLocalDateString(new Date(m.created_at)),
       type: 'note',
       content: m.content,
       clientId: m.client_id
@@ -1651,7 +1661,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (parsed.isTodo) {
                   // Conversion note planifiée -> todo planifié
                   await sb.from('messages').delete().eq('id', id);
-                  const dueDate = parsed.date ? parseDateString(parsed.date) : (msg ? new Date(msg.created_at).toISOString().split('T')[0] : null);
+                  const dueDate = parsed.date ? parseDateString(parsed.date) : (msg ? getLocalDateString(new Date(msg.created_at)) : null);
                   todos.push({
                     id: Date.now().toString(),
                     clientId: parsed.clientId || (msg ? msg.client_id : null),
@@ -1735,11 +1745,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function renderTomorrowBanner(allMessages, allClients) {
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const tomorrow = getLocalDateString(new Date(Date.now() + 86400000));
     
     // Notes prévues pour demain (Supabase)
     const tomorrowMsgs = allMessages.filter(m => {
-      const d = new Date(m.created_at).toISOString().split('T')[0];
+      const d = getLocalDateString(new Date(m.created_at));
       return d === tomorrow;
     }).map(m => {
       const client = allClients.find(c => String(c.id) === String(m.client_id));
@@ -1774,9 +1784,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderGlobalFeed() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     // Séparer les messages passés/présents des messages futurs
-    const presentMsgs = globalMessages.filter(m => new Date(m.created_at).toISOString().split('T')[0] <= today);
+    const presentMsgs = globalMessages.filter(m => getLocalDateString(new Date(m.created_at)) <= today);
     renderUpcomingNotes(globalMessages);
     renderTomorrowBanner(globalMessages, clients);
     renderTodos(null);
@@ -1800,7 +1810,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const badgeStyle = getClientBadgeStyle(msg.client_id);
       const date   = new Date(msg.created_at);
       const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(date);
 
       // Séparateur de date collant
       if (dateStr !== lastDateStr) {
@@ -2236,14 +2246,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderClientMessages() {
     clientChatMessages.innerHTML = '';
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     let msgs = clientMessages;
     // Filter future notes (shown in "À venir" widget, not in the main feed)
     if (!selectedDateFilter) {
-      msgs = msgs.filter(m => new Date(m.created_at).toISOString().split('T')[0] <= today);
+      msgs = msgs.filter(m => getLocalDateString(new Date(m.created_at)) <= today);
     }
     if (selectedDateFilter) {
-      msgs = msgs.filter(m => new Date(m.created_at).toISOString().split('T')[0] === selectedDateFilter);
+      msgs = msgs.filter(m => getLocalDateString(new Date(m.created_at)) === selectedDateFilter);
     }
     // Update upcoming widget
     renderUpcomingNotes(clientMessages);
@@ -2261,7 +2271,7 @@ document.addEventListener('DOMContentLoaded', () => {
     msgs.forEach((msg, i) => {
       const date = new Date(msg.created_at);
       const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(date);
 
       // Séparateur de date collant
       if (dateStr !== lastDateStr) {
