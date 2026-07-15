@@ -756,6 +756,24 @@ document.addEventListener('DOMContentLoaded', () => {
       if (error) throw error;
       globalMessages = data || [];
       renderGlobalFeed();
+
+      // Nettoyage rétroactif unique dans la base de données
+      if (!localStorage.getItem('retroactive-cleanup-done-v2') && globalMessages.length > 0) {
+        localStorage.setItem('retroactive-cleanup-done-v2', 'true');
+        (async () => {
+          console.log("Démarrage du nettoyage rétroactif des notes...");
+          for (const msg of globalMessages) {
+            const originalContent = msg.content || '';
+            const cleaned = cleanMessageCommands(originalContent);
+            if (cleaned !== originalContent) {
+              console.log(`Nettoyage de la note ${msg.id}: "${originalContent}" -> "${cleaned}"`);
+              await sb.from('messages').update({ content: cleaned }).eq('id', msg.id);
+            }
+          }
+          console.log("Nettoyage rétroactif terminé.");
+          await loadGlobalFeed(false);
+        })();
+      }
     } catch (err) {
       console.error("Erreur chargement feed global:", err);
       globalFeed.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-rose-500 p-4 text-center">
@@ -773,6 +791,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
+
+  function cleanMessageCommands(rawText) {
+    if (!rawText) return '';
+    let text = rawText;
+
+    // 1. Enlever [edited:...]
+    const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+    const editedMatch = text.match(editedRegex);
+    let mainText = text.replace(editedRegex, '');
+
+    // 2. Enlever /cl <argument> (avec ou sans guillemets)
+    const clRegex = /\/cl\s+(?:"([^"]+)"|'([^']+)'|([^\s/]+))/i;
+    mainText = mainText.replace(clRegex, '');
+    mainText = mainText.replace(/\/cl(?:\s+|$)/gi, '');
+
+    // 3. Enlever /date <argument>
+    const dateRegex = /\/date\s+([0-9a-zA-Z\/-]+)/i;
+    mainText = mainText.replace(dateRegex, '');
+    mainText = mainText.replace(/\/date(?:\s+|$)/gi, '');
+
+    // 4. Enlever /couleurfond
+    const cfRegex = /\/couleurfond(?:\s+([^\s]+))?/i;
+    mainText = mainText.replace(cfRegex, '');
+
+    // 5. Enlever /pensebete
+    mainText = mainText.replace(/\/pensebete(?:\s+|$)/gi, '');
+
+    // 6. Enlever les raccourcis de client au début, ex: /"Côte de Granit Rose" ou /'Lège Cap ferret' ou /Dinan
+    clients.forEach(c => {
+      const escapedName = escapeRegExp(c.name);
+      const rx1 = new RegExp(`^\\/\\s*["']?${escapedName}["']?(?:\\s+|$)`, 'i');
+      mainText = mainText.replace(rx1, '');
+      
+      const firstWord = c.name.split(' ')[0];
+      if (firstWord && firstWord.length > 2) {
+        const rx2 = new RegExp(`^\\/\\s*["']?${escapeRegExp(firstWord)}["']?(?:\\s+|$)`, 'i');
+        mainText = mainText.replace(rx2, '');
+      }
+    });
+
+    const genericShortcutRegex = /^\/(?:"[^"]+"|'[^']+'|[a-zA-Z0-9À-ÿ_]+)(?:\s+|$)/i;
+    mainText = mainText.replace(genericShortcutRegex, '');
+
+    // 7. Nettoyer les caractères traînants au début comme ":" ou "-"
+    mainText = mainText.trim().replace(/^[:\-\s]+/, '').trim();
+
+    // 8. Remettre le tag [edited:...] s'il y était
+    if (editedMatch) {
+      mainText = `${mainText} ${editedMatch[0].trim()}`;
+    }
+
+    return mainText;
+  }
+
 
   function formatDateHeader(dateStr) {
     const today = getLocalDateString();
@@ -1448,7 +1520,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return `<div class="todo-item${t.done ? ' done' : ''} flex items-center gap-2.5 py-2">
       <input type="checkbox" class="todo-checkbox" data-id="${t.id}" ${t.done ? 'checked' : ''}>
       ${clientBadge}
-      <span class="flex-1 font-medium text-slate-700 truncate leading-relaxed todo-text" data-id="${t.id}">${t.content}</span>
+      <span class="flex-1 font-medium text-slate-700 truncate leading-relaxed todo-text" data-id="${t.id}">${cleanMessageCommands(t.content)}</span>
       ${editedLabel}
       ${formattedDate}
       <button class="todo-edit text-slate-300 hover:text-blue-600 transition ml-2" data-id="${t.id}" title="Modifier">
@@ -1508,7 +1580,7 @@ document.addEventListener('DOMContentLoaded', () => {
       id: m.id,
       date: getLocalDateString(new Date(m.created_at)),
       type: 'note',
-      content: m.content,
+      content: cleanMessageCommands(m.content),
       clientId: m.client_id
     }));
 
@@ -1523,7 +1595,7 @@ document.addEventListener('DOMContentLoaded', () => {
       id: t.id,
       date: t.dueDate,
       type: 'todo',
-      content: t.content,
+      content: cleanMessageCommands(t.content),
       clientId: t.clientId
     }));
 
@@ -1754,8 +1826,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }).map(m => {
       const client = allClients.find(c => String(c.id) === String(m.client_id));
       const clientName = client ? client.name : 'Sans client';
-      const preview = (m.content || '').slice(0, 60);
-      return `<li><span class="font-bold">${clientName}</span> — ${preview}${(m.content || '').length > 60 ? '…' : ''}</li>`;
+      const cleanText = cleanMessageCommands(m.content);
+      const preview = cleanText.slice(0, 60);
+      return `<li><span class="font-bold">${clientName}</span> — ${preview}${cleanText.length > 60 ? '…' : ''}</li>`;
     });
 
     // Pense-bêtes prévus pour demain (local storage)
@@ -1764,8 +1837,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }).map(t => {
       const client = allClients.find(c => String(c.id) === String(t.clientId));
       const clientName = client ? client.name : 'Sans client';
-      const preview = t.content.slice(0, 60);
-      return `<li><span class="font-bold text-amber-600">${clientName} (Pense-bête)</span> — ${preview}${t.content.length > 60 ? '…' : ''}</li>`;
+      const cleanText = cleanMessageCommands(t.content);
+      const preview = cleanText.slice(0, 60);
+      return `<li><span class="font-bold text-amber-600">${clientName} (Pense-bête)</span> — ${preview}${cleanText.length > 60 ? '…' : ''}</li>`;
     });
 
     const allTomorrowItems = [...tomorrowMsgs, ...tomorrowTodos];
@@ -1854,7 +1928,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
       const editedMatch = msg.content.match(editedRegex);
       const editedAt = editedMatch ? editedMatch[1] : null;
-      const cleanContent = msg.content.replace(editedRegex, '');
+      const cleanContent = cleanMessageCommands(msg.content).replace(editedRegex, '');
 
       let editedBadge = '';
       if (editedAt) {
@@ -2312,7 +2386,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const editedRegex = /\s*\[edited:([^\]]+)\]$/;
       const editedMatch = msg.content.match(editedRegex);
       const editedAt = editedMatch ? editedMatch[1] : null;
-      const cleanContent = msg.content.replace(editedRegex, '');
+      const cleanContent = cleanMessageCommands(msg.content).replace(editedRegex, '');
 
       let editedBadge = '';
       if (editedAt) {
