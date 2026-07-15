@@ -1431,8 +1431,6 @@ document.addEventListener('DOMContentLoaded', () => {
           // Si la tâche était liée à un client, on l'insère dans Supabase
           if (todo.clientId) {
             try {
-              const client = clients.find(c => String(c.id) === String(todo.clientId));
-              const clientName = client ? client.name : "Client";
               const noteContent = `Fait : ${todo.content}`;
               
               // Insérer le message
@@ -1441,12 +1439,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 content: noteContent,
                 created_at: new Date().toISOString()
               });
+              
+              if (error) {
+                console.error("Erreur conversion pense-bête en note:", error.message);
+                todo.done = false;
+                todos.push(todo);
+                saveTodos();
+                renderTodos(contextClientId);
+              } else {
+                if (activeClientId) {
+                  await loadClientMessages(false);
+                } else {
                   await loadGlobalFeed(false);
                 }
               }
+            } catch (err) {
+              console.error("Erreur conversion pense-bête en note:", err);
+              todo.done = false;
+              todos.push(todo);
+              saveTodos();
+              renderTodos(contextClientId);
             }
           }
-        });
+        }
+      });
       });
       container.querySelectorAll('.todo-client-badge').forEach(badge => {
         badge.addEventListener('click', (e) => {
