@@ -1992,7 +1992,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`;
       }
 
-      let html = '';
+      html = '';
       Object.keys(byDate).sort().forEach(dateKey => {
         const items = byDate[dateKey];
         const dateObj = new Date(dateKey + 'T12:00:00');
