@@ -1954,140 +1954,112 @@ document.addEventListener('DOMContentLoaded', () => {
       const tomorrow = getLocalDateString(new Date(Date.now() + 86400000));
 
       let html = '';
+      function renderUpcomingItemCard(item, barColor, hasCheckbox = false) {
+        const deleteBtn = `<button class="upcoming-delete p-1 text-slate-300 hover:text-rose-500 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Supprimer"><i data-lucide="trash-2" class="w-3 h-3"></i></button>`;
+        const editBtn = `<button class="upcoming-edit p-1 text-slate-300 hover:text-blue-600 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Modifier"><i data-lucide="pencil" class="w-3 h-3"></i></button>`;
+
+        let clientBadge = '';
+        const client = clients.find(c => String(c.id) === String(item.clientId));
+        if (client) {
+          const colorKey = getClientColorKey(client);
+          const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+          clientBadge = `<button class="upcoming-client-badge text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider hover:opacity-85 transition shrink-0" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`;
+        }
+
+        const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+        const cleanContent = (item.content || '').replace(editedRegex, '');
+        const preview = cleanContent.slice(0, 80) + (cleanContent.length > 80 ? '...' : '');
+        const highlightedContent = highlightMessageContent(preview);
+
+        const checkboxHTML = hasCheckbox 
+          ? `<input type="checkbox" class="deadline-checkbox w-3.5 h-3.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0 mt-0.5" data-id="${item.id}">`
+          : '';
+
+        return `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-slate-100 mb-1.5 bg-white relative group">
+          <div class="absolute left-0 top-0 bottom-0 w-1 ${barColor}"></div>
+          <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
+            <div class="flex items-start gap-1.5 min-w-0 flex-1">
+              ${checkboxHTML}
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  ${clientBadge}
+                </div>
+                <span class="upcoming-content text-[11px] text-slate-700 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${highlightedContent}</span>
+              </div>
+            </div>
+            <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
+          </div>
+        </div>`;
+      }
+
+      let html = '';
       Object.keys(byDate).sort().forEach(dateKey => {
         const items = byDate[dateKey];
         const dateObj = new Date(dateKey + 'T12:00:00');
         const labelDay = dateKey === tomorrow ? 'Demain' :
           dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
 
+        const deadlines = items.filter(i => i.isDeadline);
         const plannings = items.filter(i => isMessagePlanning(i.rawContent));
-        const others = items.filter(i => !isMessagePlanning(i.rawContent));
-
-        const dlCount = others.filter(i => i.isDeadline).length;
-        const dlIndicator = dlCount > 0
-          ? `<span class="text-[9px] bg-rose-600 text-white px-1.5 py-0.5 rounded font-black">${dlCount} DL</span>`
-          : '';
+        const todos = items.filter(i => i.type === 'todo');
+        const notes = items.filter(i => i.type === 'note' && !i.isDeadline && !isMessagePlanning(i.rawContent));
 
         html += `
           <div class="flex items-center gap-2 mt-3 mb-1.5 first:mt-0">
             <span class="text-[11px] font-black uppercase tracking-wider text-slate-600 whitespace-nowrap">${labelDay}</span>
-            ${dlIndicator}
             <div class="flex-1 h-px bg-slate-200"></div>
           </div>`;
 
-        // 1. Rendu des autres items (deadlines, todos, notes classiques)
-        others.forEach(item => {
-          const deleteBtn = `<button class="upcoming-delete p-1 text-slate-300 hover:text-rose-500 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Supprimer"><i data-lucide="trash-2" class="w-3 h-3"></i></button>`;
-          const editBtn = `<button class="upcoming-edit p-1 text-slate-300 hover:text-blue-600 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Modifier"><i data-lucide="pencil" class="w-3 h-3"></i></button>`;
-
-          let clientBadge = '';
-          const client = clients.find(c => String(c.id) === String(item.clientId));
-          if (client) {
-            const colorKey = getClientColorKey(client);
-            const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
-            clientBadge = `<button class="upcoming-client-badge text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider hover:opacity-85 transition shrink-0" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`;
-          }
-
-          const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
-          const cleanContent = (item.content || '').replace(editedRegex, '');
-          const preview = cleanContent.slice(0, 80) + (cleanContent.length > 80 ? '...' : '');
-
-          if (item.isDeadline) {
-            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-rose-200 mb-1.5 bg-white relative group">
-              <div class="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
-              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
-                <div class="flex items-start gap-1.5 min-w-0">
-                  <input type="checkbox" class="deadline-checkbox w-3.5 h-3.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0 mt-0.5" data-id="${item.id}">
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded uppercase tracking-wider shrink-0">Deadline</span>
-                      ${clientBadge}
-                    </div>
-                    <span class="upcoming-content text-[11px] text-rose-950 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
-                  </div>
-                </div>
-                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
-              </div>
+        // 1. Deadlines
+        if (deadlines.length > 0) {
+          html += `
+            <div class="mt-2 mb-1 pl-1 flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-rose-600">
+              <i data-lucide="clock" class="w-3.5 h-3.5 text-rose-500"></i>
+              <span>Deadlines</span>
+              <span class="bg-rose-50 text-rose-600 px-1.5 py-0.2 rounded-full font-extrabold">${deadlines.length}</span>
+            </div>
+            <div class="space-y-1">
+              ${deadlines.map(item => renderUpcomingItemCard(item, 'bg-rose-500', true)).join('')}
             </div>`;
-          } else if (item.type === 'todo') {
-            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-amber-200 mb-1.5 bg-white relative group">
-              <div class="absolute left-0 top-0 bottom-0 w-1 bg-amber-400"></div>
-              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
-                <div class="flex items-start gap-1.5 min-w-0">
-                  <i data-lucide="pin" class="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5"></i>
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="text-[9px] font-black bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded uppercase tracking-wider shrink-0">Pense-bête</span>
-                      ${clientBadge}
-                    </div>
-                    <span class="upcoming-content text-[11px] text-amber-950 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
-                  </div>
-                </div>
-                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
-              </div>
-            </div>`;
-          } else {
-            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-slate-200 mb-1.5 bg-white relative group">
-              <div class="absolute left-0 top-0 bottom-0 w-1 bg-slate-300"></div>
-              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
-                <div class="flex items-start gap-1.5 min-w-0">
-                  <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5"></i>
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                      ${clientBadge}
-                    </div>
-                    <span class="upcoming-content text-[11px] text-slate-700 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
-                  </div>
-                </div>
-                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
-              </div>
-            </div>`;
-          }
-        });
+        }
 
-        // 2. Rendu groupé des plannings (sous un seul intitulé)
+        // 2. Pense-bêtes
+        if (todos.length > 0) {
+          html += `
+            <div class="mt-2 mb-1 pl-1 flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-amber-600">
+              <i data-lucide="pin" class="w-3.5 h-3.5 text-amber-500"></i>
+              <span>Pense-bêtes</span>
+              <span class="bg-amber-50 text-amber-600 px-1.5 py-0.2 rounded-full font-extrabold">${todos.length}</span>
+            </div>
+            <div class="space-y-1">
+              ${todos.map(item => renderUpcomingItemCard(item, 'bg-amber-400', false)).join('')}
+            </div>`;
+        }
+
+        // 3. Planning
         if (plannings.length > 0) {
           html += `
-            <div class="mt-2.5 mb-1.5 pl-1 flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-indigo-500">
+            <div class="mt-2 mb-1 pl-1 flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-indigo-500">
               <i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-500"></i>
               <span>Planning</span>
               <span class="bg-indigo-50 text-indigo-600 px-1.5 py-0.2 rounded-full font-extrabold">${plannings.length}</span>
             </div>
-            <div class="space-y-1">`;
-          
-          plannings.forEach(item => {
-            const deleteBtn = `<button class="upcoming-delete p-1 text-slate-300 hover:text-rose-500 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Supprimer"><i data-lucide="trash-2" class="w-3 h-3"></i></button>`;
-            const editBtn = `<button class="upcoming-edit p-1 text-slate-300 hover:text-blue-600 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Modifier"><i data-lucide="pencil" class="w-3 h-3"></i></button>`;
-
-            let clientBadge = '';
-            const client = clients.find(c => String(c.id) === String(item.clientId));
-            if (client) {
-              const colorKey = getClientColorKey(client);
-              const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
-              clientBadge = `<button class="upcoming-client-badge text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider hover:opacity-85 transition shrink-0" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`;
-            }
-
-            const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
-            const cleanContent = (item.content || '').replace(editedRegex, '');
-            const preview = cleanContent.slice(0, 80) + (cleanContent.length > 80 ? '...' : '');
-
-            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-indigo-100 mb-1.5 bg-white relative group">
-              <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
-              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
-                <div class="flex items-start gap-1.5 min-w-0">
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                      ${clientBadge}
-                    </div>
-                    <span class="upcoming-content text-[11px] text-slate-700 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
-                  </div>
-                </div>
-                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
-              </div>
+            <div class="space-y-1">
+              ${plannings.map(item => renderUpcomingItemCard(item, 'bg-indigo-500', false)).join('')}
             </div>`;
-          });
+        }
 
-          html += `</div>`;
+        // 4. Notes
+        if (notes.length > 0) {
+          html += `
+            <div class="mt-2 mb-1 pl-1 flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-slate-500">
+              <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400"></i>
+              <span>Notes</span>
+              <span class="bg-slate-50 text-slate-500 px-1.5 py-0.2 rounded-full font-extrabold">${notes.length}</span>
+            </div>
+            <div class="space-y-1">
+              ${notes.map(item => renderUpcomingItemCard(item, 'bg-slate-300', false)).join('')}
+            </div>`;
         }
       });
 
@@ -2275,14 +2247,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasDeadlines = deadlineMsgs.length > 0;
     const hasTomorrow  = tomorrowOnlyMsgs.length > 0 || tomorrowTodoItems.length > 0;
 
-    if (!hasDeadlines && !hasTomorrow) {
-      tomorrowBanner.classList.add('hidden');
-      tomorrowBanner.classList.remove('flex');
-      return;
-    }
+    // Éléments du Header
+    const headerDeadlinesCount = document.getElementById('header-deadlines-count');
+    const headerDeadlinesList  = document.getElementById('header-deadlines-list');
+    const headerTomorrowCount  = document.getElementById('header-tomorrow-count');
+    const headerTomorrowList   = document.getElementById('header-tomorrow-list');
 
-    tomorrowBanner.classList.remove('hidden');
-    tomorrowBanner.classList.add('flex');
+    // 1. Gestion de l'ancien conteneur (compatibilité pour éviter les erreurs)
+    if (!hasDeadlines && !hasTomorrow) {
+      if (tomorrowBanner) {
+        tomorrowBanner.classList.add('hidden');
+        tomorrowBanner.classList.remove('flex');
+      }
+    } else {
+      if (tomorrowBanner) {
+        tomorrowBanner.classList.remove('hidden');
+        tomorrowBanner.classList.add('flex');
+      }
+    }
 
     // ── Section Deadlines ──
     if (hasDeadlines) {
@@ -2317,77 +2299,122 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>`;
       }).join('');
 
-      bannerDeadlinesList.innerHTML = dlHTML;
-      bannerDeadlinesCount.textContent = deadlineMsgs.length;
-      bannerDeadlinesSection.classList.remove('hidden');
-      bannerDeadlinesSection.classList.add('flex');
+      if (bannerDeadlinesList) bannerDeadlinesList.innerHTML = dlHTML;
+      if (bannerDeadlinesCount) bannerDeadlinesCount.textContent = deadlineMsgs.length;
+      if (bannerDeadlinesSection) {
+        bannerDeadlinesSection.classList.remove('hidden');
+        bannerDeadlinesSection.classList.add('flex');
+      }
 
-      bannerDeadlinesList.querySelectorAll('.banner-dl-delete').forEach(btn => {
-        btn.addEventListener('click', async e => {
-          e.preventDefault(); e.stopPropagation();
-          await deleteMessage(btn.dataset.id);
-        });
-      });
-
-      // Bouton éditer deadline
-      bannerDeadlinesList.querySelectorAll('.banner-dl-edit').forEach(btn => {
-        btn.addEventListener('click', e => {
-          e.preventDefault(); e.stopPropagation();
-          const id = btn.dataset.id;
-          const card = btn.closest('.banner-dl-item');
-          const msg = allMessages.find(m => String(m.id) === String(id));
-          if (!msg) return;
-          const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
-          const originalText = msg.content.replace(editedRegex, '');
-
-          card.innerHTML = `
-            <div class="w-full space-y-1.5 py-1">
-              <textarea class="w-full text-xs p-1.5 border border-rose-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-400 banner-dl-textarea" rows="2">${originalText}</textarea>
-              <div class="flex gap-1">
-                <button class="banner-dl-save text-[10px] font-bold px-2.5 py-1 bg-rose-600 text-white rounded-lg">Enregistrer</button>
-                <button class="banner-dl-cancel text-[10px] px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border">Annuler</button>
+      // Rendu dans le Header
+      const headerDlHTML = deadlineMsgs.map(m => {
+        const client = allClients.find(c => String(c.id) === String(m.client_id));
+        const clientName = client ? client.name : 'Sans client';
+        const cleanText = cleanMessageCommands(m.content);
+        const preview = cleanText.slice(0, 80) + (cleanText.length > 80 ? '…' : '');
+        const dateObj = new Date(m.created_at);
+        const dateLabel = getLocalDateString(dateObj) === today ? 'Aujourd\'hui'
+                        : getLocalDateString(dateObj) === tomorrow ? 'Demain'
+                        : dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+        return `
+          <div class="flex items-center gap-2 bg-white border border-rose-100 rounded-lg px-2 py-1.5 group banner-dl-item" data-id="${m.id}">
+            <div class="w-1 h-6 bg-rose-500 rounded-full shrink-0"></div>
+            <input type="checkbox" class="deadline-checkbox w-3.5 h-3.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0" data-id="${m.id}" title="Marquer cette deadline comme faite">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] font-black text-rose-600 uppercase tracking-wider truncate max-w-[80px]">${clientName}</span>
+                <span class="text-[9px] text-slate-400 font-medium">· ${dateLabel}</span>
               </div>
-            </div>`;
+              <p class="text-[11px] text-slate-700 leading-tight truncate">${preview}</p>
+            </div>
+            <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition">
+              <button class="banner-dl-edit p-0.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition" data-id="${m.id}" title="Modifier">
+                <i data-lucide="pencil" class="w-3 h-3"></i>
+              </button>
+              <button class="banner-dl-delete p-0.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition" data-id="${m.id}" title="Supprimer">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+              </button>
+            </div>
+          </div>`;
+      }).join('');
 
-          const textarea = card.querySelector('.banner-dl-textarea');
-          setupTextareaFeatures(textarea, () => card.querySelector('.banner-dl-save')?.click(), {
-            onCancel: () => card.querySelector('.banner-dl-cancel')?.click()
+      if (headerDeadlinesList) headerDeadlinesList.innerHTML = headerDlHTML;
+      if (headerDeadlinesCount) headerDeadlinesCount.textContent = deadlineMsgs.length;
+
+      // Attacher les écouteurs pour la bannière et le header
+      [bannerDeadlinesList, headerDeadlinesList].forEach(listEl => {
+        if (!listEl) return;
+        
+        listEl.querySelectorAll('.banner-dl-delete').forEach(btn => {
+          btn.addEventListener('click', async e => {
+            e.preventDefault(); e.stopPropagation();
+            await deleteMessage(btn.dataset.id);
           });
-          textarea.focus();
+        });
 
-          card.querySelector('.banner-dl-save').addEventListener('click', async evt => {
-            evt.preventDefault(); evt.stopPropagation();
-            const newText = textarea.value.trim();
-            if (!newText) return;
-            const parsed = parseInputCommands(newText);
-            const updatedFields = {};
-            let contentToUpdate = parsed.content;
-            if (parsed.isDeadline) contentToUpdate += ' [deadline]';
-            updatedFields.content = `${contentToUpdate} [edited:${new Date().toISOString()}]`;
-            if (parsed.clientId) updatedFields.client_id = (parsed.clientId === 'none') ? null : parsed.clientId;
-            if (parsed.date) {
-              const formattedDate = parseDateString(parsed.date);
-              if (formattedDate) {
-                const origDate = new Date(msg.created_at);
-                const timeStr = `${String(origDate.getHours()).padStart(2,'0')}:${String(origDate.getMinutes()).padStart(2,'0')}:${String(origDate.getSeconds()).padStart(2,'0')}`;
-                updatedFields.created_at = `${formattedDate}T${timeStr}Z`;
+        listEl.querySelectorAll('.banner-dl-edit').forEach(btn => {
+          btn.addEventListener('click', e => {
+            e.preventDefault(); e.stopPropagation();
+            const id = btn.dataset.id;
+            const card = btn.closest('.banner-dl-item');
+            const msg = allMessages.find(m => String(m.id) === String(id));
+            if (!msg) return;
+            const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+            const originalText = msg.content.replace(editedRegex, '');
+
+            card.innerHTML = `
+              <div class="w-full space-y-1 py-1">
+                <textarea class="w-full text-xs p-1.5 border border-rose-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-400 banner-dl-textarea" rows="2">${originalText}</textarea>
+                <div class="flex gap-1">
+                  <button class="banner-dl-save text-[9px] font-bold px-2 py-0.5 bg-rose-600 text-white rounded-lg">Enregistrer</button>
+                  <button class="banner-dl-cancel text-[9px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg border">Annuler</button>
+                </div>
+              </div>`;
+
+            const textarea = card.querySelector('.banner-dl-textarea');
+            setupTextareaFeatures(textarea, () => card.querySelector('.banner-dl-save')?.click(), {
+              onCancel: () => card.querySelector('.banner-dl-cancel')?.click()
+            });
+            textarea.focus();
+
+            card.querySelector('.banner-dl-save').addEventListener('click', async evt => {
+              evt.preventDefault(); evt.stopPropagation();
+              const newText = textarea.value.trim();
+              if (!newText) return;
+              const parsed = parseInputCommands(newText);
+              const updatedFields = {};
+              let contentToUpdate = parsed.content;
+              if (parsed.isDeadline) contentToUpdate += ' [deadline]';
+              updatedFields.content = `${contentToUpdate} [edited:${new Date().toISOString()}]`;
+              if (parsed.clientId) updatedFields.client_id = (parsed.clientId === 'none') ? null : parsed.clientId;
+              if (parsed.date) {
+                const formattedDate = parseDateString(parsed.date);
+                if (formattedDate) {
+                  const origDate = new Date(msg.created_at);
+                  const timeStr = `${String(origDate.getHours()).padStart(2,'0')}:${String(origDate.getMinutes()).padStart(2,'0')}:${String(origDate.getSeconds()).padStart(2,'0')}`;
+                  updatedFields.created_at = `${formattedDate}T${timeStr}Z`;
+                }
               }
-            }
-            await sb.from('messages').update(updatedFields).eq('id', id);
-            if (activeClientId) await loadClientMessages(false);
-            else await loadGlobalFeed(false);
-          });
+              await sb.from('messages').update(updatedFields).eq('id', id);
+              if (activeClientId) await loadClientMessages(false);
+              else await loadGlobalFeed(false);
+            });
 
-          card.querySelector('.banner-dl-cancel').addEventListener('click', evt => {
-            evt.preventDefault(); evt.stopPropagation();
-            if (activeClientId) renderClientMessages();
-            else renderGlobalFeed();
+            card.querySelector('.banner-dl-cancel').addEventListener('click', evt => {
+              evt.preventDefault(); evt.stopPropagation();
+              if (activeClientId) renderClientMessages();
+              else renderGlobalFeed();
+            });
           });
         });
       });
     } else {
-      bannerDeadlinesSection.classList.add('hidden');
-      bannerDeadlinesSection.classList.remove('flex');
+      if (bannerDeadlinesSection) {
+        bannerDeadlinesSection.classList.add('hidden');
+        bannerDeadlinesSection.classList.remove('flex');
+      }
+      if (headerDeadlinesList) headerDeadlinesList.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Aucune deadline.</p>';
+      if (headerDeadlinesCount) headerDeadlinesCount.textContent = '0';
     }
 
     // ── Section Demain ──
@@ -2422,16 +2449,62 @@ document.addEventListener('DOMContentLoaded', () => {
         })
       ].join('');
 
-      bannerTomorrowList.innerHTML = tomorrowHTML;
-      bannerTomorrowCount.textContent = tomorrowOnlyMsgs.length + tomorrowTodoItems.length;
-      bannerTomorrowSection.classList.remove('hidden');
-      bannerTomorrowSection.classList.add('flex');
+      if (bannerTomorrowList) bannerTomorrowList.innerHTML = tomorrowHTML;
+      if (bannerTomorrowCount) bannerTomorrowCount.textContent = tomorrowOnlyMsgs.length + tomorrowTodoItems.length;
+      if (bannerTomorrowSection) {
+        bannerTomorrowSection.classList.remove('hidden');
+        bannerTomorrowSection.classList.add('flex');
+      }
+
+      // Rendu dans le Header
+      const headerTomorrowHTML = [
+        ...tomorrowOnlyMsgs.map(m => {
+          const client = allClients.find(c => String(c.id) === String(m.client_id));
+          const clientName = client ? client.name : 'Sans client';
+          const cleanText = cleanMessageCommands(m.content);
+          const preview = cleanText.slice(0, 70) + (cleanText.length > 70 ? '…' : '');
+          return `
+            <div class="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-lg p-1.5">
+              <div class="w-1 h-5 bg-amber-400 rounded-full shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <span class="text-[9px] font-bold text-amber-700 truncate block">${clientName}</span>
+                <p class="text-[11px] text-amber-900 leading-tight truncate">${preview}</p>
+              </div>
+            </div>`;
+        }),
+        ...tomorrowTodoItems.map(t => {
+          const client = allClients.find(c => String(c.id) === String(t.clientId));
+          const clientName = client ? client.name : 'Sans client';
+          const preview = t.content.slice(0, 70) + (t.content.length > 70 ? '…' : '');
+          return `
+            <div class="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-lg p-1.5">
+              <div class="w-1 h-5 bg-amber-300 rounded-full shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <span class="text-[9px] font-bold text-amber-600 truncate block">${clientName} · Pense-bête</span>
+                <p class="text-[11px] text-amber-900 leading-tight truncate">${preview}</p>
+              </div>
+            </div>`;
+        })
+      ].join('');
+
+      if (headerTomorrowList) headerTomorrowList.innerHTML = headerTomorrowHTML;
+      if (headerTomorrowCount) headerTomorrowCount.textContent = tomorrowOnlyMsgs.length + tomorrowTodoItems.length;
     } else {
-      bannerTomorrowSection.classList.add('hidden');
-      bannerTomorrowSection.classList.remove('flex');
+      if (bannerTomorrowSection) {
+        bannerTomorrowSection.classList.add('hidden');
+        bannerTomorrowSection.classList.remove('flex');
+      }
+      if (headerTomorrowList) headerTomorrowList.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Aucune note pour demain.</p>';
+      if (headerTomorrowCount) headerTomorrowCount.textContent = '0';
     }
 
-    lucide.createIcons({ nodes: [tomorrowBanner] });
+    const nodesToIconify = [];
+    if (tomorrowBanner) nodesToIconify.push(tomorrowBanner);
+    if (headerDeadlinesList) nodesToIconify.push(headerDeadlinesList);
+    if (headerTomorrowList) nodesToIconify.push(headerTomorrowList);
+    if (nodesToIconify.length > 0) {
+      lucide.createIcons({ nodes: nodesToIconify });
+    }
   }
 
 

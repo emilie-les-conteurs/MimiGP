@@ -429,6 +429,10 @@ body.auth-body {
   color: #ef4444;
 }
 
+#tomorrow-notes-banner {
+  display: none !important;
+}
+
 /* Section "À venir" - Cartes blanches épurées */
 .upcoming-note-item {
   display: flex;
