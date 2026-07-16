@@ -665,6 +665,46 @@
     </div>
   </div>
 
+  <!-- MODALE AJOUT DE CONTACT CLIENT (/contact) -->
+  <div id="contact-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div id="contact-modal-panel" class="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-sm mx-4 overflow-hidden transform scale-95 opacity-0 transition-all duration-200">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <h3 class="font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="user-plus" class="w-5 h-5 text-blue-500"></i>
+          <span>Ajouter un contact client</span>
+        </h3>
+        <button id="close-contact-modal-btn" class="text-slate-400 hover:text-slate-600 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="contact-form">
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="text-sm font-medium block mb-1.5 text-slate-700">Prénom du contact</label>
+            <input class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition" type="text" id="contact-name" required placeholder="Ex: Chloé, Pierre...">
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-1.5 text-slate-700">Associer au client</label>
+            <select id="contact-client-select" class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required>
+              <!-- Options dynamiques -->
+            </select>
+          </div>
+          <!-- Zone d'aperçu dynamique du surlignage -->
+          <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-2">
+            <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Aperçu du surlignage (couleur du client)</span>
+            <div class="py-1">
+              <span id="contact-preview-tag" class="px-2 py-1 rounded font-semibold text-xs border transition-all">Nom du contact</span>
+            </div>
+          </div>
+        </div>
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+          <button type="button" id="cancel-contact-btn" class="px-4 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50 transition">Annuler</button>
+          <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">Ajouter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- MINI-MODALE COULEUR DE FOND (/couleurfond) -->
   <div id="bg-color-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-end justify-center hidden">
     <div id="bg-color-modal-panel" class="bg-white rounded-t-2xl border border-slate-200 shadow-2xl w-full max-w-sm mb-0 p-5 transform translate-y-4 opacity-0 transition-all duration-200">

@@ -447,6 +447,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const personName           = document.getElementById('person-name');
   const personColor          = document.getElementById('person-color');
   const personColorHex       = document.getElementById('person-color-hex');
+
+  // Modal Ajout de Contact Client
+  const contactModal         = document.getElementById('contact-modal');
+  const contactModalPanel    = document.getElementById('contact-modal-panel');
+  const closeContactModalBtn = document.getElementById('close-contact-modal-btn');
+  const cancelContactBtn     = document.getElementById('cancel-contact-btn');
+  const contactForm          = document.getElementById('contact-form');
+  const contactName          = document.getElementById('contact-name');
+  const contactClientSelect  = document.getElementById('contact-client-select');
+  const contactPreviewTag    = document.getElementById('contact-preview-tag');
   const personClientColorsGrid = document.getElementById('person-client-colors-grid');
 
   // Page Paramètres du Compte
@@ -1407,6 +1417,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (replacement === '/collaborateur') {
       replacement = '';
       openPersonModal();
+    } else if (replacement === '/contact') {
+      replacement = '';
+      openContactModal();
     }
 
     inputEl.value = before + replacement + after;
@@ -4301,6 +4314,80 @@ document.addEventListener('DOMContentLoaded', () => {
       await loadClientMessages(false);
     } else {
       await loadGlobalFeed(false);
+    }
+  });
+
+  function updateContactPreview() {
+    const name = contactName.value.trim() || 'Nom du contact';
+    contactPreviewTag.textContent = name;
+    
+    // Récupérer la couleur du client sélectionné
+    const selectedClientId = contactClientSelect.value;
+    const client = clients.find(c => String(c.id) === String(selectedClientId));
+    const colorKey = client ? getClientColorKey(client) : 'blue';
+    const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+    const resolvedColor = theme.dotColor;
+
+    contactPreviewTag.style.backgroundColor = resolvedColor + '20'; // ~12% opacité
+    contactPreviewTag.style.color = resolvedColor;
+    contactPreviewTag.style.borderColor = resolvedColor + '40'; // ~25% opacité
+  }
+
+  function openContactModal() {
+    contactName.value = '';
+    
+    // Remplir le select avec la liste des clients
+    contactClientSelect.innerHTML = '';
+    if (clients.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '-- Aucun client configuré --';
+      contactClientSelect.appendChild(opt);
+    } else {
+      clients.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        if (activeClientId && String(c.id) === String(activeClientId)) {
+          opt.selected = true;
+        }
+        contactClientSelect.appendChild(opt);
+      });
+    }
+
+    updateContactPreview();
+
+    contactModal.classList.remove('hidden');
+    setTimeout(() => {
+      contactModalPanel.classList.remove('scale-95', 'opacity-0');
+      contactModalPanel.classList.add('scale-100', 'opacity-100');
+    }, 20);
+    contactName.focus();
+  }
+
+  function closeContactModal() {
+    contactModalPanel.classList.add('scale-95', 'opacity-0');
+    contactModalPanel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => { contactModal.classList.add('hidden'); contactName.value = ''; }, 200);
+  }
+
+  closeContactModalBtn.addEventListener('click', closeContactModal);
+  cancelContactBtn.addEventListener('click', closeContactModal);
+  contactName.addEventListener('input', updateContactPreview);
+  contactClientSelect.addEventListener('change', updateContactPreview);
+
+  contactForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const nameVal = contactName.value.trim();
+    const clientLinkId = contactClientSelect.value;
+    if (!nameVal || !clientLinkId) return;
+
+    await addPersonQuick(nameVal, clientLinkId);
+    closeContactModal();
+    
+    // Recharger le widget de contact si on est sur la page de ce client
+    if (activeClientId && String(activeClientId) === String(clientLinkId)) {
+      renderClientContacts();
     }
   });
 
