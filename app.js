@@ -195,6 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { cmd: '/couleurfond',label: '/couleurfond',desc: 'Changer la couleur de fond',        icon: '🎨' },
     { cmd: '/date',      label: '/date',        desc: 'Planifier la note sur une date',    icon: '📅' },
     { cmd: '/personne',  label: '/personne',    desc: 'Ajouter/gérer une personne',        icon: '👤' },
+    { cmd: '/planning ', label: '/planning',   desc: 'Mettre au planning d\'un collaborateur', icon: '📅' },
   ];
   let commandPickerActiveIndex = -1;
 
@@ -1034,13 +1035,20 @@ document.addEventListener('DOMContentLoaded', () => {
     return /(?:\s|^)\/dl(?:\s|$)/i.test(content) || /\[deadline\]/i.test(content);
   }
 
+  function isMessagePlanning(content) {
+    if (!content) return false;
+    return /(?:\s|^)\/planning(?:\s|$)/i.test(content) || /\[planning\]/i.test(content);
+  }
+
   function cleanMessageCommands(rawText) {
     if (!rawText) return '';
     let text = rawText;
 
-    // Enlever /dl et [deadline]
+    // Enlever /dl, /planning, [deadline], [planning]
     let mainText = text.replace(/(?:\s|^)\/dl(?:\s|$)/gi, ' ');
     mainText = mainText.replace(/\s*\[deadline\]\s*$/gi, '');
+    mainText = mainText.replace(/(?:\s|^)\/planning(?:\s|$)/gi, ' ');
+    mainText = mainText.replace(/\s*\[planning\]\s*$/gi, '');
 
     // 1. Enlever [edited:...]
     const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
@@ -1505,6 +1513,56 @@ document.addEventListener('DOMContentLoaded', () => {
     return getLocalDateString(next);
   }
 
+  async function handleDeadlineCheck(msgId) {
+    let msg = [...(clientMessages || []), ...globalMessages].find(m => String(m.id) === String(msgId));
+    if (!msg) {
+      try {
+        const { data } = await sb.from('messages').select('*').eq('id', msgId).single();
+        msg = data;
+      } catch (e) {}
+    }
+    if (!msg) return;
+
+    // Supprimer la deadline de Supabase
+    const { error: deleteError } = await sb.from('messages').delete().eq('id', msgId);
+    if (deleteError) {
+      console.error("Erreur suppression deadline cochée:", deleteError.message);
+      return;
+    }
+
+    // Si la deadline avait un client_id, on insère la note historique Fait
+    if (msg.client_id) {
+      const cleanContent = cleanMessageCommands(msg.content);
+      const noteContent = `Fait : ${cleanContent}`;
+      try {
+        await sb.from('messages').insert({
+          client_id: msg.client_id,
+          user_id: currentSession.user.id,
+          content: noteContent,
+          created_at: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("Erreur insertion note historique de deadline:", err);
+      }
+    }
+
+    // Recharger la bonne vue
+    if (activeClientId) {
+      await loadClientMessages(false);
+      renderCalendar();
+    } else {
+      await loadGlobalFeed(false);
+    }
+  }
+
+  // Listener global pour le cochage des deadlines
+  document.addEventListener('change', async e => {
+    if (e.target.classList.contains('deadline-checkbox') && e.target.checked) {
+      const id = e.target.dataset.id;
+      await handleDeadlineCheck(id);
+    }
+  });
+
   function bindTodoEvents(container, contextClientId) {
     container.querySelectorAll('.todo-checkbox').forEach(cb => {
       cb.addEventListener('change', async () => {
@@ -1912,13 +1970,30 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
               <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
                 <div class="flex items-start gap-1.5 min-w-0">
-                  <i data-lucide="clock" class="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5 animate-pulse"></i>
+                  <input type="checkbox" class="deadline-checkbox w-3.5 h-3.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0 mt-0.5" data-id="${item.id}">
                   <div class="min-w-0">
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <span class="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded uppercase tracking-wider shrink-0">Deadline</span>
                       ${clientBadge}
                     </div>
                     <span class="upcoming-content text-[11px] text-rose-950 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+                  </div>
+                </div>
+                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
+              </div>
+            </div>`;
+          } else if (isMessagePlanning(item.rawContent)) {
+            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-indigo-200 mb-1.5 bg-white relative group">
+              <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
+                <div class="flex items-start gap-1.5 min-w-0">
+                  <i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5"></i>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="text-[9px] font-black bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded uppercase tracking-wider shrink-0">Planning</span>
+                      ${clientBadge}
+                    </div>
+                    <span class="upcoming-content text-[11px] text-indigo-950 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
                   </div>
                 </div>
                 <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
@@ -2168,6 +2243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
           <div class="flex items-center gap-2 bg-white border border-rose-200 rounded-lg px-2.5 py-2 group banner-dl-item" data-id="${m.id}">
             <div class="w-1 h-full min-h-[28px] bg-rose-500 rounded-full shrink-0"></div>
+            <input type="checkbox" class="deadline-checkbox w-3.5 h-3.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0" data-id="${m.id}" title="Marquer cette deadline comme faite">
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 mb-0.5">
                 <span class="text-[10px] font-black text-rose-600 uppercase tracking-wider">${clientName}</span>
@@ -2376,8 +2452,20 @@ document.addEventListener('DOMContentLoaded', () => {
       let deadlineBadge = '';
       if (isMessageDeadline(msg.content)) {
         deadlineBadge = `
-          <span class="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 shadow-sm">
-            <i data-lucide="clock" class="w-3 h-3 text-white"></i>DEADLINE
+          <div class="flex items-center gap-1.5 shrink-0">
+            <input type="checkbox" class="deadline-checkbox w-4.5 h-4.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500 cursor-pointer" data-id="${msg.id}" title="Marquer cette deadline comme faite">
+            <span class="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shadow-sm">
+              <i data-lucide="clock" class="w-3 h-3 text-white"></i>DEADLINE
+            </span>
+          </div>
+        `;
+      }
+
+      let planningBadge = '';
+      if (isMessagePlanning(msg.content)) {
+        planningBadge = `
+          <span class="inline-flex items-center gap-1 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 shadow-sm">
+            <i data-lucide="calendar" class="w-3 h-3 text-white"></i>PLANNING
           </span>
         `;
       }
@@ -2409,6 +2497,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-85 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
               <span class="text-xs text-slate-400 font-semibold">${dateStr} à ${timeStr}</span>
               ${deadlineBadge}
+              ${planningBadge}
               ${editedBadge}
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
@@ -2761,7 +2850,15 @@ document.addEventListener('DOMContentLoaded', () => {
       text = text.replace(/\/date(?:\s+|$)/gi, '');
     }
 
-    // 6. Nettoyer /personne
+    // 6. Parser /planning (planning)
+    let isPlanning = false;
+    const planningRegex = /\/planning(?:\s+|$)/i;
+    if (planningRegex.test(text)) {
+      isPlanning = true;
+      text = text.replace(planningRegex, '');
+    }
+
+    // 7. Nettoyer /personne
     const personneRegex = /\/personne(?:\s+([^\s]+))?/gi;
     text = text.replace(personneRegex, '');
 
@@ -2774,7 +2871,8 @@ document.addEventListener('DOMContentLoaded', () => {
       isTodo,
       bgColor,
       date,
-      isDeadline: false
+      isDeadline: false,
+      isPlanning
     };
   }
 
@@ -2836,6 +2934,9 @@ document.addEventListener('DOMContentLoaded', () => {
       let contentToSave = content;
       if (parsed.isDeadline || isDatePickerDeadline) {
         contentToSave = `${contentToSave} [deadline]`;
+      }
+      if (parsed.isPlanning) {
+        contentToSave = `${contentToSave} [planning]`;
       }
 
       await sendMessage(targetClientId, contentToSave, globalFile, async (msgData) => {
@@ -2989,8 +3090,20 @@ document.addEventListener('DOMContentLoaded', () => {
       let deadlineBadge = '';
       if (isMessageDeadline(msg.content)) {
         deadlineBadge = `
-          <span class="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 shadow-sm">
-            <i data-lucide="clock" class="w-3 h-3 text-white"></i>DEADLINE
+          <div class="flex items-center gap-1.5 shrink-0">
+            <input type="checkbox" class="deadline-checkbox w-4.5 h-4.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500 cursor-pointer" data-id="${msg.id}" title="Marquer cette deadline comme faite">
+            <span class="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shadow-sm">
+              <i data-lucide="clock" class="w-3 h-3 text-white"></i>DEADLINE
+            </span>
+          </div>
+        `;
+      }
+
+      let planningBadge = '';
+      if (isMessagePlanning(msg.content)) {
+        planningBadge = `
+          <span class="inline-flex items-center gap-1 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 shadow-sm">
+            <i data-lucide="calendar" class="w-3 h-3 text-white"></i>PLANNING
           </span>
         `;
       }
@@ -3003,6 +3116,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="text-[10px] text-slate-400 font-bold tracking-tight">${timeStr}</span>
             ${deadlineBadge}
+            ${planningBadge}
             ${editedBadge}
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
@@ -3198,6 +3312,9 @@ document.addEventListener('DOMContentLoaded', () => {
       let contentToSave = content;
       if (parsed.isDeadline || isDatePickerDeadline) {
         contentToSave = `${contentToSave} [deadline]`;
+      }
+      if (parsed.isPlanning) {
+        contentToSave = `${contentToSave} [planning]`;
       }
 
       await sendMessage(targetClientId, contentToSave, clientFile, async (msgData) => {
