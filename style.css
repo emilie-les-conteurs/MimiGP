@@ -429,29 +429,20 @@ body.auth-body {
   color: #ef4444;
 }
 
-/* Section "À venir" - bannière violet */
+/* Section "À venir" - Cartes blanches épurées */
 .upcoming-note-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 7px 10px;
-  background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
-  border: 1px solid #e9d5ff;
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
   border-radius: 8px;
   font-size: 11px;
 }
-.upcoming-note-item .upcoming-date {
-  font-weight: 800;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #7c3aed;
-}
 .upcoming-note-item .upcoming-content {
-  color: #3b0764;
+  color: #334155;
   line-height: 1.4;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

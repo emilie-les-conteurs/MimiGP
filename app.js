@@ -1908,43 +1908,53 @@ document.addEventListener('DOMContentLoaded', () => {
           const preview = cleanContent.slice(0, 80) + (cleanContent.length > 80 ? '...' : '');
 
           if (item.isDeadline) {
-            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-rose-300 mb-1.5">
-              <div class="bg-rose-600 px-2.5 py-1 flex items-center justify-between gap-1">
-                <div class="flex items-center gap-1.5">
-                  <i data-lucide="clock" class="w-3 h-3 text-white shrink-0"></i>
-                  <span class="text-[10px] font-black text-white uppercase tracking-widest">DEADLINE</span>
-                  ${clientBadge ? `<span class="text-white/40 text-[9px]">·</span>${clientBadge}` : ''}
+            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-rose-200 mb-1.5 bg-white relative group">
+              <div class="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
+              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
+                <div class="flex items-start gap-1.5 min-w-0">
+                  <i data-lucide="clock" class="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5 animate-pulse"></i>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded uppercase tracking-wider shrink-0">Deadline</span>
+                      ${clientBadge}
+                    </div>
+                    <span class="upcoming-content text-[11px] text-rose-950 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+                  </div>
                 </div>
-                <div class="flex items-center">${editBtn}${deleteBtn}</div>
-              </div>
-              <div class="bg-rose-50 px-2.5 py-2">
-                <span class="upcoming-content text-[11px] text-rose-900 leading-snug msg-content-container block" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
               </div>
             </div>`;
           } else if (item.type === 'todo') {
-            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-amber-200 mb-1.5">
-              <div class="bg-amber-50 px-2.5 py-1.5 flex items-start justify-between gap-1">
+            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-amber-200 mb-1.5 bg-white relative group">
+              <div class="absolute left-0 top-0 bottom-0 w-1 bg-amber-400"></div>
+              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
                 <div class="flex items-start gap-1.5 min-w-0">
-                  <i data-lucide="pin" class="w-3 h-3 text-amber-500 shrink-0 mt-0.5"></i>
+                  <i data-lucide="pin" class="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5"></i>
                   <div class="min-w-0">
-                    ${clientBadge}
-                    <span class="upcoming-content text-[11px] text-amber-900 leading-snug msg-content-container block mt-0.5" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="text-[9px] font-black bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded uppercase tracking-wider shrink-0">Pense-bête</span>
+                      ${clientBadge}
+                    </div>
+                    <span class="upcoming-content text-[11px] text-amber-950 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
                   </div>
                 </div>
-                <div class="flex items-center shrink-0">${editBtn}${deleteBtn}</div>
+                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
               </div>
             </div>`;
           } else {
-            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-slate-200 mb-1.5">
-              <div class="bg-white px-2.5 py-1.5 flex items-start justify-between gap-1">
+            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-slate-200 mb-1.5 bg-white relative group">
+              <div class="absolute left-0 top-0 bottom-0 w-1 bg-slate-300"></div>
+              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
                 <div class="flex items-start gap-1.5 min-w-0">
-                  <i data-lucide="file-text" class="w-3 h-3 text-slate-400 shrink-0 mt-0.5"></i>
+                  <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5"></i>
                   <div class="min-w-0">
-                    ${clientBadge}
-                    <span class="upcoming-content text-[11px] text-slate-700 leading-snug msg-content-container block mt-0.5" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      ${clientBadge}
+                    </div>
+                    <span class="upcoming-content text-[11px] text-slate-700 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
                   </div>
                 </div>
-                <div class="flex items-center shrink-0">${editBtn}${deleteBtn}</div>
+                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
               </div>
             </div>`;
           }
