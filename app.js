@@ -2475,9 +2475,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const bgStyle = bgColor ? `background-color: ${bgColor}; border-color: transparent;` : '';
       
       const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
-      const editedMatch = msg.content.match(editedRegex);
+      const msgContentStr = msg.content || '';
+      const editedMatch = msgContentStr.match(editedRegex);
       const editedAt = editedMatch ? editedMatch[1] : null;
-      const cleanContent = cleanMessageCommands(msg.content).replace(editedRegex, '');
+      const cleanContent = cleanMessageCommands(msgContentStr).replace(editedRegex, '');
       
       let editedBadge = '';
       if (editedAt) {
@@ -3141,9 +3142,10 @@ document.addEventListener('DOMContentLoaded', () => {
         : 'background-color: white; border-color: #e2e8f0;';
 
       const editedRegex = /\s*\[edited:([^\]]+)\]$/;
-      const editedMatch = msg.content.match(editedRegex);
+      const msgContentStr = msg.content || '';
+      const editedMatch = msgContentStr.match(editedRegex);
       const editedAt = editedMatch ? editedMatch[1] : null;
-      const cleanContent = cleanMessageCommands(msg.content).replace(editedRegex, '');
+      const cleanContent = cleanMessageCommands(msgContentStr).replace(editedRegex, '');
 
       let editedBadge = '';
       if (editedAt) {
