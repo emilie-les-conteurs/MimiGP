@@ -3021,6 +3021,14 @@ document.addEventListener('DOMContentLoaded', () => {
       text = text.replace(contactRegex, '');
     }
 
+    // 3b. Parser /dl
+    let isDeadline = false;
+    const dlRegex = /\/dl(?:\s+|$)/i;
+    if (dlRegex.test(text)) {
+      isDeadline = true;
+      text = text.replace(dlRegex, '');
+    }
+
     // 9. Nettoyer les commandes résiduelles sans argument
     text = text.replace(/\/collaborateur(?:\s+|$)/gi, '');
     text = text.replace(/\/contact(?:\s+|$)/gi, '');
@@ -3035,7 +3043,7 @@ document.addEventListener('DOMContentLoaded', () => {
       isTodo,
       bgColor,
       date,
-      isDeadline: false,
+      isDeadline,
       isPlanning
     };
   }
@@ -3115,6 +3123,13 @@ document.addEventListener('DOMContentLoaded', () => {
         globalFilePreview.classList.add('hidden');
         globalFileInput.value = '';
         clearSelectedMessageDates();
+
+        if (msgData) {
+          if (!globalMessages.some(m => m.id === msgData.id)) {
+            globalMessages.push(msgData);
+          }
+          renderGlobalFeed();
+        }
         await loadGlobalFeed(false);
       }, selectedMessageDates, bgColorToSave);
     } catch (err) {
@@ -3498,6 +3513,13 @@ document.addEventListener('DOMContentLoaded', () => {
         clientFilePreview.classList.add('hidden');
         clientFileInput.value = '';
         clearSelectedMessageDates();
+
+        if (msgData) {
+          if (!clientMessages.some(m => m.id === msgData.id)) {
+            clientMessages.push(msgData);
+          }
+          renderClientMessages();
+        }
         await loadClientMessages(false);
         renderCalendar();
       }, selectedMessageDates, bgColorToSave);
