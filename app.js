@@ -34,6 +34,73 @@ document.addEventListener('DOMContentLoaded', () => {
   let isSending = false;
   // { id, clientId, content, done, createdAt, dueDate }
   let todos = [];
+  let persons = [];
+  let pinnedFiles = [];
+
+  async function loadPersons() {
+    try {
+      const { data, error } = await sb.from('persons').select('*').order('created_at', { ascending: true });
+      if (error) throw error;
+      persons = (data || []).map(p => ({
+        id: String(p.id),
+        name: p.name,
+        color: p.role || '#3b82f6', // On mappe color sur role
+        clientId: p.client_id ? String(p.client_id) : null,
+        createdAt: p.created_at
+      }));
+    } catch (err) {
+      console.warn('Erreur chargement persons Supabase, repli localStorage:', err.message);
+      const saved = localStorage.getItem('mimi_persons');
+      persons = saved ? JSON.parse(saved) : [];
+    }
+  }
+
+  async function savePersonSupabase(p) {
+    try {
+      const row = {
+        id: p.id || crypto.randomUUID(),
+        name: p.name,
+        role: p.color || null, // On mappe color sur role
+        client_id: p.clientId || null,
+        created_at: p.createdAt || new Date().toISOString()
+      };
+      await sb.from('persons').upsert(row, { onConflict: 'id' });
+    } catch (err) {
+      console.warn('Erreur upsert person Supabase:', err.message);
+    }
+  }
+
+  async function deletePersonSupabase(id) {
+    try {
+      await sb.from('persons').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Erreur delete person Supabase:', err.message);
+    }
+  }
+
+  async function loadPinnedFiles() {
+    try {
+      const { data, error } = await sb.from('pinned_files').select('*');
+      if (error) throw error;
+      pinnedFiles = (data || []).map(pf => String(pf.message_id));
+    } catch (err) {
+      console.warn('Erreur chargement pinned_files Supabase, repli localStorage:', err.message);
+      pinnedFiles = JSON.parse(localStorage.getItem('mimi_pinned_files') || '[]');
+    }
+  }
+
+  async function savePinnedFileSupabase(msgId, isPinned) {
+    try {
+      if (isPinned) {
+        await sb.from('pinned_files').upsert({ message_id: String(msgId) }, { onConflict: 'message_id' });
+      } else {
+        await sb.from('pinned_files').delete().eq('message_id', String(msgId));
+      }
+    } catch (err) {
+      console.warn('Erreur sync pinned_file Supabase:', err.message);
+    }
+  }
+
 
   async function loadTodos() {
     try {
@@ -431,6 +498,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Toujours charger la liste de gauche à jour
     await loadClients();
     await loadTodos();
+    await loadPersons();
+    await loadPinnedFiles();
 
     // Réinitialiser les classes mobiles hidden/flex par défaut lors de la navigation
     if (leftSidebar) { leftSidebar.classList.add('hidden'); leftSidebar.classList.remove('flex'); }
@@ -2285,7 +2354,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const timeStr = timeObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       const dateStr = timeObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
       
-      const bgColor = noteBgs[msg.id];
+      const bgColor = msg.bg_color || noteBgs[msg.id];
       const bgStyle = bgColor ? `background-color: ${bgColor}; border-color: transparent;` : '';
       
       const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
@@ -2560,6 +2629,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
               }
               if (parsed.bgColor) {
+                updatedFields.bg_color = parsed.bgColor;
                 noteBgs[id] = parsed.bgColor;
                 saveNoteBgs();
               }
@@ -2791,7 +2861,7 @@ document.addEventListener('DOMContentLoaded', () => {
         globalFileInput.value = '';
         clearSelectedMessageDates();
         await loadGlobalFeed(false);
-      }, selectedMessageDates);
+      }, selectedMessageDates, bgColorToSave);
     } catch (err) {
       console.error(err);
     } finally {
@@ -2903,7 +2973,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
           </div>`;
       }
-      const bgColor = noteBgs[msg.id];
+      const bgColor = msg.bg_color || noteBgs[msg.id];
       const bgStyle = bgColor
         ? `background-color: ${bgColor}; border-color: transparent;`
         : 'background-color: white; border-color: #e2e8f0;';
@@ -3058,6 +3128,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
               }
               if (parsed.bgColor) {
+                updatedFields.bg_color = parsed.bgColor;
                 noteBgs[id] = parsed.bgColor;
                 saveNoteBgs();
               }
@@ -3151,7 +3222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearSelectedMessageDates();
         await loadClientMessages(false);
         renderCalendar();
-      }, selectedMessageDates);
+      }, selectedMessageDates, bgColorToSave);
     } catch (err) {
       console.error(err);
     } finally {
@@ -3177,7 +3248,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ─── ENVOI COMMUN ───────────────────────────────────────────────
-  async function sendMessage(clientId, content, file, onSuccess, customDates = null) {
+  async function sendMessage(clientId, content, file, onSuccess, customDates = null, bgColor = null) {
     let fileUrl = null, fileName = null;
     if (file) {
       fileName = file.name;
@@ -3197,7 +3268,8 @@ document.addEventListener('DOMContentLoaded', () => {
         content: content || null,
         file_url: fileUrl,
         file_name: fileName,
-        created_at: `${d}T${timeStr}Z`
+        created_at: `${d}T${timeStr}Z`,
+        bg_color: bgColor || null
       }));
       const { error } = await sb.from('messages').insert(rows);
       if (error) { alert(`Erreur: ${error.message}`); return; }
@@ -3207,7 +3279,8 @@ document.addEventListener('DOMContentLoaded', () => {
         user_id: currentSession.user.id,
         content: content || null,
         file_url: fileUrl,
-        file_name: fileName
+        file_name: fileName,
+        bg_color: bgColor || null
       }).select();
       if (error) { alert(`Erreur: ${error.message}`); return; }
       if (onSuccess) await onSuccess(insertedData?.[0] || null);
@@ -3892,33 +3965,46 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePersonPreview();
   });
 
-  personForm.addEventListener('submit', e => {
+  personForm.addEventListener('submit', async e => {
     e.preventDefault();
     const nameVal = personName.value.trim();
     if (!nameVal) return;
 
-    // Charger les personnes
-    const saved = localStorage.getItem('mimi_persons');
-    const persons = saved ? JSON.parse(saved) : [];
-    
-    // Éviter les doublons
-    const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
     const finalColorValue = selectedPersonClientColorId ? `client_${selectedPersonClientColorId}` : personColor.value;
+    const clientLinkId = selectedPersonClientColorId || null;
 
+    // Éviter les doublons dans la variable locale
+    const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
+    
+    let personObj;
     if (existsIdx !== -1) {
-      persons[existsIdx].color = finalColorValue;
+      personObj = persons[existsIdx];
+      personObj.color = finalColorValue;
+      personObj.clientId = clientLinkId;
     } else {
-      persons.push({ name: nameVal, color: finalColorValue });
+      personObj = {
+        id: crypto.randomUUID(),
+        name: nameVal,
+        color: finalColorValue,
+        clientId: clientLinkId,
+        createdAt: new Date().toISOString()
+      };
+      persons.push(personObj);
     }
 
+    // Sync Supabase
+    await savePersonSupabase(personObj);
+
+    // Fallback local
     localStorage.setItem('mimi_persons', JSON.stringify(persons));
+    
     closePersonModal();
 
     // Rafraîchir les messages pour appliquer le nouveau surlignage
     if (activeClientId) {
-      loadClientMessages();
+      await loadClientMessages(false);
     } else {
-      loadGlobalFeed();
+      await loadGlobalFeed(false);
     }
   });
 
@@ -3941,8 +4027,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Fonction de surlignage des messages
   function highlightMessageContent(text) {
     if (!text) return '';
-    const saved = localStorage.getItem('mimi_persons');
-    const persons = saved ? JSON.parse(saved) : [];
     
     let html = escapeHTML(text);
 
@@ -3953,7 +4037,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline font-semibold inline-flex items-center gap-0.5"><i data-lucide="external-link" class="w-3.5 h-3.5 inline"></i>${cleanLinkText}</a>`;
     });
 
-    if (persons.length === 0) return html;
+    if (!persons || persons.length === 0) return html;
 
     // Trier pour éviter d'écraser des noms imbriqués
     const sorted = [...persons].sort((a, b) => b.name.length - a.name.length);
@@ -4004,30 +4088,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function togglePinFile(msgId) {
-    const pinned = JSON.parse(localStorage.getItem('mimi_pinned_files') || '[]');
+  async function togglePinFile(msgId) {
     const idStr = String(msgId);
-    const idx = pinned.indexOf(idStr);
+    const idx = pinnedFiles.indexOf(idStr);
+    const isNowPinned = idx === -1;
     
-    if (idx !== -1) {
-      pinned.splice(idx, 1);
+    if (!isNowPinned) {
+      pinnedFiles.splice(idx, 1);
     } else {
-      pinned.push(idStr);
+      pinnedFiles.push(idStr);
     }
     
-    localStorage.setItem('mimi_pinned_files', JSON.stringify(pinned));
+    // Sync Supabase
+    await savePinnedFileSupabase(idStr, isNowPinned);
+    
+    // Fallback local
+    localStorage.setItem('mimi_pinned_files', JSON.stringify(pinnedFiles));
     
     if (activeClientId) {
-      loadClientMessages();
+      await loadClientMessages();
       renderFilesList();
     } else {
-      loadGlobalFeed();
+      await loadGlobalFeed();
     }
   }
 
   function isPinned(msgId) {
-    const pinned = JSON.parse(localStorage.getItem('mimi_pinned_files') || '[]');
-    return pinned.includes(String(msgId));
+    return pinnedFiles.includes(String(msgId));
   }
 
   // ─── GESTION GLOBAL DE LA PAGE DES PARAMÈTRES ──────────────────────
@@ -4132,8 +4219,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderSettingsPersons(personsListContainer) {
     personsListContainer.innerHTML = '';
-    const saved = localStorage.getItem('mimi_persons');
-    const persons = saved ? JSON.parse(saved) : [];
     
     settingsPersonsCount.textContent = persons.length;
 
@@ -4176,7 +4261,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           
           ${linkBadgeHTML}
-
+ 
           <span class="px-1.5 py-0.5 rounded font-semibold text-[10px] border truncate max-w-[80px] hidden sm:inline" style="background-color: ${resolvedColor}20; color: ${resolvedColor}; border-color: ${resolvedColor}40;">${escapeHTML(p.name)}</span>
         </div>
         
@@ -4194,7 +4279,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Événements Personnes
     personsListContainer.querySelectorAll('.settings-save-person-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const idx = parseInt(btn.dataset.idx);
         const row = btn.closest('.settings-save-person-btn').parentNode.parentNode;
         const nameInput = row.querySelector('.edit-person-name-input');
@@ -4203,9 +4288,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const newColor = colorInput.value;
         
         if (!newName) return;
-        
-        const saved = localStorage.getItem('mimi_persons');
-        const persons = saved ? JSON.parse(saved) : [];
         
         const oldPerson = persons[idx];
         let finalColor = newColor;
@@ -4218,7 +4300,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
         
-        persons[idx] = { name: newName, color: finalColor };
+        const clientLinkId = finalColor.startsWith('client_') ? finalColor.replace('client_', '') : null;
+        
+        oldPerson.name = newName;
+        oldPerson.color = finalColor;
+        oldPerson.clientId = clientLinkId;
+
+        await savePersonSupabase(oldPerson);
         localStorage.setItem('mimi_persons', JSON.stringify(persons));
         
         renderSettingsManagement();
@@ -4226,12 +4314,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     personsListContainer.querySelectorAll('.settings-delete-person-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const idx = parseInt(btn.dataset.idx);
-        const saved = localStorage.getItem('mimi_persons');
-        const persons = saved ? JSON.parse(saved) : [];
+        const idToDelete = persons[idx].id;
         
         persons.splice(idx, 1);
+        await deletePersonSupabase(idToDelete);
         localStorage.setItem('mimi_persons', JSON.stringify(persons));
         
         renderSettingsManagement();
@@ -4247,24 +4335,32 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsAddPersonClientLink.value = ''; // Réinitialiser le lien si on touche la palette
   });
 
-  settingsAddPersonForm.addEventListener('submit', e => {
+  settingsAddPersonForm.addEventListener('submit', async e => {
     e.preventDefault();
     const nameVal = settingsAddPersonName.value.trim();
     if (!nameVal) return;
     
-    const saved = localStorage.getItem('mimi_persons');
-    const persons = saved ? JSON.parse(saved) : [];
-    
-    const clientLinkId = settingsAddPersonClientLink.value;
+    const clientLinkId = settingsAddPersonClientLink.value || null;
     const finalColor = clientLinkId ? `client_${clientLinkId}` : settingsAddPersonColor.value;
 
     const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
+    let personObj;
     if (existsIdx !== -1) {
-      persons[existsIdx].color = finalColor;
+      personObj = persons[existsIdx];
+      personObj.color = finalColor;
+      personObj.clientId = clientLinkId;
     } else {
-      persons.push({ name: nameVal, color: finalColor });
+      personObj = {
+        id: crypto.randomUUID(),
+        name: nameVal,
+        color: finalColor,
+        clientId: clientLinkId,
+        createdAt: new Date().toISOString()
+      };
+      persons.push(personObj);
     }
     
+    await savePersonSupabase(personObj);
     localStorage.setItem('mimi_persons', JSON.stringify(persons));
     
     settingsAddPersonName.value = '';
@@ -4401,7 +4497,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const rows = localPersons.map(p => ({
             id:        String(p.id || crypto.randomUUID()),
             name:      p.name,
-            role:      p.role || null,
+            role:      p.color || p.role || null,
             client_id: p.clientId || null,
             created_at: p.createdAt || new Date().toISOString()
           }));
@@ -4432,6 +4528,20 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('mimi-migration-done-v1', 'true');
         status.className = 'text-xs text-center font-semibold rounded-lg py-1.5 bg-green-50 text-green-700';
         status.textContent = '✅ Migration réussie ! Données synchronisées.';
+        
+        // Recharger immédiatement tout depuis Supabase pour rafraîchir l'affichage
+        (async () => {
+          await loadTodos();
+          await loadPersons();
+          await loadPinnedFiles();
+          if (activeClientId) {
+            await loadClientMessages(false);
+          } else {
+            await loadGlobalFeed(false);
+          }
+          renderSettingsManagement();
+        })();
+
         setTimeout(() => banner.classList.add('hidden'), 3000);
       } else {
         status.className = 'text-xs text-center font-semibold rounded-lg py-1.5 bg-rose-50 text-rose-700';
