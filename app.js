@@ -37,6 +37,17 @@ document.addEventListener('DOMContentLoaded', () => {
   let persons = [];
   let pinnedFiles = [];
 
+  function generateUUID() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
   async function loadPersons() {
     try {
       const { data, error } = await sb.from('persons').select('*').order('created_at', { ascending: true });
@@ -58,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function savePersonSupabase(p) {
     try {
       const row = {
-        id: p.id || crypto.randomUUID(),
+        id: p.id || generateUUID(),
         name: p.name,
         role: p.color || null, // On mappe color sur role
         client_id: p.clientId || null,
@@ -4298,11 +4309,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const clientLinkId = clientId || null;
     const finalColorValue = clientLinkId ? `client_${clientLinkId}` : '#3b82f6';
     
-    const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
+    const existsIdx = persons.findIndex(p => 
+      p.name.toLowerCase() === nameVal.toLowerCase() && 
+      (clientLinkId ? String(p.clientId) === String(clientLinkId) : !p.clientId)
+    );
     if (existsIdx !== -1) return;
 
     const personObj = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       name: nameVal,
       color: finalColorValue,
       clientId: clientLinkId,
@@ -4365,7 +4379,7 @@ document.addEventListener('DOMContentLoaded', () => {
       personObj.clientId = null;
     } else {
       personObj = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: nameVal,
         color: finalColorValue,
         clientId: null,
@@ -4787,7 +4801,7 @@ document.addEventListener('DOMContentLoaded', () => {
       personObj.clientId = null;
     } else {
       personObj = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: nameVal,
         color: finalColor,
         clientId: null,
@@ -4999,7 +5013,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (localPersons.length > 0) {
         try {
           const rows = localPersons.map(p => ({
-            id:        String(p.id || crypto.randomUUID()),
+            id:        String(p.id || generateUUID()),
             name:      p.name,
             role:      p.color || p.role || null,
             client_id: p.clientId || null,
