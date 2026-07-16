@@ -1529,6 +1529,7 @@ document.addEventListener('DOMContentLoaded', () => {
               // Insérer le message
               const { error } = await sb.from('messages').insert({
                 client_id: todo.clientId,
+                user_id: currentSession.user.id,
                 content: noteContent,
                 created_at: new Date().toISOString()
               });
