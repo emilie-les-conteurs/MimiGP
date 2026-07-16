@@ -194,7 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
     { cmd: '/pensebete ',label: '/pensebete',  desc: 'Créer un pense-bête interactif',     icon: '📌' },
     { cmd: '/couleurfond',label: '/couleurfond',desc: 'Changer la couleur de fond',        icon: '🎨' },
     { cmd: '/date',      label: '/date',        desc: 'Planifier la note sur une date',    icon: '📅' },
-    { cmd: '/personne',  label: '/personne',    desc: 'Ajouter/gérer une personne',        icon: '👤' },
+    { cmd: '/collaborateur', label: '/collaborateur', desc: 'Ajouter un collaborateur interne', icon: '👤' },
+    { cmd: '/contact ',  label: '/contact',    desc: 'Ajouter un contact chez le client',  icon: '👥' },
     { cmd: '/planning ', label: '/planning',   desc: 'Mettre au planning d\'un collaborateur', icon: '📅' },
   ];
   let commandPickerActiveIndex = -1;
@@ -458,7 +459,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsAddPersonColorHexField = document.getElementById('settings-add-person-color-hex-field');
   const settingsPersonsList    = document.getElementById('settings-persons-list');
   const settingsClientsList    = document.getElementById('settings-clients-list');
-  const settingsAddPersonClientLink = document.getElementById('settings-add-person-client-link');
+
+  // Widget Contacts Client (Sidebar droite en vue client)
+  const clientContactsWidget   = document.getElementById('client-contacts-widget');
+  const clientContactsCount    = document.getElementById('client-contacts-count');
+  const clientContactsList     = document.getElementById('client-contacts-list');
+  const clientAddContactForm   = document.getElementById('client-add-contact-form');
+  const clientNewContactName   = document.getElementById('client-new-contact-name');
 
   // ─── ROUTAGE SYNCHRONISÉ ────────────────────────────────────────
   function showScreen(authActive) {
@@ -994,6 +1001,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (error) throw error;
       globalMessages = data || [];
       renderGlobalFeed();
+      if (clientContactsWidget) {
+        clientContactsWidget.classList.add('hidden');
+      }
 
       // Nettoyage rétroactif unique dans la base de données
       if (!localStorage.getItem('retroactive-cleanup-done-v2') && globalMessages.length > 0) {
@@ -1394,7 +1404,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (replacement === '/date') {
       replacement = '';
       openDatePicker();
-    } else if (replacement === '/personne') {
+    } else if (replacement === '/collaborateur') {
       replacement = '';
       openPersonModal();
     }
@@ -2858,9 +2868,33 @@ document.addEventListener('DOMContentLoaded', () => {
       text = text.replace(planningRegex, '');
     }
 
-    // 7. Nettoyer /personne
-    const personneRegex = /\/personne(?:\s+([^\s]+))?/gi;
-    text = text.replace(personneRegex, '');
+    // 7. Parser /collaborateur Nom
+    const collabRegex = /\/collaborateur\s+([a-zA-Z0-9À-ÿ_-]+)/i;
+    const collabMatch = text.match(collabRegex);
+    if (collabMatch) {
+      const collabName = collabMatch[1];
+      addPersonQuick(collabName, null);
+      text = text.replace(collabRegex, '');
+    }
+
+    // 8. Parser /contact Nom
+    const contactRegex = /\/contact\s+([a-zA-Z0-9À-ÿ_-]+)/i;
+    const contactMatch = text.match(contactRegex);
+    if (contactMatch) {
+      const contactName = contactMatch[1];
+      const targetClient = clientId || activeClientId;
+      if (targetClient) {
+        addPersonQuick(contactName, targetClient);
+      } else {
+        alert("Veuillez spécifier un client pour y ajouter ce contact.");
+      }
+      text = text.replace(contactRegex, '');
+    }
+
+    // 9. Nettoyer les commandes résiduelles sans argument
+    text = text.replace(/\/collaborateur(?:\s+|$)/gi, '');
+    text = text.replace(/\/contact(?:\s+|$)/gi, '');
+    text = text.replace(/\/personne(?:\s+|$)/gi, '');
 
     // Nettoyer les espaces superflus (sans écraser les retours à la ligne)
     text = text.replace(/[ \t]+/g, ' ').trim();
@@ -2994,6 +3028,10 @@ document.addEventListener('DOMContentLoaded', () => {
       clientMessages = data || [];
       renderClientMessages();
       renderFilesList();
+      if (clientContactsWidget) {
+        clientContactsWidget.classList.remove('hidden');
+        renderClientContacts();
+      }
     } catch (err) {
       console.error("Erreur chargement messages client:", err);
       clientChatMessages.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-rose-500 p-4 text-center">
@@ -4133,37 +4171,40 @@ document.addEventListener('DOMContentLoaded', () => {
     personPreviewTag.style.borderColor = color + '40'; // ~25% opacité
   }
 
+  async function addPersonQuick(name, clientId) {
+    const nameVal = name.trim();
+    if (!nameVal) return;
+    
+    const clientLinkId = clientId || null;
+    const finalColorValue = clientLinkId ? `client_${clientLinkId}` : '#3b82f6';
+    
+    const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
+    if (existsIdx !== -1) return;
+
+    const personObj = {
+      id: crypto.randomUUID(),
+      name: nameVal,
+      color: finalColorValue,
+      clientId: clientLinkId,
+      createdAt: new Date().toISOString()
+    };
+    
+    persons.push(personObj);
+    await savePersonSupabase(personObj);
+    localStorage.setItem('mimi_persons', JSON.stringify(persons));
+    
+    if (activeClientId) {
+      await loadClientMessages(false);
+    } else {
+      await loadGlobalFeed(false);
+    }
+  }
+
   function openPersonModal() {
     personName.value = '';
     personColor.value = '#3b82f6';
     personColorHex.textContent = '#3B82F6';
     updatePersonPreview();
-    
-    // Rendre les couleurs des clients existants
-    personClientColorsGrid.innerHTML = '';
-    if (clients.length === 0) {
-      personClientColorsGrid.innerHTML = '<span class="text-xs text-slate-400">Aucun client configuré</span>';
-    } else {
-      clients.forEach(c => {
-        const colorKey = getClientColorKey(c);
-        const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
-        
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'color-dot shrink-0';
-        btn.style.backgroundColor = theme.dotColor;
-        btn.title = `${c.name} (${theme.dotColor})`;
-        btn.addEventListener('click', () => {
-          personColor.value = theme.dotColor;
-          personColorHex.textContent = theme.dotColor.toUpperCase();
-          
-          personClientColorsGrid.querySelectorAll('.color-dot').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          updatePersonPreview();
-        });
-        personClientColorsGrid.appendChild(btn);
-      });
-    }
 
     personModal.classList.remove('hidden');
     setTimeout(() => {
@@ -4185,8 +4226,6 @@ document.addEventListener('DOMContentLoaded', () => {
   personName.addEventListener('input', updatePersonPreview);
   personColor.addEventListener('input', () => {
     personColorHex.textContent = personColor.value.toUpperCase();
-    selectedPersonClientColorId = null; // Unlink if manual color chosen
-    personClientColorsGrid.querySelectorAll('.color-dot').forEach(b => b.classList.remove('active'));
     updatePersonPreview();
   });
 
@@ -4195,23 +4234,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const nameVal = personName.value.trim();
     if (!nameVal) return;
 
-    const finalColorValue = selectedPersonClientColorId ? `client_${selectedPersonClientColorId}` : personColor.value;
-    const clientLinkId = selectedPersonClientColorId || null;
+    const finalColorValue = personColor.value;
 
-    // Éviter les doublons dans la variable locale
     const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
     
     let personObj;
     if (existsIdx !== -1) {
       personObj = persons[existsIdx];
       personObj.color = finalColorValue;
-      personObj.clientId = clientLinkId;
+      personObj.clientId = null;
     } else {
       personObj = {
         id: crypto.randomUUID(),
         name: nameVal,
         color: finalColorValue,
-        clientId: clientLinkId,
+        clientId: null,
         createdAt: new Date().toISOString()
       };
       persons.push(personObj);
@@ -4351,15 +4388,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── GESTION GLOBAL DE LA PAGE DES PARAMÈTRES ──────────────────────
   function renderSettingsManagement() {
-    // Remplir le dropdown de liaison client dans la création rapide
-    settingsAddPersonClientLink.innerHTML = '<option value="">-- Aucun lien (utiliser la couleur ci-dessus) --</option>';
-    clients.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = c.name;
-      settingsAddPersonClientLink.appendChild(opt);
-    });
-
     renderSettingsClients(settingsClientsList);
     renderSettingsPersons(settingsPersonsList);
   }
@@ -4452,56 +4480,40 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSettingsPersons(personsListContainer) {
     personsListContainer.innerHTML = '';
     
-    settingsPersonsCount.textContent = persons.length;
+    // N'afficher que les collaborateurs internes (clientId absent ou nul)
+    const collaborators = persons.filter(p => !p.clientId && (!p.color || !p.color.startsWith('client_')));
+    
+    settingsPersonsCount.textContent = collaborators.length;
 
-    if (persons.length === 0) {
-      personsListContainer.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucune personne configurée.</p>';
+    if (collaborators.length === 0) {
+      personsListContainer.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucun collaborateur configuré.</p>';
       return;
     }
 
-    persons.forEach((p, idx) => {
-      const isLinked = p.color && p.color.startsWith('client_');
-      let linkedClientName = '';
-      let resolvedColor = '#3b82f6';
-      
-      if (isLinked) {
-        const cId = p.color.replace('client_', '');
-        const cl = clients.find(c => String(c.id) === String(cId));
-        linkedClientName = cl ? cl.name : 'Client inconnu';
-        resolvedColor = resolvePersonColor(p.color);
-      } else {
-        resolvedColor = p.color;
-      }
+    collaborators.forEach((p) => {
+      const realIdx = persons.findIndex(pers => pers.id === p.id);
+      const resolvedColor = p.color || '#3b82f6';
 
       const div = document.createElement('div');
       div.className = 'p-3 bg-slate-50 border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 transition-all hover:bg-slate-100/30';
-      
-      const linkBadgeHTML = isLinked ? `
-        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold border border-slate-200 text-[10px] max-w-[120px] truncate" title="Lié à la couleur de ${linkedClientName}">
-          <i data-lucide="link" class="w-3 h-3"></i>
-          ${escapeHTML(linkedClientName)}
-        </span>
-      ` : '';
 
       div.innerHTML = `
         <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-          <input type="text" value="${escapeHTML(p.name)}" class="edit-person-name-input bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 w-full max-w-[120px]" data-idx="${idx}">
+          <input type="text" value="${escapeHTML(p.name)}" class="edit-person-name-input bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 w-full max-w-[120px]" data-idx="${realIdx}">
           
           <div class="flex items-center gap-1.5 shrink-0">
-            <input type="color" value="${resolvedColor}" class="settings-row-person-color w-6 h-6 border border-slate-200 rounded cursor-pointer bg-transparent" data-idx="${idx}">
+            <input type="color" value="${resolvedColor}" class="settings-row-person-color w-6 h-6 border border-slate-200 rounded cursor-pointer bg-transparent" data-idx="${realIdx}">
             <span class="text-[10px] font-mono text-slate-400 uppercase hidden sm:inline">${resolvedColor}</span>
           </div>
-          
-          ${linkBadgeHTML}
  
           <span class="px-1.5 py-0.5 rounded font-semibold text-[10px] border truncate max-w-[80px] hidden sm:inline" style="background-color: ${resolvedColor}20; color: ${resolvedColor}; border-color: ${resolvedColor}40;">${escapeHTML(p.name)}</span>
         </div>
         
         <div class="flex items-center gap-1">
-          <button class="settings-save-person-btn p-1.5 hover:bg-emerald-50 rounded-lg text-slate-400 hover:text-emerald-600 transition" data-idx="${idx}" title="Enregistrer">
+          <button class="settings-save-person-btn p-1.5 hover:bg-emerald-50 rounded-lg text-slate-400 hover:text-emerald-600 transition" data-idx="${realIdx}" title="Enregistrer">
             <i data-lucide="check" class="w-4 h-4"></i>
           </button>
-          <button class="settings-delete-person-btn p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition" data-idx="${idx}" title="Supprimer">
+          <button class="settings-delete-person-btn p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition" data-idx="${realIdx}" title="Supprimer">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         </div>
@@ -4561,10 +4573,9 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   }
 
-  // Écouteurs de création rapide de personne dans les paramètres
+  // Écouteurs de création rapide de collaborateur dans les paramètres
   settingsAddPersonColor.addEventListener('input', () => {
     settingsAddPersonColorHexField.textContent = settingsAddPersonColor.value.toUpperCase();
-    settingsAddPersonClientLink.value = ''; // Réinitialiser le lien si on touche la palette
   });
 
   settingsAddPersonForm.addEventListener('submit', async e => {
@@ -4572,21 +4583,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const nameVal = settingsAddPersonName.value.trim();
     if (!nameVal) return;
     
-    const clientLinkId = settingsAddPersonClientLink.value || null;
-    const finalColor = clientLinkId ? `client_${clientLinkId}` : settingsAddPersonColor.value;
+    const finalColor = settingsAddPersonColor.value;
 
     const existsIdx = persons.findIndex(p => p.name.toLowerCase() === nameVal.toLowerCase());
     let personObj;
     if (existsIdx !== -1) {
       personObj = persons[existsIdx];
       personObj.color = finalColor;
-      personObj.clientId = clientLinkId;
+      personObj.clientId = null;
     } else {
       personObj = {
         id: crypto.randomUUID(),
         name: nameVal,
         color: finalColor,
-        clientId: clientLinkId,
+        clientId: null,
         createdAt: new Date().toISOString()
       };
       persons.push(personObj);
@@ -4598,9 +4608,79 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsAddPersonName.value = '';
     settingsAddPersonColor.value = '#8b5cf6';
     settingsAddPersonColorHexField.textContent = '#8B5CF6';
-    settingsAddPersonClientLink.value = '';
     
     renderSettingsManagement();
+  });
+
+  function renderClientContacts() {
+    if (!clientContactsList || !activeClientId) return;
+    clientContactsList.innerHTML = '';
+    
+    // Filtrer les personnes rattachées à ce client
+    const clientContacts = persons.filter(p => String(p.clientId) === String(activeClientId) || (p.color && p.color === `client_${activeClientId}`));
+    
+    clientContactsCount.textContent = clientContacts.length;
+    
+    if (clientContacts.length === 0) {
+      clientContactsList.innerHTML = '<p class="text-[11px] text-slate-400 text-center py-4">Aucun contact enregistré.</p>';
+      return;
+    }
+    
+    const client = clients.find(c => String(c.id) === String(activeClientId));
+    const colorKey = client ? getClientColorKey(client) : 'blue';
+    const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+    const resolvedColor = theme.dotColor;
+
+    clientContacts.forEach(contact => {
+      const div = document.createElement('div');
+      div.className = 'flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-100 bg-slate-50/45 hover:bg-slate-50 transition';
+      div.innerHTML = `
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${resolvedColor}; box-shadow: 0 0 4px ${resolvedColor}50;"></span>
+          <span class="text-xs font-semibold text-slate-700 truncate" style="color: ${resolvedColor};">${escapeHTML(contact.name)}</span>
+        </div>
+        <button class="delete-contact-btn text-slate-300 hover:text-rose-500 p-0.5 rounded transition shrink-0" data-id="${contact.id}" title="Supprimer ce contact">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      `;
+      clientContactsList.appendChild(div);
+    });
+
+    // Événement de suppression du contact
+    clientContactsList.querySelectorAll('.delete-contact-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const contactId = btn.dataset.id;
+        const contact = persons.find(p => String(p.id) === String(contactId));
+        if (!contact) return;
+        if (!confirm(`Supprimer le contact "${contact.name}" ?`)) return;
+        
+        // Supprimer localement
+        persons = persons.filter(p => String(p.id) !== String(contactId));
+        localStorage.setItem('mimi_persons', JSON.stringify(persons));
+        
+        // Supprimer de Supabase
+        await deletePersonSupabase(contactId);
+        
+        // Rafraîchir
+        renderClientContacts();
+        await loadClientMessages(false);
+      });
+    });
+
+    lucide.createIcons({ nodes: [clientContactsList] });
+  }
+
+  // Écouteur pour ajouter un contact depuis le widget
+  clientAddContactForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nameVal = clientNewContactName.value.trim();
+    if (!nameVal || !activeClientId) return;
+    
+    await addPersonQuick(nameVal, activeClientId);
+    clientNewContactName.value = '';
+    renderClientContacts();
   });
 
   initResizeTodos();

@@ -357,6 +357,26 @@
             </div>
           </div>
         </div>
+
+        <!-- Widget Contacts Client (uniquement en vue client) -->
+        <div id="client-contacts-widget" class="hidden border-t border-slate-100 flex flex-col h-[280px] shrink-0 overflow-hidden bg-slate-50/20">
+          <div class="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+            <h3 class="text-sm font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="users" class="w-4 h-4 text-blue-500"></i>
+              <span>Contacts</span>
+            </h3>
+            <span id="client-contacts-count" class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">0</span>
+          </div>
+          <div class="p-3 bg-white border-b border-slate-100 shrink-0">
+            <form id="client-add-contact-form" class="flex gap-2">
+              <input type="text" id="client-new-contact-name" placeholder="Ajouter un contact (ex: Chloé)..." required class="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+              <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition">Ajouter</button>
+            </form>
+          </div>
+          <div id="client-contacts-list" class="flex-1 overflow-y-auto p-3 space-y-1 bg-white">
+            <!-- Rendu dynamique -->
+          </div>
+        </div>
       </aside>
 
       <!-- PANNEAU DROIT DYNAMIQUE — VUE PARAMÈTRES GLOBAL -->
@@ -610,7 +630,7 @@
       <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
         <h3 class="font-bold text-slate-900 flex items-center gap-2">
           <i data-lucide="user-plus" class="w-5 h-5 text-blue-500"></i>
-          <span>Ajouter une personne</span>
+          <span>Ajouter un collaborateur</span>
         </h3>
         <button id="close-person-modal-btn" class="text-slate-400 hover:text-slate-600 transition">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -619,7 +639,7 @@
       <form id="person-form">
         <div class="p-6 space-y-4">
           <div>
-            <label class="text-sm font-medium block mb-1.5 text-slate-700">Prénom à surligner</label>
+            <label class="text-sm font-medium block mb-1.5 text-slate-700">Prénom du collaborateur</label>
             <input class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition" type="text" id="person-name" required placeholder="Ex: Antoine, Émilie...">
           </div>
           <div>
@@ -629,17 +649,11 @@
               <span class="text-xs text-slate-500 font-mono" id="person-color-hex">#3b82f6</span>
             </div>
           </div>
-          <div>
-            <label class="text-sm font-medium block mb-1.5 text-slate-700 text-[11px] uppercase tracking-wider font-semibold text-slate-400">Associer à la couleur d'un client</label>
-            <div class="flex flex-wrap gap-2.5 max-h-[80px] overflow-y-auto" id="person-client-colors-grid">
-              <!-- Dynamically rendered client color dots -->
-            </div>
-          </div>
           <!-- Zone d'aperçu dynamique du surlignage -->
           <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-2">
             <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Aperçu du surlignage</span>
             <div class="py-1">
-              <span id="person-preview-tag" class="px-2 py-1 rounded font-semibold text-xs border transition-all">Nom de la personne</span>
+              <span id="person-preview-tag" class="px-2 py-1 rounded font-semibold text-xs border transition-all">Nom du collaborateur</span>
             </div>
           </div>
         </div>
