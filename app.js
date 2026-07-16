@@ -195,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
     { cmd: '/couleurfond',label: '/couleurfond',desc: 'Changer la couleur de fond',        icon: '🎨' },
     { cmd: '/date',      label: '/date',        desc: 'Planifier la note sur une date',    icon: '📅' },
     { cmd: '/personne',  label: '/personne',    desc: 'Ajouter/gérer une personne',        icon: '👤' },
-    { cmd: '/dl ',       label: '/dl',         desc: 'Marquer comme deadline',             icon: '🚨' },
   ];
   let commandPickerActiveIndex = -1;
 
@@ -380,11 +379,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Modale sélection de date
   const globalDateBtn         = document.getElementById('global-date-btn');
+  const globalLinkBtn         = document.getElementById('global-link-btn');
   const globalDatePreview     = document.getElementById('global-date-preview');
   const globalDatePreviewText = document.getElementById('global-date-preview-text');
   const globalRemoveDate      = document.getElementById('global-remove-date');
 
   const clientDateBtn         = document.getElementById('client-date-btn');
+  const clientLinkBtn         = document.getElementById('client-link-btn');
   const clientDatePreview     = document.getElementById('client-date-preview');
   const clientDatePreviewText = document.getElementById('client-date-preview-text');
   const clientRemoveDate      = document.getElementById('client-remove-date');
@@ -394,6 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeDatePickerBtn    = document.getElementById('close-date-picker-btn');
   const cancelDpBtn           = document.getElementById('cancel-dp-btn');
   const confirmDpBtn          = document.getElementById('confirm-dp-btn');
+  const dpDeadlineCheckbox    = document.getElementById('dp-deadline-checkbox');
+  let isDatePickerDeadline = false;
 
   const dateModeSingle        = document.getElementById('date-mode-single');
   const dateModeRange         = document.getElementById('date-mode-range');
@@ -2758,15 +2761,7 @@ document.addEventListener('DOMContentLoaded', () => {
       text = text.replace(/\/date(?:\s+|$)/gi, '');
     }
 
-    // 6. Parser /dl (deadline)
-    let isDeadline = false;
-    const dlRegex = /\/dl(?:\s+|$)/i;
-    if (dlRegex.test(text)) {
-      isDeadline = true;
-      text = text.replace(dlRegex, '');
-    }
-
-    // 7. Nettoyer /personne
+    // 6. Nettoyer /personne
     const personneRegex = /\/personne(?:\s+([^\s]+))?/gi;
     text = text.replace(personneRegex, '');
 
@@ -2779,7 +2774,7 @@ document.addEventListener('DOMContentLoaded', () => {
       isTodo,
       bgColor,
       date,
-      isDeadline
+      isDeadline: false
     };
   }
 
@@ -2839,7 +2834,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       let contentToSave = content;
-      if (parsed.isDeadline) {
+      if (parsed.isDeadline || isDatePickerDeadline) {
         contentToSave = `${contentToSave} [deadline]`;
       }
 
@@ -3201,7 +3196,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       let contentToSave = content;
-      if (parsed.isDeadline) {
+      if (parsed.isDeadline || isDatePickerDeadline) {
         contentToSave = `${contentToSave} [deadline]`;
       }
 
@@ -3452,6 +3447,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dpRangeStart = null;
     dpRangeEnd = null;
     customSelectedDates = [];
+    if (dpDeadlineCheckbox) dpDeadlineCheckbox.checked = false;
     updateDatePickerUI();
     renderDatePickerCalendar();
 
@@ -3616,6 +3612,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     selectedMessageDates = [...customSelectedDates];
+    isDatePickerDeadline = dpDeadlineCheckbox ? dpDeadlineCheckbox.checked : false;
 
     // Afficher l'aperçu dans l'input actif
     const count = selectedMessageDates.length;
@@ -3624,6 +3621,10 @@ document.addEventListener('DOMContentLoaded', () => {
       label = formatDateLabel(selectedMessageDates[0]);
     } else {
       label = `Du ${formatDateLabel(selectedMessageDates[0])} au ${formatDateLabel(selectedMessageDates[count - 1])}`;
+    }
+
+    if (isDatePickerDeadline) {
+      label += ' (🚨 Deadline)';
     }
 
     if (activeClientId) {
@@ -3642,6 +3643,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Retrait de la date d'envoi
   function clearSelectedMessageDates() {
     selectedMessageDates = [];
+    isDatePickerDeadline = false;
     globalDatePreview.classList.add('hidden');
     clientDatePreview.classList.add('hidden');
     globalDatePreviewText.textContent = '';
@@ -3654,6 +3656,36 @@ document.addEventListener('DOMContentLoaded', () => {
   // Clic sur les boutons de calendrier des inputs
   globalDateBtn.addEventListener('click', openDatePicker);
   clientDateBtn.addEventListener('click', openDatePicker);
+
+  // Insertion simplifiée de liens dans les notes
+  function insertLinkIntoTextarea(textarea) {
+    if (!textarea) return;
+    const url = prompt("Entrez l'adresse du lien (ex: www.google.com ou https://...) :");
+    if (!url) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    
+    const label = prompt("Texte à afficher pour ce lien :", selectedText || "Lien");
+    if (label === null) return;
+    
+    const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
+    const markdownLink = `[${label || 'Lien'}](${formattedUrl})`;
+    
+    const orig = textarea.value;
+    textarea.value = orig.substring(0, start) + markdownLink + orig.substring(end);
+    
+    textarea.focus();
+    textarea.selectionStart = start + markdownLink.length;
+    textarea.selectionEnd = start + markdownLink.length;
+    
+    const event = new Event('input', { bubbles: true });
+    textarea.dispatchEvent(event);
+  }
+
+  globalLinkBtn?.addEventListener('click', () => insertLinkIntoTextarea(globalChatInput));
+  clientLinkBtn?.addEventListener('click', () => insertLinkIntoTextarea(clientChatInput));
 
 
 
@@ -4027,7 +4059,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let html = escapeHTML(text);
 
-    // 1. Transformer les liens markdown [texte](url)
+    // 1. Convertir les bullet points (lignes commençant par - ou * ou •)
+    html = html.replace(/^[ \t]*[-*•][ \t]+(.*)$/gm, '<div class="flex items-start gap-1.5 ml-2 my-0.5"><span class="text-blue-500 shrink-0 select-none">•</span><span>$1</span></div>');
+
+    // 2. Convertir le gras (**texte** et *texte*)
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+
+    // 3. Transformer les liens markdown [texte](url)
     const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g;
     html = html.replace(markdownLinkRegex, (match, linkText, url) => {
       const cleanLinkText = linkText.replace(/&amp;/g, '&');

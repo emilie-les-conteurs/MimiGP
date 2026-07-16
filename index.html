@@ -245,6 +245,9 @@
                 <button type="button" id="global-date-btn" class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition" title="Choisir une date (futur/passé)">
                   <i data-lucide="calendar" class="w-5 h-5"></i>
                 </button>
+                <button type="button" id="global-link-btn" class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition" title="Insérer un lien">
+                  <i data-lucide="link" class="w-5 h-5"></i>
+                </button>
               </div>
 
               <div class="flex-1 flex flex-col">
@@ -306,6 +309,9 @@
                 </button>
                 <button type="button" id="client-date-btn" class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition" title="Choisir une date (futur/passé)">
                   <i data-lucide="calendar" class="w-5 h-5"></i>
+                </button>
+                <button type="button" id="client-link-btn" class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition" title="Insérer un lien">
+                  <i data-lucide="link" class="w-5 h-5"></i>
                 </button>
               </div>
               <div class="flex-1 flex flex-col">
@@ -557,6 +563,14 @@
         <div class="text-xs text-slate-500 bg-blue-50/50 border border-blue-100/50 p-3 rounded-xl flex flex-col gap-1">
           <span class="font-bold text-blue-700">Sélection :</span>
           <span id="dp-selection-summary">Aucune date sélectionnée</span>
+        </div>
+
+        <!-- Option Deadline -->
+        <div class="flex items-center gap-2 px-1">
+          <input type="checkbox" id="dp-deadline-checkbox" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+          <label for="dp-deadline-checkbox" class="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+            Classer cette note comme Deadline (🚨)
+          </label>
         </div>
       </div>
 
