@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ─── BASE ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
@@ -8,6 +8,12 @@ body {
   background-color: #f8fafc;
   color: #0f172a;
   min-height: 100dvh;
+}
+
+h1, h2, h3, h4, h5, h6, 
+.font-bold, .font-extrabold, .font-black, 
+button, input, select, textarea, .sticky-date-header {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
 body.auth-body {
@@ -465,32 +471,42 @@ body.auth-body {
   pointer-events: auto !important;
 }
 
-/* Styles réactifs pour le redimensionnement et la responsivité */
+/* Styles réactifs pour le redimensionnement et la responsivité (Drawers mobiles fluides) */
 @media (max-width: 767px) {
   #left-sidebar {
-    position: absolute !important;
+    display: flex !important;
+    position: fixed !important;
     top: 57px;
     left: 0;
     bottom: 0;
-    z-index: 40;
-    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.12);
-    height: calc(100vh - 57px) !important;
-    width: 260px !important;
-    transition: transform 0.2s ease-in-out;
+    z-index: 50;
+    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.12);
+    height: calc(100dvh - 57px) !important;
+    width: 270px !important;
+    transform: translateX(-105%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  #left-sidebar.active {
+    transform: translateX(0) !important;
   }
 }
 
 @media (max-width: 1023px) {
   #right-sidebar {
-    position: absolute !important;
+    display: flex !important;
+    position: fixed !important;
     top: 57px;
     right: 0;
     bottom: 0;
-    z-index: 40;
-    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.12);
-    height: calc(100vh - 57px) !important;
-    width: 280px !important;
-    transition: transform 0.2s ease-in-out;
+    z-index: 50;
+    box-shadow: -4px 0 24px rgba(15, 23, 42, 0.12);
+    height: calc(100dvh - 57px) !important;
+    width: 290px !important;
+    transform: translateX(105%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  #right-sidebar.active {
+    transform: translateX(0) !important;
   }
 }
 

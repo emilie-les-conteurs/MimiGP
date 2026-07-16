@@ -2399,7 +2399,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       return `
-        <div class="rounded-xl border border-slate-100 px-4 py-3 shadow-sm hover:shadow-md transition card-item-container" style="${bgStyle || 'background-color: white;'}">
+        <div class="rounded-2xl border border-slate-200/40 px-4 py-3.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 card-item-container" style="${bgStyle || 'background-color: white;'}">
           <div class="flex items-center justify-between gap-2 mb-1.5 w-full">
             <div class="flex items-center gap-2 flex-wrap">
               <button class="go-client-btn text-xs font-bold px-2 py-0.5 rounded-full hover:opacity-85 transition" style="${badgeStyle}" data-id="${msg.client_id}">${client?.name || '—'}</button>
@@ -3019,7 +3019,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
           </div>
         </div>
-        <div class="msg-content-container rounded-2xl rounded-tl-none px-4 py-3 shadow-sm text-sm text-slate-800" style="${bgStyle}" data-id="${msg.id}">
+        <div class="msg-content-container rounded-2xl rounded-tl-none px-4 py-3 shadow-sm text-sm text-slate-800 border border-slate-200/40" style="${bgStyle}" data-id="${msg.id}">
           <p class="whitespace-pre-line msg-text">${highlightMessageContent(cleanContent)}</p>
           ${attachHTML}
         </div>
@@ -4380,13 +4380,13 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     e.stopPropagation();
     if (leftSidebar) {
-      const isHidden = leftSidebar.classList.contains('hidden');
-      leftSidebar.classList.toggle('hidden', !isHidden);
-      leftSidebar.classList.toggle('flex', isHidden);
-      // Fermer le panneau droit sur mobile si on ouvre le gauche
-      if (isHidden && window.innerWidth < 768 && rightSidebar) {
-        rightSidebar.classList.add('hidden');
-        rightSidebar.classList.remove('flex');
+      if (window.innerWidth < 768) {
+        leftSidebar.classList.toggle('active');
+        if (rightSidebar) rightSidebar.classList.remove('active');
+      } else {
+        const isHidden = leftSidebar.classList.contains('hidden');
+        leftSidebar.classList.toggle('hidden', !isHidden);
+        leftSidebar.classList.toggle('flex', isHidden);
       }
     }
   });
@@ -4395,34 +4395,31 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     e.stopPropagation();
     if (rightSidebar) {
-      const isHidden = rightSidebar.classList.contains('hidden');
-      rightSidebar.classList.toggle('hidden', !isHidden);
-      rightSidebar.classList.toggle('flex', isHidden);
-      
-      // Si on est sur ordinateur, on mémorise le choix de l'utilisateur
-      if (window.innerWidth >= 1024) {
+      if (window.innerWidth < 1024) {
+        rightSidebar.classList.toggle('active');
+        if (leftSidebar) leftSidebar.classList.remove('active');
+      } else {
+        const isHidden = rightSidebar.classList.contains('hidden');
+        rightSidebar.classList.toggle('hidden', !isHidden);
+        rightSidebar.classList.toggle('flex', isHidden);
         localStorage.setItem('right-sidebar-closed', !isHidden ? 'true' : 'false');
-      }
-
-      // Fermer le panneau gauche sur mobile si on ouvre le droit
-      if (isHidden && window.innerWidth < 768 && leftSidebar) {
-        leftSidebar.classList.add('hidden');
-        leftSidebar.classList.remove('flex');
       }
     }
   });
 
   // Fermer les panneaux quand on clique sur le reste du document sur mobile
   document.addEventListener('click', () => {
-    if (window.innerWidth < 768 && leftSidebar && !leftSidebar.classList.contains('hidden')) {
-      leftSidebar.classList.add('hidden');
-      leftSidebar.classList.remove('flex');
+    if (window.innerWidth < 768 && leftSidebar) {
+      leftSidebar.classList.remove('active');
     }
-    if (window.innerWidth < 1024 && rightSidebar && !rightSidebar.classList.contains('hidden')) {
-      rightSidebar.classList.add('hidden');
-      rightSidebar.classList.remove('flex');
+    if (window.innerWidth < 1024 && rightSidebar) {
+      rightSidebar.classList.remove('active');
     }
   });
+
+  // Éviter la fermeture lors des clics dans les tiroirs
+  leftSidebar?.addEventListener('click', e => e.stopPropagation());
+  rightSidebar?.addEventListener('click', e => e.stopPropagation());
 
   // ─── MIGRATION LOCALSTORAGE → SUPABASE ─────────────────────────────────
   (function setupMigrationBanner() {
