@@ -982,6 +982,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
     }
     try {
+      await loadTodos();
       const { data, error } = await sb
         .from('messages')
         .select('*, clients(*)')
@@ -1511,9 +1512,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const isChecked = cb.checked;
 
         if (isChecked) {
-          // Mise à jour optimiste instantanée : on retire le pense-bête de la liste
-          todos = todos.filter(t => t.id !== id);
-          saveTodos();
+          // Suppression définitive sur Supabase et localement
+          await deleteTodoById(id);
           
           if (contextClientId === 'dashboard') {
             await loadGlobalFeed(false);
@@ -1660,13 +1660,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     container.querySelectorAll('.todo-delete').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        todos = todos.filter(t => t.id !== btn.dataset.id);
-        saveTodos();
+        const id = btn.dataset.id;
+        await deleteTodoById(id);
         if (contextClientId === 'dashboard') {
-          loadGlobalFeed(false);
+          await loadGlobalFeed(false);
         } else {
           renderTodos(contextClientId);
           if (contextClientId) {
@@ -1973,13 +1973,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const id = btn.dataset.id;
           const type = btn.dataset.type;
           if (type === 'note') {
-            if (confirm("Supprimer cette note planifiée ?")) {
-              await deleteMessage(id);
-            }
+            await deleteMessage(id);
           } else {
             if (confirm("Supprimer ce pense-bête ?")) {
-              todos = todos.filter(t => t.id !== id);
-              saveTodos();
+              await deleteTodoById(id);
               renderTodos(activeClientId);
               if (activeClientId) {
                 await loadClientMessages(false);
@@ -2189,13 +2186,10 @@ document.addEventListener('DOMContentLoaded', () => {
       bannerDeadlinesSection.classList.remove('hidden');
       bannerDeadlinesSection.classList.add('flex');
 
-      // Bouton supprimer deadline
       bannerDeadlinesList.querySelectorAll('.banner-dl-delete').forEach(btn => {
         btn.addEventListener('click', async e => {
           e.preventDefault(); e.stopPropagation();
-          if (confirm('Supprimer cette deadline ?')) {
-            await deleteMessage(btn.dataset.id);
-          }
+          await deleteMessage(btn.dataset.id);
         });
       });
 
@@ -2893,6 +2887,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
     }
     try {
+      await loadTodos();
       const { data, error } = await sb
         .from('messages')
         .select('*')
@@ -3175,6 +3170,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     clientChatMessages.scrollTop = clientChatMessages.scrollHeight;
     lucide.createIcons();
+    renderTomorrowBanner(clientMessages, clients);
   }
 
   clientChatForm.addEventListener('submit', async e => {
