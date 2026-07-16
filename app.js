@@ -1764,7 +1764,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const formattedDate = !isDueNow 
       ? `<span class="text-[9px] bg-amber-50 border border-amber-200/60 text-amber-800 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0"><i data-lucide="calendar" class="w-3 h-3 text-amber-600"></i>${new Date(t.dueDate).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</span>`
-      : `<span class="text-[9px] bg-slate-50 border border-slate-200/60 text-slate-400 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0"><i data-lucide="zap" class="w-3 h-3 text-slate-400"></i>Immédiat</span>`;
+      : '';
 
     let editedLabel = '';
     if (t.editedAt) {
@@ -1818,17 +1818,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ─── NOTES À VENIR ────────────────────────────────────────────────────
-  const upcomingWidgetToggle = document.getElementById('upcoming-widget-toggle');
-  const upcomingChevron = document.getElementById('upcoming-chevron');
   const upcomingListWrapper = document.getElementById('upcoming-list-wrapper');
   const upcomingList = document.getElementById('upcoming-list');
-  let upcomingOpen = true;
-
-  upcomingWidgetToggle?.addEventListener('click', () => {
-    upcomingOpen = !upcomingOpen;
-    upcomingListWrapper.style.display = upcomingOpen ? '' : 'none';
-    upcomingChevron.style.transform = upcomingOpen ? '' : 'rotate(-90deg)';
-  });
 
   function renderUpcomingNotes(msgs) {
     const today = getLocalDateString();
@@ -2444,14 +2435,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
           <h2 class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <i data-lucide="pin" class="w-4 h-4 fill-amber-500 text-amber-500"></i>
-            Pense-bêtes actifs
+            Pense-bêtes
           </h2>
-          <span class="text-[10px] bg-slate-50 text-slate-500 px-2.5 py-0.5 rounded-full font-bold">Aujourd'hui / Retard</span>
         </div>
         <div id="dashboard-todos-list" class="space-y-1 text-xs">
           ${todayTodos.length > 0 
             ? todayTodos.map(t => renderTodoItem(t)).join('') 
-            : `<p class="text-xs text-slate-400 py-3 text-center">Aucun pense-bête actif pour aujourd'hui.</p>`}
+            : `<p class="text-xs text-slate-400 py-3 text-center">Aucun pense-bête pour aujourd'hui.</p>`}
         </div>
         
         <!-- Button to expand upcoming ones -->
@@ -2459,7 +2449,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <button id="upcoming-todos-toggle-btn" class="flex items-center justify-between w-full py-1 text-left font-bold text-slate-500 hover:text-slate-700 transition">
             <span class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-extrabold">
               <i data-lucide="calendar" class="w-3.5 h-3.5 text-purple-500 shrink-0"></i>
-              Suivants (Notes à venir)
+              Pense-Bêtes à venir
               <span class="text-[9px] bg-purple-50 text-purple-600 px-1.5 py-0.2 rounded-full font-extrabold">${upcomingTodos.length}</span>
             </span>
             <i data-lucide="chevron-down" id="upcoming-todos-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200" style="${upcomingTodosExpanded ? '' : 'transform: rotate(-90deg);'}"></i>
