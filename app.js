@@ -1947,7 +1947,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const labelDay = dateKey === tomorrow ? 'Demain' :
           dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
 
-        const dlCount = items.filter(i => i.isDeadline).length;
+        const plannings = items.filter(i => isMessagePlanning(i.rawContent));
+        const others = items.filter(i => !isMessagePlanning(i.rawContent));
+
+        const dlCount = others.filter(i => i.isDeadline).length;
         const dlIndicator = dlCount > 0
           ? `<span class="text-[9px] bg-rose-600 text-white px-1.5 py-0.5 rounded font-black">${dlCount} DL</span>`
           : '';
@@ -1959,7 +1962,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="flex-1 h-px bg-slate-200"></div>
           </div>`;
 
-        items.forEach(item => {
+        // 1. Rendu des autres items (deadlines, todos, notes classiques)
+        others.forEach(item => {
           const deleteBtn = `<button class="upcoming-delete p-1 text-slate-300 hover:text-rose-500 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Supprimer"><i data-lucide="trash-2" class="w-3 h-3"></i></button>`;
           const editBtn = `<button class="upcoming-edit p-1 text-slate-300 hover:text-blue-600 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Modifier"><i data-lucide="pencil" class="w-3 h-3"></i></button>`;
 
@@ -1987,23 +1991,6 @@ document.addEventListener('DOMContentLoaded', () => {
                       ${clientBadge}
                     </div>
                     <span class="upcoming-content text-[11px] text-rose-950 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
-                  </div>
-                </div>
-                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
-              </div>
-            </div>`;
-          } else if (isMessagePlanning(item.rawContent)) {
-            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-indigo-200 mb-1.5 bg-white relative group">
-              <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
-              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
-                <div class="flex items-start gap-1.5 min-w-0">
-                  <i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5"></i>
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="text-[9px] font-black bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded uppercase tracking-wider shrink-0">Planning</span>
-                      ${clientBadge}
-                    </div>
-                    <span class="upcoming-content text-[11px] text-indigo-950 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
                   </div>
                 </div>
                 <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
@@ -2044,6 +2031,51 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
           }
         });
+
+        // 2. Rendu groupé des plannings (sous un seul intitulé)
+        if (plannings.length > 0) {
+          html += `
+            <div class="mt-2.5 mb-1.5 pl-1 flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-indigo-500">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-500"></i>
+              <span>Planning</span>
+              <span class="bg-indigo-50 text-indigo-600 px-1.5 py-0.2 rounded-full font-extrabold">${plannings.length}</span>
+            </div>
+            <div class="space-y-1">`;
+          
+          plannings.forEach(item => {
+            const deleteBtn = `<button class="upcoming-delete p-1 text-slate-300 hover:text-rose-500 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Supprimer"><i data-lucide="trash-2" class="w-3 h-3"></i></button>`;
+            const editBtn = `<button class="upcoming-edit p-1 text-slate-300 hover:text-blue-600 transition rounded" data-id="${item.id}" data-type="${item.type}" title="Modifier"><i data-lucide="pencil" class="w-3 h-3"></i></button>`;
+
+            let clientBadge = '';
+            const client = clients.find(c => String(c.id) === String(item.clientId));
+            if (client) {
+              const colorKey = getClientColorKey(client);
+              const theme = colorKey.startsWith('#') ? getCustomTheme(colorKey) : (CLIENT_THEMES[colorKey] || CLIENT_THEMES.blue);
+              clientBadge = `<button class="upcoming-client-badge text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider hover:opacity-85 transition shrink-0" style="background-color: ${theme.light}; border-color: ${theme.accent}30; color: ${theme.accent};" data-client-id="${client.id}">${client.name}</button>`;
+            }
+
+            const editedRegex = /\s*\[edited:([^\]]+)\]\s*$/;
+            const cleanContent = (item.content || '').replace(editedRegex, '');
+            const preview = cleanContent.slice(0, 80) + (cleanContent.length > 80 ? '...' : '');
+
+            html += `<div class="upcoming-note-item rounded-lg overflow-hidden shadow-sm border border-indigo-100 mb-1.5 bg-white relative group">
+              <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+              <div class="pl-2.5 px-2.5 py-2 flex items-start justify-between gap-2">
+                <div class="flex items-start gap-1.5 min-w-0">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      ${clientBadge}
+                    </div>
+                    <span class="upcoming-content text-[11px] text-slate-700 leading-snug msg-content-container block mt-1" data-id="${item.id}" data-type="${item.type}">${preview}</span>
+                  </div>
+                </div>
+                <div class="flex items-center shrink-0 opacity-80 group-hover:opacity-100 transition">${editBtn}${deleteBtn}</div>
+              </div>
+            </div>`;
+          });
+
+          html += `</div>`;
+        }
       });
 
       upcomingList.innerHTML = html;
