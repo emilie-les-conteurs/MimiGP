@@ -3657,18 +3657,54 @@ document.addEventListener('DOMContentLoaded', () => {
   globalDateBtn.addEventListener('click', openDatePicker);
   clientDateBtn.addEventListener('click', openDatePicker);
 
-  // Insertion simplifiée de liens dans les notes
-  function insertLinkIntoTextarea(textarea) {
-    if (!textarea) return;
-    const url = prompt("Entrez l'adresse du lien (ex: www.google.com ou https://...) :");
-    if (!url) return;
+  // Bulle flottante d'insertion de lien
+  const linkBubble        = document.getElementById('link-bubble');
+  const linkBubbleUrl    = document.getElementById('link-bubble-url');
+  const linkBubbleText   = document.getElementById('link-bubble-text');
+  const linkBubbleCancel = document.getElementById('link-bubble-cancel');
+  const linkBubbleSave   = document.getElementById('link-bubble-save');
+  let activeTextareaForLink = null;
+
+  function openLinkBubble(button, textarea) {
+    if (!linkBubble || !textarea) return;
+    activeTextareaForLink = textarea;
     
+    // Récupérer le texte sélectionné
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = textarea.value.substring(start, end);
     
-    const label = prompt("Texte à afficher pour ce lien :", selectedText || "Lien");
-    if (label === null) return;
+    linkBubbleUrl.value = '';
+    linkBubbleText.value = selectedText || '';
+    
+    // Positionner la bulle au-dessus/à côté du bouton
+    const rect = button.getBoundingClientRect();
+    linkBubble.style.top = `${window.scrollY + rect.top - 165}px`;
+    linkBubble.style.left = `${window.scrollX + rect.left - 100}px`;
+    
+    linkBubble.classList.remove('hidden');
+    setTimeout(() => linkBubbleUrl.focus(), 50);
+  }
+
+  function closeLinkBubble() {
+    if (linkBubble) linkBubble.classList.add('hidden');
+    activeTextareaForLink = null;
+  }
+
+  linkBubbleCancel?.addEventListener('click', closeLinkBubble);
+
+  function insertLinkFromBubble() {
+    if (!activeTextareaForLink) return;
+    const url = linkBubbleUrl.value.trim();
+    const label = linkBubbleText.value.trim();
+    if (!url) {
+      closeLinkBubble();
+      return;
+    }
+    
+    const textarea = activeTextareaForLink;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
     
     const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
     const markdownLink = `[${label || 'Lien'}](${formattedUrl})`;
@@ -3682,10 +3718,53 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const event = new Event('input', { bubbles: true });
     textarea.dispatchEvent(event);
+    
+    closeLinkBubble();
   }
 
-  globalLinkBtn?.addEventListener('click', () => insertLinkIntoTextarea(globalChatInput));
-  clientLinkBtn?.addEventListener('click', () => insertLinkIntoTextarea(clientChatInput));
+  linkBubbleSave?.addEventListener('click', insertLinkFromBubble);
+  
+  linkBubble?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      insertLinkFromBubble();
+    } else if (e.key === 'Escape') {
+      closeLinkBubble();
+    }
+  });
+
+  linkBubble?.addEventListener('click', e => e.stopPropagation());
+
+  globalLinkBtn?.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    openLinkBubble(globalLinkBtn, globalChatInput);
+  });
+  clientLinkBtn?.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    openLinkBubble(clientLinkBtn, clientChatInput);
+  });
+
+  // Raccourci clavier Cmd+B / Ctrl+B pour mettre en gras le texte sélectionné
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl.tagName === 'TEXTAREA') {
+        e.preventDefault();
+        const start = activeEl.selectionStart;
+        const end = activeEl.selectionEnd;
+        const text = activeEl.value;
+        const selected = text.substring(start, end);
+        const replacement = `**${selected}**`;
+        activeEl.value = text.substring(0, start) + replacement + text.substring(end);
+        activeEl.focus();
+        activeEl.selectionStart = start + 2;
+        activeEl.selectionEnd = start + 2 + selected.length;
+        
+        const event = new Event('input', { bubbles: true });
+        activeEl.dispatchEvent(event);
+      }
+    }
+  });
 
 
 
@@ -4454,6 +4533,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.innerWidth < 1024 && rightSidebar) {
       rightSidebar.classList.remove('active');
     }
+    closeLinkBubble();
   });
 
   // Éviter la fermeture lors des clics dans les tiroirs

@@ -711,5 +711,16 @@
     </div>
   </div>
 
+  <!-- Bulle flottante d'insertion de lien -->
+  <div id="link-bubble" class="hidden absolute bg-white border border-slate-200 shadow-2xl rounded-2xl p-3.5 z-50 flex flex-col gap-2 w-64 animate-fade-in-up">
+    <div class="text-[10px] uppercase font-extrabold text-slate-400">Insérer un lien</div>
+    <input type="text" id="link-bubble-url" placeholder="Coller l'adresse (ex: google.com)..." class="w-full px-2.5 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+    <input type="text" id="link-bubble-text" placeholder="Texte à afficher..." class="w-full px-2.5 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+    <div class="flex justify-end gap-1.5 mt-1">
+      <button type="button" id="link-bubble-cancel" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold border hover:bg-slate-50 transition">Annuler</button>
+      <button type="button" id="link-bubble-save" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-blue-600 hover:bg-blue-700 text-white transition">Insérer</button>
+    </div>
+  </div>
+
 </body>
 </html>
