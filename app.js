@@ -1613,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (contextClientId === 'dashboard') {
             await loadGlobalFeed(false);
           } else {
-            renderTodos(contextClientId);
+            renderClientMessages();
           }
 
           // Si la tâche était liée à un client, on l'insère dans Supabase
@@ -1637,7 +1637,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (contextClientId === 'dashboard') {
                   await loadGlobalFeed(false);
                 } else {
-                  renderTodos(contextClientId);
+                  renderClientMessages();
                 }
               } else {
                 if (activeClientId) {
@@ -1654,7 +1654,7 @@ document.addEventListener('DOMContentLoaded', () => {
               if (contextClientId === 'dashboard') {
                 await loadGlobalFeed(false);
               } else {
-                renderTodos(contextClientId);
+                renderClientMessages();
               }
             }
           }
@@ -1713,12 +1713,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (contextClientId === 'dashboard') {
               loadGlobalFeed(false);
             } else {
-              renderTodos(contextClientId);
-              if (contextClientId) {
-                renderUpcomingNotes(clientMessages);
-              } else {
-                renderUpcomingNotes(globalMessages);
-              }
+              renderClientMessages();
             }
           };
 
@@ -1734,7 +1729,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (contextClientId === 'dashboard') {
               loadGlobalFeed(false);
             } else {
-              renderTodos(contextClientId);
+              renderClientMessages();
             }
           });
 
@@ -1747,7 +1742,7 @@ document.addEventListener('DOMContentLoaded', () => {
               if (contextClientId === 'dashboard') {
                 loadGlobalFeed(false);
               } else {
-                renderTodos(contextClientId);
+                renderClientMessages();
               }
             }
           });
@@ -1764,12 +1759,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (contextClientId === 'dashboard') {
           await loadGlobalFeed(false);
         } else {
-          renderTodos(contextClientId);
-          if (contextClientId) {
-            renderUpcomingNotes(clientMessages);
-          } else {
-            renderUpcomingNotes(globalMessages);
-          }
+          renderClientMessages();
         }
       });
     });
@@ -2521,6 +2511,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let todayNotesExpanded = false;
   let upcomingTodosExpanded = false;
+  let clientUpcomingTodosExpanded = false;
 
   function renderGlobalFeed() {
     const today = getLocalDateString();
@@ -3202,11 +3193,68 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update upcoming widget
     renderUpcomingNotes(clientMessages);
     renderTodos(activeClientId);
+
+    // Render Pense-bêtes card at the top of client messages
+    const todayTodos = todos.filter(t => !t.done && String(t.clientId) === String(activeClientId) && (!t.dueDate || t.dueDate <= today));
+    const upcomingTodos = todos.filter(t => !t.done && String(t.clientId) === String(activeClientId) && t.dueDate && t.dueDate > today);
+
+    const clientTodosCard = document.createElement('div');
+    clientTodosCard.className = 'mb-5 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in-up';
+    clientTodosCard.style.animationDelay = '50ms';
+    clientTodosCard.innerHTML = `
+      <div class="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
+        <h2 class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <i data-lucide="pin" class="w-4 h-4 fill-amber-500 text-amber-500"></i>
+          Pense-bêtes client
+        </h2>
+      </div>
+      <div id="client-todos-list-card" class="space-y-1 text-xs">
+        ${todayTodos.length > 0 
+          ? todayTodos.map(t => renderTodoItem(t)).join('') 
+          : `<p class="text-xs text-slate-400 py-3 text-center">Aucun pense-bête pour aujourd'hui.</p>`}
+      </div>
+      
+      <!-- Button to expand upcoming ones -->
+      <div class="mt-3 border-t border-slate-50 pt-2">
+        <button id="client-upcoming-todos-toggle-btn" class="flex items-center justify-between w-full py-1 text-left font-bold text-slate-500 hover:text-slate-700 transition">
+          <span class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-extrabold">
+            <i data-lucide="calendar" class="w-3.5 h-3.5 text-purple-500 shrink-0"></i>
+            Pense-Bêtes à venir
+            <span class="text-[9px] bg-purple-50 text-purple-600 px-1.5 py-0.2 rounded-full font-extrabold">${upcomingTodos.length}</span>
+          </span>
+          <i data-lucide="chevron-down" id="client-upcoming-todos-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200" style="${clientUpcomingTodosExpanded ? '' : 'transform: rotate(-90deg);'}"></i>
+        </button>
+        <div id="client-upcoming-todos-list" class="space-y-1 text-xs mt-2" style="display: ${clientUpcomingTodosExpanded ? 'block' : 'none'};">
+          ${upcomingTodos.length > 0 
+            ? upcomingTodos.map(t => renderTodoItem(t)).join('') 
+            : `<p class="text-xs text-slate-400 py-2 text-center">Aucun pense-bête futur.</p>`}
+        </div>
+      </div>
+    `;
+    clientChatMessages.appendChild(clientTodosCard);
+
+    bindTodoEvents(clientTodosCard, activeClientId);
+
+    const clientUpcomingToggleBtn = clientTodosCard.querySelector('#client-upcoming-todos-toggle-btn');
+    const clientUpcomingContent = clientTodosCard.querySelector('#client-upcoming-todos-list');
+    const clientUpcomingChevron = clientTodosCard.querySelector('#client-upcoming-todos-chevron');
+
+    clientUpcomingToggleBtn?.addEventListener('click', () => {
+      clientUpcomingTodosExpanded = !clientUpcomingTodosExpanded;
+      if (clientUpcomingContent) clientUpcomingContent.style.display = clientUpcomingTodosExpanded ? 'block' : 'none';
+      if (clientUpcomingChevron) {
+        clientUpcomingChevron.style.transform = clientUpcomingTodosExpanded ? '' : 'rotate(-90deg)';
+      }
+    });
+
     if (msgs.length === 0) {
-      clientChatMessages.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
+      const placeholder = document.createElement('div');
+      placeholder.className = 'flex flex-col items-center justify-center py-12 text-slate-400 space-y-2';
+      placeholder.innerHTML = `
         <i data-lucide="message-square" class="w-10 h-10 text-slate-300"></i>
         <p class="text-sm">Aucune note${selectedDateFilter ? ' pour cette date' : ''}.</p>
-      </div>`;
+      `;
+      clientChatMessages.appendChild(placeholder);
       lucide.createIcons();
       return;
     }
