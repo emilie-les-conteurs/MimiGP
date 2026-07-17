@@ -3090,12 +3090,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorToSave = parsed.bgColor;
     const isTodo = parsed.isTodo;
 
-    isSending = true;
     const sendBtn = globalChatForm.querySelector('button[type="submit"]');
-    if (sendBtn) sendBtn.disabled = true;
 
     try {
       if (isTodo) {
+        isSending = true;
+        if (sendBtn) sendBtn.disabled = true;
         addTodo(targetClientId, content || "À faire");
         globalChatInput.value = '';
         pendingNoteBgColor = null;
@@ -3110,27 +3110,64 @@ document.addEventListener('DOMContentLoaded', () => {
         contentToSave = `${contentToSave} [planning]`;
       }
 
-      await sendMessage(targetClientId, contentToSave, globalFile, async (msgData) => {
-        if (bgColorToSave && msgData?.id) {
-          noteBgs[msgData.id] = bgColorToSave;
-          saveNoteBgs();
+      // --- OPTIMISTIC INSTANT UPDATE ---
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg = {
+        id: tempId,
+        client_id: targetClientId,
+        user_id: currentSession?.user?.id || 'temp-user',
+        content: contentToSave,
+        created_at: new Date().toISOString(),
+        bg_color: bgColorToSave || null,
+        file_name: globalFile ? globalFile.name : null,
+        file_url: null,
+        is_optimistic: true
+      };
+
+      // Push and render instantly
+      globalMessages.push(tempMsg);
+      renderGlobalFeed();
+
+      // Clear inputs instantly
+      if (bgColorToSave) {
+        noteBgs[tempId] = bgColorToSave;
+        saveNoteBgs();
+      }
+      pendingNoteBgColor = null;
+      globalChatInput.value = '';
+      pendingClientId = null;
+      const globalFileToSend = globalFile;
+      globalFile = null;
+      globalFilePreview.classList.add('hidden');
+      globalFileInput.value = '';
+      const selectedDatesToSend = [...selectedMessageDates];
+      clearSelectedMessageDates();
+      // ---------------------------------
+
+      // Send to Supabase in the background
+      sendMessage(targetClientId, contentToSave, globalFileToSend, async (msgData) => {
+        // Clean up temporary message
+        globalMessages = globalMessages.filter(m => m.id !== tempId);
+        if (noteBgs[tempId]) {
+          delete noteBgs[tempId];
         }
-        pendingNoteBgColor = null;
-        globalChatInput.value = '';
-        pendingClientId = null;
-        globalFile = null;
-        globalFilePreview.classList.add('hidden');
-        globalFileInput.value = '';
-        clearSelectedMessageDates();
 
         if (msgData) {
+          if (bgColorToSave) {
+            noteBgs[msgData.id] = bgColorToSave;
+          }
+          saveNoteBgs();
+
           if (!globalMessages.some(m => m.id === msgData.id)) {
             globalMessages.push(msgData);
           }
           renderGlobalFeed();
         }
         await loadGlobalFeed(false);
-      }, selectedMessageDates, bgColorToSave);
+      }, selectedDatesToSend, bgColorToSave).catch(err => {
+        console.error("Erreur d'envoi en arrière-plan:", err);
+      });
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -3537,12 +3574,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorToSave = parsed.bgColor;
     const isTodo = parsed.isTodo;
 
-    isSending = true;
     const sendBtn = clientChatForm.querySelector('button[type="submit"]');
-    if (sendBtn) sendBtn.disabled = true;
 
     try {
       if (isTodo) {
+        isSending = true;
+        if (sendBtn) sendBtn.disabled = true;
         addTodo(targetClientId, content || "À faire");
         clientChatInput.value = '';
         pendingNoteBgColor = null;
@@ -3557,28 +3594,73 @@ document.addEventListener('DOMContentLoaded', () => {
         contentToSave = `${contentToSave} [planning]`;
       }
 
-      await sendMessage(targetClientId, contentToSave, clientFile, async (msgData) => {
-        // Enregistrer la couleur de fond du message
-        if (bgColorToSave && msgData?.id) {
-          noteBgs[msgData.id] = bgColorToSave;
-          saveNoteBgs();
+      // --- OPTIMISTIC INSTANT UPDATE ---
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg = {
+        id: tempId,
+        client_id: targetClientId,
+        user_id: currentSession?.user?.id || 'temp-user',
+        content: contentToSave,
+        created_at: new Date().toISOString(),
+        bg_color: bgColorToSave || null,
+        file_name: clientFile ? clientFile.name : null,
+        file_url: null,
+        is_optimistic: true
+      };
+
+      // Push and render instantly on client page if target matches active
+      if (String(targetClientId) === String(activeClientId)) {
+        clientMessages.push(tempMsg);
+        renderClientMessages();
+      }
+      globalMessages.push(tempMsg);
+
+      // Clear inputs instantly
+      if (bgColorToSave) {
+        noteBgs[tempId] = bgColorToSave;
+        saveNoteBgs();
+      }
+      pendingNoteBgColor = null;
+      clientChatInput.value = '';
+      const clientFileToSend = clientFile;
+      clientFile = null;
+      clientFilePreview.classList.add('hidden');
+      clientFileInput.value = '';
+      const selectedDatesToSend = [...selectedMessageDates];
+      clearSelectedMessageDates();
+      // ---------------------------------
+
+      // Send to Supabase in the background
+      sendMessage(targetClientId, contentToSave, clientFileToSend, async (msgData) => {
+        // Clean up temporary message
+        clientMessages = clientMessages.filter(m => m.id !== tempId);
+        globalMessages = globalMessages.filter(m => m.id !== tempId);
+        if (noteBgs[tempId]) {
+          delete noteBgs[tempId];
         }
-        pendingNoteBgColor = null;
-        clientChatInput.value = '';
-        clientFile = null;
-        clientFilePreview.classList.add('hidden');
-        clientFileInput.value = '';
-        clearSelectedMessageDates();
 
         if (msgData) {
-          if (!clientMessages.some(m => m.id === msgData.id)) {
-            clientMessages.push(msgData);
+          if (bgColorToSave) {
+            noteBgs[msgData.id] = bgColorToSave;
           }
-          renderClientMessages();
+          saveNoteBgs();
+
+          if (String(targetClientId) === String(activeClientId)) {
+            if (!clientMessages.some(m => m.id === msgData.id)) {
+              clientMessages.push(msgData);
+            }
+            renderClientMessages();
+          }
+          if (!globalMessages.some(m => m.id === msgData.id)) {
+            globalMessages.push(msgData);
+          }
         }
         await loadClientMessages(false);
         renderCalendar();
-      }, selectedMessageDates, bgColorToSave);
+      }, selectedDatesToSend, bgColorToSave).catch(err => {
+        console.error("Erreur d'envoi en arrière-plan:", err);
+      });
+
     } catch (err) {
       console.error(err);
     } finally {
