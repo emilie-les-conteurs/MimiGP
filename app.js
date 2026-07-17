@@ -5,7 +5,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    }
+  });
 
   // ─── ÉTAT GLOBAL ────────────────────────────────────────────────
   let currentSession   = null;
@@ -115,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadTodos() {
     try {
-      const { data, error } = await sb.from('todos').select('*').order('created_at', { ascending: true });
+      const { data, error } = await sb.from('todos').select('*').order('created_at', { ascending: true }).headers({ 'Cache-Control': 'no-cache' });
       if (error) throw error;
       todos = (data || []).map(t => ({
         id: String(t.id),
@@ -1018,7 +1026,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const { data, error } = await sb
         .from('messages')
         .select('*, clients(*)')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .headers({ 'Cache-Control': 'no-cache' });
       if (error) throw error;
       globalMessages = data || [];
       renderGlobalFeed();
@@ -3159,7 +3168,8 @@ document.addEventListener('DOMContentLoaded', () => {
         .from('messages')
         .select('*')
         .eq('client_id', activeClientId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .headers({ 'Cache-Control': 'no-cache' });
       if (error) throw error;
       clientMessages = data || [];
       renderClientMessages();
