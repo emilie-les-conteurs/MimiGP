@@ -211,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const SLASH_COMMANDS = [
     { cmd: '/cl ',       label: '/cl',         desc: 'Attribuer la note à un client',      icon: '🏢' },
     { cmd: '/pensebete ',label: '/pensebete',  desc: 'Créer un pense-bête interactif',     icon: '📌' },
+    { cmd: '/todo ',     label: '/todo',       desc: 'Créer un pense-bête interactif (alias)', icon: '📌' },
     { cmd: '/couleurfond',label: '/couleurfond',desc: 'Changer la couleur de fond',        icon: '🎨' },
     { cmd: '/date',      label: '/date',        desc: 'Planifier la note sur une date',    icon: '📅' },
     { cmd: '/collaborateur', label: '/collaborateur', desc: 'Ajouter un collaborateur interne', icon: '👤' },
@@ -1108,8 +1109,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const cfRegex = /\/couleurfond(?:\s+([^\s]+))?/i;
     mainText = mainText.replace(cfRegex, '');
 
-    // 5. Enlever /pensebete
-    mainText = mainText.replace(/\/pensebete(?:\s+|$)/gi, '');
+    // 5. Enlever /pensebete ou /todo
+    mainText = mainText.replace(/\/(?:pensebete|todo)(?:\s+|$)/gi, '');
 
     // 6. Enlever les raccourcis de client au début, ex: /"Côte de Granit Rose" ou /'Lège Cap ferret' ou /Dinan
     clients.forEach(c => {
@@ -1646,52 +1647,58 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           // ---------------------------------
 
-          // Lancer la suppression et la création en arrière-plan
-          deleteTodoById(id).catch(err => console.error("Erreur suppression todo:", err));
+          // Lancer les opérations en arrière-plan de manière ordonnée pour éviter toute condition de course
+          (async () => {
+            try {
+              // 1. Attendre la suppression définitive sur Supabase
+              await deleteTodoById(id);
 
-          if (todo.clientId && tempMsg) {
-            sb.from('messages').insert({
-              client_id: todo.clientId,
-              user_id: currentSession.user.id,
-              content: tempMsg.content,
-              created_at: tempMsg.created_at
-            }).select().then(({ data: insertedData, error }) => {
-              // Nettoyer le message temporaire
-              clientMessages = clientMessages.filter(m => m.id !== tempId);
-              globalMessages = globalMessages.filter(m => m.id !== tempId);
+              // 2. Si la tâche était liée à un client, on insère la note historique Fait
+              if (todo.clientId && tempMsg) {
+                const { data: insertedData, error } = await sb.from('messages').insert({
+                  client_id: todo.clientId,
+                  user_id: currentSession.user.id,
+                  content: tempMsg.content,
+                  created_at: tempMsg.created_at
+                }).select();
 
-              if (error) {
-                console.error("Erreur conversion pense-bête en note:", error.message);
-                // Restaurer le pense-bête en cas d'erreur
-                todo.done = false;
-                todos.push(todo);
-                saveTodos();
-              } else if (insertedData && insertedData[0]) {
-                const msgData = insertedData[0];
-                if (String(todo.clientId) === String(activeClientId)) {
-                  clientMessages.push(msgData);
+                // Nettoyer la note temporaire
+                clientMessages = clientMessages.filter(m => m.id !== tempId);
+                globalMessages = globalMessages.filter(m => m.id !== tempId);
+
+                if (error) {
+                  console.error("Erreur conversion pense-bête en note:", error.message);
+                  todo.done = false;
+                  todos.push(todo);
+                  saveTodos();
+                } else if (insertedData && insertedData[0]) {
+                  const msgData = insertedData[0];
+                  if (String(todo.clientId) === String(activeClientId)) {
+                    clientMessages.push(msgData);
+                  }
+                  globalMessages.push(msgData);
                 }
-                globalMessages.push(msgData);
               }
 
-              // Rafraîchir le flux complet pour synchroniser
+              // 3. Recharger les flux pour synchroniser proprement
               if (contextClientId === 'dashboard') {
-                loadGlobalFeed(false);
+                await loadGlobalFeed(false);
               } else {
-                loadClientMessages(false);
+                await loadClientMessages(false);
               }
-            }).catch(err => {
-              console.error("Erreur conversion pense-bête en note:", err);
+            } catch (err) {
+              console.error("Erreur sync checkbox:", err);
+              // Restaurer le pense-bête en cas d'erreur
               todo.done = false;
               todos.push(todo);
               saveTodos();
               if (contextClientId === 'dashboard') {
-                loadGlobalFeed(false);
+                renderGlobalFeed();
               } else {
                 renderClientMessages();
               }
-            });
-          }
+            }
+          })();
         }
       });
     });
@@ -2983,7 +2990,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (shortcutMatch) {
         const potentialName = (shortcutMatch[1] || shortcutMatch[2] || shortcutMatch[3] || '').trim().toLowerCase();
         // Vérifier que ce n'est pas une commande système connue
-        const isSystemCmd = ['date', 'personne', 'couleurfond', 'pensebete', 'dl'].includes(potentialName);
+        const isSystemCmd = ['date', 'personne', 'couleurfond', 'pensebete', 'todo', 'dl'].includes(potentialName);
         if (!isSystemCmd) {
           if (['aucun', 'general', 'général', 'none', 'clear'].includes(potentialName)) {
             clientId = 'none';
@@ -3002,8 +3009,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 3. Parser /pensebete
-    const pbRegex = /\/pensebete(?:\s+|$)/i;
+    // 3. Parser /pensebete ou /todo
+    const pbRegex = /\/(?:pensebete|todo)(?:\s+|$)/i;
     if (pbRegex.test(text)) {
       isTodo = true;
       text = text.replace(pbRegex, '');
