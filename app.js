@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadTodos() {
     try {
-      const { data, error } = await sb.from('todos').select('*').order('created_at', { ascending: true }).headers({ 'Cache-Control': 'no-cache' });
+      const { data, error } = await sb.from('todos').select('*').order('created_at', { ascending: true });
       if (error) throw error;
       todos = (data || []).map(t => ({
         id: String(t.id),
@@ -1026,8 +1026,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const { data, error } = await sb
         .from('messages')
         .select('*, clients(*)')
-        .order('created_at', { ascending: true })
-        .headers({ 'Cache-Control': 'no-cache' });
+        .order('created_at', { ascending: true });
       if (error) throw error;
       globalMessages = data || [];
       renderGlobalFeed();
@@ -3168,8 +3167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .from('messages')
         .select('*')
         .eq('client_id', activeClientId)
-        .order('created_at', { ascending: true })
-        .headers({ 'Cache-Control': 'no-cache' });
+        .order('created_at', { ascending: true });
       if (error) throw error;
       clientMessages = data || [];
       renderClientMessages();
