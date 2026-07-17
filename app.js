@@ -1607,7 +1607,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function bindTodoEvents(container, contextClientId) {
     container.querySelectorAll('.todo-checkbox').forEach(cb => {
-      cb.addEventListener('change', async () => {
+      cb.addEventListener('change', () => {
         const id = cb.dataset.id;
         const todo = todos.find(t => t.id === id);
         if (!todo) return;
@@ -1615,56 +1615,82 @@ document.addEventListener('DOMContentLoaded', () => {
         const isChecked = cb.checked;
 
         if (isChecked) {
-          // Suppression définitive sur Supabase et localement
-          await deleteTodoById(id);
-          
+          // --- OPTIMISTIC INSTANT UPDATE ---
+          // Supprimer le pense-bête localement immédiatement
+          todos = todos.filter(t => t.id !== id);
+          saveTodos();
+
+          const tempId = `temp-todo-done-${Date.now()}`;
+          const tempMsg = todo.clientId ? {
+            id: tempId,
+            client_id: todo.clientId,
+            user_id: currentSession?.user?.id || 'temp-user',
+            content: `Fait : ${todo.content}`,
+            created_at: new Date().toISOString(),
+            is_optimistic: true
+          } : null;
+
+          // Push to local messages lists instantly
+          if (tempMsg) {
+            if (String(todo.clientId) === String(activeClientId)) {
+              clientMessages.push(tempMsg);
+            }
+            globalMessages.push(tempMsg);
+          }
+
+          // Rafraîchir l'affichage immédiatement
           if (contextClientId === 'dashboard') {
-            await loadGlobalFeed(false);
+            renderGlobalFeed();
           } else {
             renderClientMessages();
           }
+          // ---------------------------------
 
-          // Si la tâche était liée à un client, on l'insère dans Supabase
-          if (todo.clientId) {
-            try {
-              const noteContent = `Fait : ${todo.content}`;
-              
-              // Insérer le message
-              const { error } = await sb.from('messages').insert({
-                client_id: todo.clientId,
-                user_id: currentSession.user.id,
-                content: noteContent,
-                created_at: new Date().toISOString()
-              });
-              
+          // Lancer la suppression et la création en arrière-plan
+          deleteTodoById(id).catch(err => console.error("Erreur suppression todo:", err));
+
+          if (todo.clientId && tempMsg) {
+            sb.from('messages').insert({
+              client_id: todo.clientId,
+              user_id: currentSession.user.id,
+              content: tempMsg.content,
+              created_at: tempMsg.created_at
+            }).select().then(({ data: insertedData, error }) => {
+              // Nettoyer le message temporaire
+              clientMessages = clientMessages.filter(m => m.id !== tempId);
+              globalMessages = globalMessages.filter(m => m.id !== tempId);
+
               if (error) {
                 console.error("Erreur conversion pense-bête en note:", error.message);
+                // Restaurer le pense-bête en cas d'erreur
                 todo.done = false;
                 todos.push(todo);
                 saveTodos();
-                if (contextClientId === 'dashboard') {
-                  await loadGlobalFeed(false);
-                } else {
-                  renderClientMessages();
+              } else if (insertedData && insertedData[0]) {
+                const msgData = insertedData[0];
+                if (String(todo.clientId) === String(activeClientId)) {
+                  clientMessages.push(msgData);
                 }
-              } else {
-                if (activeClientId) {
-                  await loadClientMessages(false);
-                } else {
-                  await loadGlobalFeed(false);
-                }
+                globalMessages.push(msgData);
               }
-            } catch (err) {
+
+              // Rafraîchir le flux complet pour synchroniser
+              if (contextClientId === 'dashboard') {
+                loadGlobalFeed(false);
+              } else {
+                loadClientMessages(false);
+              }
+            }).catch(err => {
               console.error("Erreur conversion pense-bête en note:", err);
               todo.done = false;
               todos.push(todo);
               saveTodos();
               if (contextClientId === 'dashboard') {
-                await loadGlobalFeed(false);
+                loadGlobalFeed(false);
               } else {
                 renderClientMessages();
               }
-            }
+            });
           }
         }
       });
@@ -1719,7 +1745,7 @@ document.addEventListener('DOMContentLoaded', () => {
               saveTodos();
             }
             if (contextClientId === 'dashboard') {
-              loadGlobalFeed(false);
+              renderGlobalFeed();
             } else {
               renderClientMessages();
             }
@@ -1735,7 +1761,7 @@ document.addEventListener('DOMContentLoaded', () => {
             evt.preventDefault();
             evt.stopPropagation();
             if (contextClientId === 'dashboard') {
-              loadGlobalFeed(false);
+              renderGlobalFeed();
             } else {
               renderClientMessages();
             }
@@ -1748,7 +1774,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (e.key === 'Escape') {
               e.preventDefault();
               if (contextClientId === 'dashboard') {
-                loadGlobalFeed(false);
+                renderGlobalFeed();
               } else {
                 renderClientMessages();
               }
@@ -1759,16 +1785,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     container.querySelectorAll('.todo-delete').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         const id = btn.dataset.id;
-        await deleteTodoById(id);
+
+        // Suppression locale instantanée
+        todos = todos.filter(t => t.id !== id);
+        saveTodos();
+
         if (contextClientId === 'dashboard') {
-          await loadGlobalFeed(false);
+          renderGlobalFeed();
         } else {
           renderClientMessages();
         }
+
+        // Suppression en arrière-plan
+        deleteTodoById(id).then(() => {
+          if (contextClientId === 'dashboard') {
+            loadGlobalFeed(false);
+          } else {
+            loadClientMessages(false);
+          }
+        }).catch(err => {
+          console.error("Erreur suppression:", err);
+        });
       });
     });
   }
@@ -3111,28 +3152,41 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // --- OPTIMISTIC INSTANT UPDATE ---
-      const tempId = `temp-${Date.now()}`;
-      const tempMsg = {
-        id: tempId,
-        client_id: targetClientId,
-        user_id: currentSession?.user?.id || 'temp-user',
-        content: contentToSave,
-        created_at: new Date().toISOString(),
-        bg_color: bgColorToSave || null,
-        file_name: globalFile ? globalFile.name : null,
-        file_url: null,
-        is_optimistic: true
-      };
+      const tempIdBase = `temp-${Date.now()}`;
+      const tempMsgs = [];
+      
+      const datesToUse = selectedMessageDates.length > 0 ? selectedMessageDates : [getLocalDateString()];
+
+      datesToUse.forEach((d, index) => {
+        const tempId = `${tempIdBase}-${index}`;
+        const tempMsg = {
+          id: tempId,
+          client_id: targetClientId,
+          user_id: currentSession?.user?.id || 'temp-user',
+          content: contentToSave,
+          created_at: `${d}T12:00:00Z`,
+          bg_color: bgColorToSave || null,
+          file_name: globalFile ? globalFile.name : null,
+          file_url: null,
+          is_optimistic: true
+        };
+        tempMsgs.push(tempMsg);
+        
+        if (bgColorToSave) {
+          noteBgs[tempId] = bgColorToSave;
+        }
+      });
+      if (bgColorToSave) {
+        saveNoteBgs();
+      }
 
       // Push and render instantly
-      globalMessages.push(tempMsg);
+      tempMsgs.forEach(m => {
+        globalMessages.push(m);
+      });
       renderGlobalFeed();
 
       // Clear inputs instantly
-      if (bgColorToSave) {
-        noteBgs[tempId] = bgColorToSave;
-        saveNoteBgs();
-      }
       pendingNoteBgColor = null;
       globalChatInput.value = '';
       pendingClientId = null;
@@ -3146,11 +3200,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Send to Supabase in the background
       sendMessage(targetClientId, contentToSave, globalFileToSend, async (msgData) => {
-        // Clean up temporary message
-        globalMessages = globalMessages.filter(m => m.id !== tempId);
-        if (noteBgs[tempId]) {
-          delete noteBgs[tempId];
-        }
+        // Clean up temporary messages
+        tempMsgs.forEach(m => {
+          globalMessages = globalMessages.filter(msg => msg.id !== m.id);
+          if (noteBgs[m.id]) delete noteBgs[m.id];
+        });
 
         if (msgData) {
           if (bgColorToSave) {
@@ -3166,6 +3220,12 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadGlobalFeed(false);
       }, selectedDatesToSend, bgColorToSave).catch(err => {
         console.error("Erreur d'envoi en arrière-plan:", err);
+        // Clean up temporary messages on error
+        tempMsgs.forEach(m => {
+          globalMessages = globalMessages.filter(msg => msg.id !== m.id);
+          if (noteBgs[m.id]) delete noteBgs[m.id];
+        });
+        renderGlobalFeed();
       });
 
     } catch (err) {
@@ -3595,31 +3655,47 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // --- OPTIMISTIC INSTANT UPDATE ---
-      const tempId = `temp-${Date.now()}`;
-      const tempMsg = {
-        id: tempId,
-        client_id: targetClientId,
-        user_id: currentSession?.user?.id || 'temp-user',
-        content: contentToSave,
-        created_at: new Date().toISOString(),
-        bg_color: bgColorToSave || null,
-        file_name: clientFile ? clientFile.name : null,
-        file_url: null,
-        is_optimistic: true
-      };
+      const tempIdBase = `temp-${Date.now()}`;
+      const tempMsgs = [];
+      
+      const datesToUse = selectedMessageDates.length > 0 ? selectedMessageDates : [getLocalDateString()];
 
-      // Push and render instantly on client page if target matches active
-      if (String(targetClientId) === String(activeClientId)) {
-        clientMessages.push(tempMsg);
-        renderClientMessages();
-      }
-      globalMessages.push(tempMsg);
-
-      // Clear inputs instantly
+      datesToUse.forEach((d, index) => {
+        const tempId = `${tempIdBase}-${index}`;
+        const tempMsg = {
+          id: tempId,
+          client_id: targetClientId,
+          user_id: currentSession?.user?.id || 'temp-user',
+          content: contentToSave,
+          created_at: `${d}T12:00:00Z`,
+          bg_color: bgColorToSave || null,
+          file_name: clientFile ? clientFile.name : null,
+          file_url: null,
+          is_optimistic: true
+        };
+        tempMsgs.push(tempMsg);
+        
+        if (bgColorToSave) {
+          noteBgs[tempId] = bgColorToSave;
+        }
+      });
       if (bgColorToSave) {
-        noteBgs[tempId] = bgColorToSave;
         saveNoteBgs();
       }
+
+      // Push and render instantly on client page if target matches active
+      tempMsgs.forEach(m => {
+        if (String(targetClientId) === String(activeClientId)) {
+          clientMessages.push(m);
+        }
+        globalMessages.push(m);
+      });
+
+      if (String(targetClientId) === String(activeClientId)) {
+        renderClientMessages();
+      }
+
+      // Clear inputs instantly
       pendingNoteBgColor = null;
       clientChatInput.value = '';
       const clientFileToSend = clientFile;
@@ -3632,12 +3708,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Send to Supabase in the background
       sendMessage(targetClientId, contentToSave, clientFileToSend, async (msgData) => {
-        // Clean up temporary message
-        clientMessages = clientMessages.filter(m => m.id !== tempId);
-        globalMessages = globalMessages.filter(m => m.id !== tempId);
-        if (noteBgs[tempId]) {
-          delete noteBgs[tempId];
-        }
+        // Clean up temporary messages
+        tempMsgs.forEach(m => {
+          clientMessages = clientMessages.filter(msg => msg.id !== m.id);
+          globalMessages = globalMessages.filter(msg => msg.id !== m.id);
+          if (noteBgs[m.id]) delete noteBgs[m.id];
+        });
 
         if (msgData) {
           if (bgColorToSave) {
@@ -3659,6 +3735,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCalendar();
       }, selectedDatesToSend, bgColorToSave).catch(err => {
         console.error("Erreur d'envoi en arrière-plan:", err);
+        // Clean up temporary messages on error
+        tempMsgs.forEach(m => {
+          clientMessages = clientMessages.filter(msg => msg.id !== m.id);
+          globalMessages = globalMessages.filter(msg => msg.id !== m.id);
+          if (noteBgs[m.id]) delete noteBgs[m.id];
+        });
+        if (String(targetClientId) === String(activeClientId)) {
+          renderClientMessages();
+        }
       });
 
     } catch (err) {
@@ -3692,7 +3777,7 @@ document.addEventListener('DOMContentLoaded', () => {
       fileName = file.name;
       const path = `${currentSession.user.id}/${clientId}/${Date.now()}_${fileName}`;
       const { error: upErr } = await sb.storage.from('client-files').upload(path, file);
-      if (upErr) { alert(`Erreur upload: ${upErr.message}`); return; }
+      if (upErr) { alert(`Erreur upload: ${upErr.message}`); throw upErr; }
       fileUrl = path;
     }
 
@@ -3710,7 +3795,7 @@ document.addEventListener('DOMContentLoaded', () => {
         bg_color: bgColor || null
       }));
       const { error } = await sb.from('messages').insert(rows);
-      if (error) { alert(`Erreur: ${error.message}`); return; }
+      if (error) { alert(`Erreur: ${error.message}`); throw error; }
     } else {
       const { data: insertedData, error } = await sb.from('messages').insert({
         client_id: clientId,
@@ -3720,7 +3805,7 @@ document.addEventListener('DOMContentLoaded', () => {
         file_name: fileName,
         bg_color: bgColor || null
       }).select();
-      if (error) { alert(`Erreur: ${error.message}`); return; }
+      if (error) { alert(`Erreur: ${error.message}`); throw error; }
       if (onSuccess) await onSuccess(insertedData?.[0] || null);
       return;
     }
