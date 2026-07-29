@@ -1239,6 +1239,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (modal) modal.classList.remove('hidden');
   }
 
+  const clientEditBtn = document.getElementById('ag-client-edit-btn');
+  if (clientEditBtn) {
+    clientEditBtn.addEventListener('click', () => {
+      if (activeClientId) openEditClientModal(activeClientId);
+    });
+  }
+
   const clientModalClose = document.getElementById('ag-client-modal-close');
   const clientModalCancel = document.getElementById('ag-client-modal-cancel');
   if (clientModalClose) clientModalClose.addEventListener('click', closeClientModal);
