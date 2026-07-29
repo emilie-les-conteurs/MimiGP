@@ -656,22 +656,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ─── NOTE CARD COMPONENT & UX IMPROVEMENTS ─────────────────────────
-  function renderNoteCard(n, showClientBadge = false) {
+  function renderNoteCard(n, showClientBadge = true) {
     const clientObj = clients.find(c => c.id === n.client_id || c.id === n.clientId);
+    const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
     const isDeadline = n.is_deadline || (n.content && n.content.includes('/deadline'));
     const isCompleted = n.completed || false;
     const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id);
 
     return `
-      <div data-note-id="${n.id}" class="ag-note-card space-y-3">
+      <div data-note-id="${n.id}" class="ag-note-card space-y-3" style="border-left-color: ${clientColor};">
         
         <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
           <div class="flex items-center gap-2">
-            ${showClientBadge && clientObj ? `
-              <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white border cursor-pointer hover:opacity-90 transition" style="background-color: ${clientObj.color || '#6366f1'}30; border-color: ${clientObj.color || '#6366f1'}60">
-                ${escapeHtml(clientObj.name)}
+            ${clientObj ? `
+              <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border cursor-pointer hover:opacity-90 transition flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}25; color: ${clientColor}; border-color: ${clientColor}60;">
+                <span class="w-2 h-2 rounded-full" style="background-color: ${clientColor}"></span>
+                <span>${escapeHtml(clientObj.name)}</span>
               </span>
-            ` : ''}
+            ` : '<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-400">Global</span>'}
             <span class="text-xs text-slate-400 font-semibold">${formatDate(n.created_at || n.date)}</span>
           </div>
 
@@ -1141,6 +1143,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const colorSwatches = document.querySelectorAll('#ag-client-color-options .color-swatch-btn');
   const customColorPicker = document.getElementById('ag-client-input-color-picker');
+  const customColorHex = document.getElementById('ag-client-input-color-hex');
   const hiddenColorField = document.getElementById('ag-client-selected-color');
 
   colorSwatches.forEach(swatch => {
@@ -1150,6 +1153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       selectedClientColor = swatch.dataset.color;
       if (hiddenColorField) hiddenColorField.value = selectedClientColor;
       if (customColorPicker) customColorPicker.value = selectedClientColor;
+      if (customColorHex) customColorHex.value = selectedClientColor;
     });
   });
 
@@ -1157,7 +1161,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     customColorPicker.addEventListener('input', (e) => {
       selectedClientColor = e.target.value;
       if (hiddenColorField) hiddenColorField.value = selectedClientColor;
+      if (customColorHex) customColorHex.value = selectedClientColor;
       colorSwatches.forEach(s => s.classList.remove('active'));
+    });
+  }
+
+  if (customColorHex) {
+    customColorHex.addEventListener('input', (e) => {
+      let val = e.target.value.trim();
+      if (!val.startsWith('#') && val.length > 0) val = '#' + val;
+      selectedClientColor = val;
+      if (hiddenColorField) hiddenColorField.value = selectedClientColor;
+      if (customColorPicker && /^#[0-9A-F]{6}$/i.test(val)) customColorPicker.value = val;
     });
   }
 
@@ -1169,6 +1184,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (titleEl) titleEl.textContent = 'Nouveau Client';
     if (inputName) inputName.value = '';
     if (hiddenColorField) hiddenColorField.value = selectedClientColor;
+    if (customColorPicker) customColorPicker.value = selectedClientColor;
+    if (customColorHex) customColorHex.value = selectedClientColor;
 
     const modal = document.getElementById('ag-client-modal');
     if (modal) modal.classList.remove('hidden');
@@ -1185,6 +1202,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (titleEl) titleEl.textContent = 'Éditer le Client';
     if (inputName) inputName.value = client.name;
     if (hiddenColorField) hiddenColorField.value = selectedClientColor;
+    if (customColorPicker) customColorPicker.value = selectedClientColor;
+    if (customColorHex) customColorHex.value = selectedClientColor;
 
     colorSwatches.forEach(s => {
       if (s.dataset.color === selectedClientColor) s.classList.add('active');
