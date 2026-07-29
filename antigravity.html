@@ -194,23 +194,99 @@
       <!-- ══════════════════════════════════════════════════════════════════ -->
       <section id="ag-view-dashboard" class="space-y-6">
         
-        <!-- Welcome Banner -->
-        <div class="relative overflow-hidden rounded-2xl glass-panel p-6 border border-slate-700/50">
-          <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 class="text-2xl font-black text-white tracking-tight">Bienvenue sur MimiGP <span class="gradient-text">v2</span></h2>
-              <p class="text-sm text-slate-400 mt-1 max-w-xl">
-                Votre hub de gestion client nouvelle génération. Suivez vos projets, vos deadlines et vos échanges avec une clarté optimale.
-              </p>
+        <!-- Universal Hyper-accessible Quick Composer (Saisie Rapide depuis la Home) -->
+        <div class="glass-panel p-5 rounded-2xl border border-indigo-500/30 space-y-3 relative shadow-xl" id="ag-dash-composer">
+          
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-2.5">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-ping"></span>
+              <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                <i data-lucide="zap" class="w-4 h-4 text-indigo-400"></i>
+                Saisie Rapide Universelle
+              </span>
             </div>
-            <div class="flex items-center gap-3">
-              <button id="ag-dash-new-note-btn" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 transition flex items-center gap-2">
-                <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                <span>Créer une Note / Deadline</span>
-              </button>
+
+            <!-- Target Client Selector -->
+            <div class="flex items-center gap-2">
+              <label for="ag-dash-client-select" class="text-xs text-slate-400 font-medium">Pour le client :</label>
+              <select id="ag-dash-client-select" class="bg-slate-900 text-white text-xs px-3 py-1.5 rounded-xl border border-indigo-500/40 focus:outline-none font-semibold">
+                <!-- Dynamically filled with clients -->
+              </select>
             </div>
           </div>
+
+          <!-- Hyper-accessible Textarea -->
+          <div class="relative">
+            <textarea id="ag-dash-note-input" rows="2" placeholder="Saisissez une note, une deadline (/deadline YYYY-MM-DD), un pense-bête (/todo)... Tapez / pour le menu slash" class="w-full bg-slate-950/60 text-slate-100 text-xs rounded-xl p-3 border border-slate-700 focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
+            
+            <!-- Slash Popup Menu for Dash Composer -->
+            <div id="ag-dash-slash-menu" class="command-menu-popup hidden">
+              <div class="px-3 py-1.5 border-b border-slate-700/60 text-[10px] uppercase font-bold text-slate-400">Raccourcis Slash</div>
+              <div class="command-item" data-cmd="/todo">
+                <i data-lucide="check-square" class="w-4 h-4 text-emerald-400"></i>
+                <div>
+                  <div class="font-semibold text-white">/todo [action]</div>
+                  <div class="text-[10px]">Créer un pense-bête / tâche</div>
+                </div>
+              </div>
+              <div class="command-item" data-cmd="/deadline">
+                <i data-lucide="clock" class="w-4 h-4 text-rose-400"></i>
+                <div>
+                  <div class="font-semibold text-white">/deadline [date]</div>
+                  <div class="text-[10px]">Définir une échéance datée</div>
+                </div>
+              </div>
+              <div class="command-item" data-cmd="/demain">
+                <i data-lucide="calendar" class="w-4 h-4 text-amber-400"></i>
+                <div>
+                  <div class="font-semibold text-white">/demain</div>
+                  <div class="text-[10px]">Planifier pour demain</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Controls Toolbar with Quick Preset Buttons & Color Swatches -->
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+            
+            <!-- Quick Preset Badges -->
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" id="ag-dash-preset-todo" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-1">
+                <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+                <span>+ Pense-bête</span>
+              </button>
+
+              <button type="button" id="ag-dash-preset-deadline" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition flex items-center gap-1">
+                <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                <span>+ Deadline</span>
+              </button>
+
+              <button type="button" id="ag-dash-preset-demain" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition flex items-center gap-1">
+                <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                <span>+ Demain</span>
+              </button>
+
+              <!-- Date Picker Input -->
+              <input type="date" id="ag-dash-date-picker" class="bg-slate-900 text-slate-300 text-xs px-2.5 py-1 rounded-xl border border-slate-700 focus:outline-none" title="Date d'échéance">
+
+              <!-- Color Swatches -->
+              <div class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800" id="ag-dash-color-picker">
+                <button data-color="default" class="w-4 h-4 rounded-full bg-slate-700 ring-2 ring-indigo-500 scale-110" title="Par défaut"></button>
+                <button data-color="blue" class="w-4 h-4 rounded-full bg-blue-600 hover:scale-110 transition" title="Bleu"></button>
+                <button data-color="green" class="w-4 h-4 rounded-full bg-emerald-600 hover:scale-110 transition" title="Vert"></button>
+                <button data-color="yellow" class="w-4 h-4 rounded-full bg-amber-600 hover:scale-110 transition" title="Jaune"></button>
+                <button data-color="pink" class="w-4 h-4 rounded-full bg-pink-600 hover:scale-110 transition" title="Rose"></button>
+                <button data-color="purple" class="w-4 h-4 rounded-full bg-purple-600 hover:scale-110 transition" title="Violet"></button>
+              </div>
+            </div>
+
+            <button id="ag-dash-post-btn" class="px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-500/25 transition flex items-center gap-1.5">
+              <i data-lucide="send" class="w-3.5 h-3.5"></i>
+              <span>Publier la Note</span>
+            </button>
+
+          </div>
+
         </div>
 
         <!-- Metrics Grid (Toutes les cartes sont cliquables) -->

@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════════════════
 // MIMIGP V2 — ENGINE JS (VERSION ANTIGRAVITY)
-// Production Grade — Full Feature Parity, Clickable Dashboard, Color Theme Engine
+// Full Feature Parity — Universal Quick Composer, Client Colors, Clickable Dashboard
 // ══════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -36,13 +36,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   let editingClientId = null;
   let selectedClientColor = '#6366f1';
   let activeView = 'dashboard';
-  let currentNoteColor = 'default';
+  let dashNoteColor = 'default';
+  let clientNoteColor = 'default';
   let activeFeedFilter = 'all';
   let streamSearchQuery = '';
 
   let currentTutorialStep = 0;
 
-  // UUID Generator
   function generateUUID() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
@@ -184,6 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderDeadlinesView();
     renderKanbanView();
     renderContactsView();
+    populateDashClientSelect();
 
     if (activeClientId) {
       renderClientStream(activeClientId);
@@ -195,6 +196,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof lucide !== 'undefined' && lucide.createIcons) {
       lucide.createIcons();
     }
+  }
+
+  function populateDashClientSelect() {
+    const select = document.getElementById('ag-dash-client-select');
+    if (!select) return;
+
+    select.innerHTML = clients.length ? clients.map(c => `
+      <option value="${c.id}">${escapeHtml(c.name)}</option>
+    `).join('') : '<option value="">Aucun client - Créez-en un</option>';
   }
 
   // ─── SIDEBAR CLIENTS LIST ──────────────────────────────────────────
@@ -225,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ─── DASHBOARD VIEW (FULLY CLICKABLE) ───────────────────────────────
+  // ─── DASHBOARD VIEW ────────────────────────────────────────────────
   function renderDashboard() {
     const statClients = document.getElementById('ag-stat-clients');
     const statDeadlines = document.getElementById('ag-stat-deadlines');
@@ -240,18 +250,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statTodos) statTodos.textContent = pendingTodos.length;
     if (statPinned) statPinned.textContent = persons.length;
 
-    // Render Recent Feed with clickable cards
+    // Render Recent Feed
     const feedEl = document.getElementById('ag-dash-feed');
     if (feedEl) {
       if (!notes.length) {
-        feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-400 rounded-2xl">Aucune note enregistrée pour le moment.</div>`;
+        feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-400 rounded-2xl">Aucune note enregistrée. Utilisez la barre de Saisie Rapide ci-dessus pour publier !</div>`;
       } else {
         feedEl.innerHTML = notes.slice(0, 6).map(n => renderNoteCard(n, true)).join('');
         bindNoteCardEvents(feedEl);
       }
     }
 
-    // Render Deadlines Widget with clickable entries
+    // Render Deadlines Widget
     const deadWidgetEl = document.getElementById('ag-dash-deadlines-widget');
     if (deadWidgetEl) {
       if (!activeDeadlines.length) {
@@ -283,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Bind Dashboard Metric Cards Click Events
+  // Dashboard Metric Cards Redirection
   document.querySelectorAll('[data-dash-link]').forEach(card => {
     card.addEventListener('click', () => {
       const view = card.dataset.dashLink;
@@ -332,7 +342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <h3 class="font-black text-lg text-white tracking-tight">${escapeHtml(c.name)}</h3>
               </div>
               <div class="flex items-center gap-1.5">
-                <button data-edit-client="${c.id}" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition" title="Éditer le nom et la couleur">
+                <button data-edit-client="${c.id}" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition" title="Éditer la couleur/nom">
                   <i data-lucide="palette" class="w-4 h-4 text-indigo-400"></i>
                 </button>
                 <button data-delete-client="${c.id}" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="Supprimer le client">
@@ -438,33 +448,211 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderClientPinnedFiles(clientId);
   }
 
-  // Stream Search Input
-  const streamSearchInput = document.getElementById('ag-stream-search');
-  if (streamSearchInput) {
-    streamSearchInput.addEventListener('input', (e) => {
-      streamSearchQuery = e.target.value.toLowerCase().trim();
-      if (activeClientId) renderClientStream(activeClientId);
+  // ─── UNIVERSAL QUICK COMPOSERS LOGIC (HOME & CLIENT) ───────────────
+
+  // 1. Dashboard / Home Composer Logic
+  const dashNoteInput = document.getElementById('ag-dash-note-input');
+  const dashClientSelect = document.getElementById('ag-dash-client-select');
+  const dashPostBtn = document.getElementById('ag-dash-post-btn');
+  const dashDatePicker = document.getElementById('ag-dash-date-picker');
+  const dashSlashMenu = document.getElementById('ag-dash-slash-menu');
+
+  // Presets Home
+  const dashPresetTodo = document.getElementById('ag-dash-preset-todo');
+  const dashPresetDeadline = document.getElementById('ag-dash-preset-deadline');
+  const dashPresetDemain = document.getElementById('ag-dash-preset-demain');
+
+  if (dashPresetTodo) {
+    dashPresetTodo.addEventListener('click', () => {
+      if (dashNoteInput) {
+        dashNoteInput.value = '/todo ' + dashNoteInput.value.replace(/\/todo\s*/g, '');
+        dashNoteInput.focus();
+      }
     });
   }
 
-  // Stream Filter Tabs
-  document.querySelectorAll('#ag-feed-filter-tabs button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#ag-feed-filter-tabs button').forEach(b => {
-        b.className = 'px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition';
-      });
-      btn.className = 'px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
-      activeFeedFilter = btn.dataset.filter;
-      if (activeClientId) renderClientStream(activeClientId);
+  if (dashPresetDeadline) {
+    dashPresetDeadline.addEventListener('click', () => {
+      if (dashNoteInput) {
+        dashNoteInput.value = '/deadline ' + dashNoteInput.value.replace(/\/deadline\s*/g, '');
+        dashNoteInput.focus();
+        if (dashDatePicker) dashDatePicker.showPicker?.();
+      }
+    });
+  }
+
+  if (dashPresetDemain) {
+    dashPresetDemain.addEventListener('click', () => {
+      if (dashNoteInput) {
+        dashNoteInput.value = '/demain ' + dashNoteInput.value.replace(/\/demain\s*/g, '');
+        dashNoteInput.focus();
+      }
+    });
+  }
+
+  // Slash popup in Dash Composer
+  if (dashNoteInput) {
+    dashNoteInput.addEventListener('input', () => {
+      if (dashNoteInput.value.endsWith('/')) {
+        if (dashSlashMenu) dashSlashMenu.classList.remove('hidden');
+      } else if (!dashNoteInput.value.includes('/')) {
+        if (dashSlashMenu) dashSlashMenu.classList.add('hidden');
+      }
+    });
+  }
+
+  document.querySelectorAll('#ag-dash-slash-menu .command-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const cmd = item.dataset.cmd;
+      if (dashNoteInput && cmd) {
+        dashNoteInput.value = dashNoteInput.value.replace(/\/$/, '') + cmd + ' ';
+        dashNoteInput.focus();
+        if (dashSlashMenu) dashSlashMenu.classList.add('hidden');
+      }
     });
   });
 
-  // Client Edit Button Header
-  const clientEditBtn = document.getElementById('ag-client-edit-btn');
-  if (clientEditBtn) {
-    clientEditBtn.addEventListener('click', () => {
-      if (activeClientId) openEditClientModal(activeClientId);
+  // Color picker in Dash Composer
+  const dashColorBtns = document.querySelectorAll('#ag-dash-color-picker button');
+  dashColorBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      dashColorBtns.forEach(b => b.classList.remove('ring-2', 'ring-indigo-500', 'scale-110'));
+      btn.classList.add('ring-2', 'ring-indigo-500', 'scale-110');
+      dashNoteColor = btn.dataset.color;
     });
+  });
+
+  if (dashPostBtn) {
+    dashPostBtn.addEventListener('click', async () => {
+      if (!dashNoteInput || !dashNoteInput.value.trim()) return;
+
+      const targetClientId = dashClientSelect ? dashClientSelect.value : (clients[0]?.id || null);
+      if (!targetClientId) {
+        alert('Veuillez d\'abord créer un client avant d\'ajouter une note.');
+        openAddClientModal();
+        return;
+      }
+
+      await postNoteCore({
+        clientId: targetClientId,
+        rawText: dashNoteInput.value.trim(),
+        datePickerValue: dashDatePicker ? dashDatePicker.value : null,
+        color: dashNoteColor
+      });
+
+      dashNoteInput.value = '';
+      if (dashDatePicker) dashDatePicker.value = '';
+      if (dashSlashMenu) dashSlashMenu.classList.add('hidden');
+    });
+  }
+
+  // 2. Client Stream Composer Logic
+  const clientNoteInput = document.getElementById('ag-note-input');
+  const clientPostBtn = document.getElementById('ag-post-note-btn');
+  const clientDatePicker = document.getElementById('ag-note-date-picker');
+  const clientSlashMenu = document.getElementById('ag-slash-menu');
+
+  if (clientNoteInput) {
+    clientNoteInput.addEventListener('input', () => {
+      if (clientNoteInput.value.endsWith('/')) {
+        if (clientSlashMenu) clientSlashMenu.classList.remove('hidden');
+      } else if (!clientNoteInput.value.includes('/')) {
+        if (clientSlashMenu) clientSlashMenu.classList.add('hidden');
+      }
+    });
+  }
+
+  document.querySelectorAll('#ag-slash-menu .command-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const cmd = item.dataset.cmd;
+      if (clientNoteInput && cmd) {
+        clientNoteInput.value = clientNoteInput.value.replace(/\/$/, '') + cmd + ' ';
+        clientNoteInput.focus();
+        if (clientSlashMenu) clientSlashMenu.classList.add('hidden');
+      }
+    });
+  });
+
+  const clientColorBtns = document.querySelectorAll('#ag-color-picker button');
+  clientColorBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      clientColorBtns.forEach(b => b.classList.remove('ring-2', 'ring-indigo-500', 'scale-110'));
+      btn.classList.add('ring-2', 'ring-indigo-500', 'scale-110');
+      clientNoteColor = btn.dataset.color;
+    });
+  });
+
+  if (clientPostBtn) {
+    clientPostBtn.addEventListener('click', async () => {
+      if (!clientNoteInput || !clientNoteInput.value.trim() || !activeClientId) return;
+
+      await postNoteCore({
+        clientId: activeClientId,
+        rawText: clientNoteInput.value.trim(),
+        datePickerValue: clientDatePicker ? clientDatePicker.value : null,
+        color: clientNoteColor
+      });
+
+      clientNoteInput.value = '';
+      if (clientDatePicker) clientDatePicker.value = '';
+      if (clientSlashMenu) clientSlashMenu.classList.add('hidden');
+    });
+  }
+
+  // CORE NOTE POSTING ENGINE
+  async function postNoteCore({ clientId, rawText, datePickerValue, color }) {
+    if (rawText.startsWith('/todo ')) {
+      const todoText = rawText.replace('/todo ', '').trim();
+      const newTodo = {
+        id: generateUUID(),
+        client_id: clientId,
+        clientId: clientId,
+        content: todoText,
+        completed: false,
+        done: false,
+        created_at: new Date().toISOString()
+      };
+      todos.push(newTodo);
+      saveDataLocal();
+      if (sb) await sb.from('todos').insert(newTodo);
+      renderAllViews();
+      return;
+    }
+
+    const isDeadline = rawText.includes('/deadline') || rawText.includes('/demain') || Boolean(datePickerValue);
+    let dateVal = datePickerValue || extractDateFromContent(rawText);
+
+    if (rawText.includes('/demain')) {
+      const tm = new Date();
+      tm.setDate(tm.getDate() + 1);
+      dateVal = tm.toISOString().split('T')[0];
+    }
+
+    if (!dateVal && isDeadline) {
+      dateVal = new Date().toISOString().split('T')[0];
+    }
+
+    const newNote = {
+      id: generateUUID(),
+      client_id: clientId,
+      clientId: clientId,
+      content: rawText,
+      color: color || 'default',
+      bg_color: color || 'default',
+      is_deadline: isDeadline,
+      date: dateVal,
+      created_at: new Date().toISOString()
+    };
+
+    notes.unshift(newNote);
+    noteBgs[newNote.id] = color || 'default';
+    saveDataLocal();
+
+    if (sb) {
+      await sb.from('messages').insert(newNote);
+    }
+
+    renderAllViews();
   }
 
   // ─── NOTE CARD COMPONENT & UX IMPROVEMENTS ─────────────────────────
@@ -482,7 +670,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
           <div class="flex items-center gap-2">
             ${showClientBadge && clientObj ? `
-              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white border" style="background-color: ${clientObj.color || '#6366f1'}30; border-color: ${clientObj.color || '#6366f1'}60">
+              <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white border cursor-pointer hover:opacity-90 transition" style="background-color: ${clientObj.color || '#6366f1'}30; border-color: ${clientObj.color || '#6366f1'}60">
                 ${escapeHtml(clientObj.name)}
               </span>
             ` : ''}
@@ -529,6 +717,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     container.querySelectorAll('button[data-toggle-deadline]').forEach(btn => {
       btn.addEventListener('click', () => toggleDeadlineCompleted(btn.dataset.toggleDeadline));
+    });
+    container.querySelectorAll('[data-goto-client]').forEach(el => {
+      el.addEventListener('click', () => {
+        if (el.dataset.gotoClient) openClientStream(el.dataset.gotoClient);
+      });
     });
   }
 
@@ -578,7 +771,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderAllViews();
   }
 
-  // ─── CLIENT SIDEBAR WIDGETS ─────────────────────────────────────────
+  // ─── SIDEBAR WIDGETS ───────────────────────────────────────────────
   function renderClientSidebarTodos(clientId) {
     const listEl = document.getElementById('ag-client-todos-list');
     const countEl = document.getElementById('ag-client-todos-count');
@@ -719,7 +912,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (futureEl) futureEl.textContent = future.length;
 
     if (!deadlineNotes.length) {
-      container.innerHTML = `<div class="glass-panel p-10 text-center text-xs text-slate-400 rounded-3xl">Aucune échéance enregistrée. Tapez /deadline dans la zone de saisie pour créer une échéance.</div>`;
+      container.innerHTML = `<div class="glass-panel p-10 text-center text-xs text-slate-400 rounded-3xl">Aucune échéance enregistrée. Utilisez la barre de saisie rapide pour créer une échéance.</div>`;
       return;
     }
 
@@ -871,7 +1064,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </span>
           </div>
           <p class="text-xs text-slate-400">${escapeHtml(p.position || 'Interlocuteur Client')}</p>
-          ${p.email ? `<p class="text-[11px] text-indigo-400 flex items-center gap-1"><i data-lucide="mail" class="w-3.5 h-3.5"></i> ${escapeHtml(p.email)}</p>` : ''}
+          ${p.email ? `<p class="text-[11px] text-indigo-400 flex items-center gap-1"><i data-lucide="mail" class="w-3 h-3"></i> ${escapeHtml(p.email)}</p>` : ''}
         </div>
       `;
     }).join('');
@@ -941,25 +1134,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshBtn.addEventListener('click', loadData);
   }
 
-  const dashNewNoteBtn = document.getElementById('ag-dash-new-note-btn');
-  if (dashNewNoteBtn) {
-    dashNewNoteBtn.addEventListener('click', () => {
-      if (clients.length > 0) {
-        openClientStream(clients[0].id);
-      } else {
-        openAddClientModal();
-      }
-    });
-  }
-
-  // ─── CLIENT COLOR CUSTOMIZATION & MODAL ENGINE ─────────────────────
+  // Client Modal & Color Swatches
   const createClientBtn = document.getElementById('ag-create-client-btn');
   const addClientQuick = document.getElementById('ag-add-client-quick');
 
   if (createClientBtn) createClientBtn.addEventListener('click', () => openAddClientModal());
   if (addClientQuick) addClientQuick.addEventListener('click', () => openAddClientModal());
 
-  // Bind Swatches in Client Modal
   const colorSwatches = document.querySelectorAll('#ag-client-color-options .color-swatch-btn');
   const customColorPicker = document.getElementById('ag-client-input-color-picker');
   const hiddenColorField = document.getElementById('ag-client-selected-color');
@@ -1097,7 +1278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Contact Modal Logic
+  // Contact Modal
   const addContactBtn = document.getElementById('ag-add-contact-btn');
   const createContactMainBtn = document.getElementById('ag-create-contact-main-btn');
 
@@ -1159,150 +1340,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (sb) {
         await sb.from('persons').insert(newPerson);
-      }
-
-      renderAllViews();
-    });
-  }
-
-  // Note Color Picker Toolbar
-  const colorPickerBtns = document.querySelectorAll('#ag-color-picker button');
-  colorPickerBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      colorPickerBtns.forEach(b => b.classList.remove('ring-2', 'ring-indigo-500', 'scale-110'));
-      btn.classList.add('ring-2', 'ring-indigo-500', 'scale-110');
-      currentNoteColor = btn.dataset.color;
-    });
-  });
-
-  // Note Composer Input Logic & Slash Popup
-  const noteInput = document.getElementById('ag-note-input');
-  const postNoteBtn = document.getElementById('ag-post-note-btn');
-  const datePicker = document.getElementById('ag-note-date-picker');
-  const slashMenu = document.getElementById('ag-slash-menu');
-
-  if (noteInput) {
-    noteInput.addEventListener('input', () => {
-      const val = noteInput.value;
-      if (val.endsWith('/')) {
-        showSlashMenu();
-      } else if (!val.includes('/')) {
-        hideSlashMenu();
-      }
-    });
-  }
-
-  function showSlashMenu() {
-    if (slashMenu) slashMenu.classList.remove('hidden');
-  }
-
-  function hideSlashMenu() {
-    if (slashMenu) slashMenu.classList.add('hidden');
-  }
-
-  document.querySelectorAll('#ag-slash-menu .command-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const cmd = item.dataset.cmd;
-      if (noteInput && cmd) {
-        noteInput.value = noteInput.value.replace(/\/$/, '') + cmd + ' ';
-        noteInput.focus();
-        hideSlashMenu();
-      }
-    });
-  });
-
-  if (postNoteBtn && noteInput) {
-    postNoteBtn.addEventListener('click', handlePostNote);
-  }
-
-  async function handlePostNote() {
-    if (!noteInput || !noteInput.value.trim() || !activeClientId) return;
-
-    const rawText = noteInput.value.trim();
-
-    if (rawText.startsWith('/todo ')) {
-      const todoText = rawText.replace('/todo ', '').trim();
-      const newTodo = {
-        id: generateUUID(),
-        client_id: activeClientId,
-        clientId: activeClientId,
-        content: todoText,
-        completed: false,
-        done: false,
-        created_at: new Date().toISOString()
-      };
-      todos.push(newTodo);
-      saveDataLocal();
-      if (sb) await sb.from('todos').insert(newTodo);
-      noteInput.value = '';
-      renderAllViews();
-      return;
-    }
-
-    const isDeadline = rawText.includes('/deadline') || rawText.includes('/demain') || (datePicker && datePicker.value);
-    let dateVal = (datePicker && datePicker.value) || extractDateFromContent(rawText);
-
-    if (rawText.includes('/demain')) {
-      const tm = new Date();
-      tm.setDate(tm.getDate() + 1);
-      dateVal = tm.toISOString().split('T')[0];
-    }
-
-    if (!dateVal && isDeadline) {
-      dateVal = new Date().toISOString().split('T')[0];
-    }
-
-    const newNote = {
-      id: generateUUID(),
-      client_id: activeClientId,
-      clientId: activeClientId,
-      content: rawText,
-      color: currentNoteColor,
-      bg_color: currentNoteColor,
-      is_deadline: isDeadline,
-      date: dateVal,
-      created_at: new Date().toISOString()
-    };
-
-    notes.unshift(newNote);
-    noteBgs[newNote.id] = currentNoteColor;
-    saveDataLocal();
-
-    noteInput.value = '';
-    if (datePicker) datePicker.value = '';
-    hideSlashMenu();
-
-    if (sb) {
-      await sb.from('messages').insert(newNote);
-    }
-
-    renderAllViews();
-  }
-
-  // Quick Todo Creation
-  const quickTodoAdd = document.getElementById('ag-quick-todo-add');
-  const quickTodoInput = document.getElementById('ag-quick-todo-input');
-
-  if (quickTodoAdd && quickTodoInput) {
-    quickTodoAdd.addEventListener('click', async () => {
-      if (!quickTodoInput.value.trim() || !activeClientId) return;
-
-      const newTodo = {
-        id: generateUUID(),
-        client_id: activeClientId,
-        clientId: activeClientId,
-        content: quickTodoInput.value.trim(),
-        completed: false,
-        done: false,
-        created_at: new Date().toISOString()
-      };
-
-      todos.push(newTodo);
-      saveDataLocal();
-      quickTodoInput.value = '';
-
-      if (sb) {
-        await sb.from('todos').insert(newTodo);
       }
 
       renderAllViews();
@@ -1431,39 +1468,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const tutorialSteps = [
     {
-      title: "1. Bienvenue sur MimiGP v2 (Antigravity)",
-      desc: "Découvrez notre réinterprétation moderne de votre portail client. Toutes vos données existantes ont été récupérées et synchronisées !",
+      title: "1. Saisie Rapide Universelle (Home & Client)",
+      desc: "Vous pouvez désormais publier une note, une deadline ou un pense-bête directement depuis le Tableau de bord en sélectionnant le client visé !",
       highlights: [
-        "Tableau de bord cliquable avec redirection instantanée",
-        "Palette de couleurs sur-mesure pour chaque client",
-        "Command Palette universelle avec ⌘K / Ctrl+K"
+        "Saisie directe depuis la Home ou la vue Client",
+        "Boutons de raccourci rapide (+ Pense-bête, + Deadline, + Demain)",
+        "Sélecteur de date & Palette de couleur de note"
       ]
     },
     {
       title: "2. Prise de Note & Menu Slash (/)",
-      desc: "Dans l'espace d'un client, tapez '/' pour afficher les commandes instantanées :",
+      desc: "Tapez '/' dans n'importe quelle barre de saisie pour afficher le menu des commandes :",
       highlights: [
-        "/deadline YYYY-MM-DD : définit une échéance prioritaire",
-        "/demain : planifie la note pour la journée de demain",
-        "/todo [action] : crée une tâche directement dans le Kanban"
+        "/deadline YYYY-MM-DD : fixe une échéance datée",
+        "/todo [action] : crée un pense-bête interactif",
+        "/demain : planifie la note pour la journée de demain"
       ]
     },
     {
-      title: "3. Deadlines, Kanban & Annuaire Contacts",
-      desc: "Organisez vos projets grâce aux vues spécialisées :",
+      title: "3. Tableau de Bord Cliquable & Hub Clients",
+      desc: "Cliquez sur n'importe quelle carte KPI ou deadline du Tableau de bord pour naviguer instantanément.",
       highlights: [
-        "Timeline des Deadlines : suivi chronologique par urgence",
-        "Kanban Unifié : gestion visuelle des actions (À faire / Terminé)",
-        "Annuaire Contacts : accès direct aux coordonnées des interlocuteurs"
-      ]
-    },
-    {
-      title: "4. Changement de Couleur & Personalisation",
-      desc: "Personnalisez la couleur de chaque client d'un simple clic depuis le Hub Clients ou les paramètres.",
-      highlights: [
-        "Sélecteur de swatchs ou couleur HTML custom",
-        "Mise à jour en temps réel sur tous les composants",
-        "Sauvegarde permanente Supabase et LocalStorage"
+        "Redirection en 1 clic vers le client visé",
+        "Personnalisation de la couleur thème de chaque client",
+        "Chronologie des deadlines et Kanban des tâches"
       ]
     }
   ];
@@ -1549,10 +1577,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshLucideIcons();
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
   // HELPER UTILITIES
-  // ══════════════════════════════════════════════════════════════════════════
-
   function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, function(m) {
@@ -1587,7 +1612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Launch App
+  // Launch Engine
   await initAuth();
   await loadData();
 
