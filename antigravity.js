@@ -808,13 +808,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id);
 
     return `
-      <div data-note-id="${n.id}" class="ag-note-card space-y-3" style="border-left-color: ${clientColor};">
+      <div data-note-id="${n.id}" class="ag-note-card space-y-3" style="border-left: 4px solid ${clientColor} !important;">
         
         <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
           <div class="flex items-center gap-2">
             ${clientObj ? `
-              <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border cursor-pointer hover:opacity-90 transition flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}25; color: ${clientColor}; border-color: ${clientColor}60;">
-                <span class="w-2 h-2 rounded-full" style="background-color: ${clientColor}"></span>
+              <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border cursor-pointer hover:opacity-90 transition flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
+                <span class="w-2 h-2 rounded-full" style="background-color: ${clientColor} !important;"></span>
                 <span>${escapeHtml(clientObj.name)}</span>
               </span>
             ` : '<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-400">Global</span>'}
