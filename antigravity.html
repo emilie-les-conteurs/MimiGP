@@ -99,10 +99,53 @@
         <span class="hidden sm:inline">Version V1</span>
       </a>
 
-      <!-- User Profile Avatar -->
-      <div id="ag-user-profile" class="flex items-center gap-2.5 pl-2 border-l border-slate-800">
-        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-md" id="ag-user-avatar">
-          U
+      <!-- User Profile Avatar & Settings Dropdown Pop-in -->
+      <div id="ag-user-profile" class="relative pl-2 border-l border-slate-800">
+        <button id="ag-user-avatar-btn" class="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-md hover:ring-2 hover:ring-indigo-400 transition cursor-pointer overflow-hidden" title="Mon Profil & Paramètres">
+          <span id="ag-user-avatar">U</span>
+          <img id="ag-user-avatar-img" class="w-full h-full object-cover hidden" alt="Avatar">
+        </button>
+
+        <!-- Profile Pop-in / Dropdown Menu -->
+        <div id="ag-user-dropdown" class="absolute right-0 mt-3 w-64 glass-panel rounded-2xl p-3 shadow-2xl border border-slate-700/80 space-y-2 hidden z-50 animate-scale-up">
+          
+          <div class="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden" id="ag-dropdown-avatar-container">
+              <span id="ag-dropdown-avatar-initial">U</span>
+              <img id="ag-dropdown-avatar-img" class="w-full h-full object-cover hidden" alt="Avatar">
+            </div>
+            <div class="overflow-hidden">
+              <div class="font-bold text-white text-xs truncate" id="ag-user-dropdown-name">Utilisateur Invité</div>
+              <div class="text-[10px] text-slate-400 truncate" id="ag-user-dropdown-email">Mode Local</div>
+            </div>
+          </div>
+
+          <div class="space-y-1 pt-1">
+            
+            <!-- Change Profile Photo -->
+            <button id="ag-user-change-photo-btn" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition">
+              <i data-lucide="image" class="w-4 h-4 text-cyan-400"></i>
+              <span>Changer la photo de profil</span>
+            </button>
+            <input type="file" id="ag-user-photo-input" accept="image/*" class="hidden">
+
+            <!-- Mode Clair / Sombre Toggle -->
+            <button id="ag-user-toggle-theme-btn" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition">
+              <div class="flex items-center gap-2.5">
+                <i data-lucide="sun" id="ag-theme-icon" class="w-4 h-4 text-amber-400"></i>
+                <span id="ag-theme-label">Passer en mode clair</span>
+              </div>
+              <span class="w-2 h-2 rounded-full bg-amber-400" id="ag-theme-dot"></span>
+            </button>
+
+            <!-- Déconnexion -->
+            <button id="ag-user-logout-btn" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition border-t border-slate-800/80 mt-1">
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+              <span>Se déconnecter</span>
+            </button>
+
+          </div>
+
         </div>
       </div>
     </div>
@@ -415,13 +458,6 @@
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <!-- Sélecteur direct de couleur client 1-Clic -->
-            <label class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer transition shadow-sm" title="Changer la couleur du client en 1 clic">
-              <input type="color" id="ag-header-client-color-picker" value="#6366f1" class="w-5 h-5 rounded-full cursor-pointer bg-transparent border-0 p-0">
-              <i data-lucide="palette" class="w-3.5 h-3.5 text-indigo-400"></i>
-              <span>Couleur Client</span>
-            </label>
-
             <button id="ag-client-edit-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition flex items-center gap-1.5" title="Modifier le nom ou la couleur">
               <i data-lucide="settings" class="w-3.5 h-3.5"></i>
               <span>Modifier</span>

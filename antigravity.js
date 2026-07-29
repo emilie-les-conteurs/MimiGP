@@ -76,17 +76,136 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function updateUserProfile() {
     const avatarEl = document.getElementById('ag-user-avatar');
-    if (!avatarEl) return;
+    const dropNameEl = document.getElementById('ag-user-dropdown-name');
+    const dropEmailEl = document.getElementById('ag-user-dropdown-email');
+    const dropInitialEl = document.getElementById('ag-dropdown-avatar-initial');
+
+    const avatarImgEl = document.getElementById('ag-user-avatar-img');
+    const dropAvatarImgEl = document.getElementById('ag-dropdown-avatar-img');
+
+    let userName = 'Utilisateur Invité';
+    let userEmail = 'Mode Local';
+    let initial = 'U';
 
     if (currentSession && currentSession.user) {
       const meta = currentSession.user.user_metadata || {};
-      const name = `${meta.first_name || ''} ${meta.last_name || ''}`.trim() || currentSession.user.email || 'User';
-      avatarEl.textContent = name.charAt(0).toUpperCase();
-      avatarEl.title = name;
-    } else {
-      avatarEl.textContent = 'U';
-      avatarEl.title = 'Utilisateur Invité (Mode Local)';
+      userName = `${meta.first_name || ''} ${meta.last_name || ''}`.trim() || currentSession.user.email || 'Utilisateur';
+      userEmail = currentSession.user.email || 'Connecté';
+      initial = userName.charAt(0).toUpperCase();
     }
+
+    if (avatarEl) avatarEl.textContent = initial;
+    if (dropInitialEl) dropInitialEl.textContent = initial;
+    if (dropNameEl) dropNameEl.textContent = userName;
+    if (dropEmailEl) dropEmailEl.textContent = userEmail;
+
+    // Check custom saved avatar image
+    const savedAvatar = localStorage.getItem('mimigp_avatar');
+    if (savedAvatar) {
+      if (avatarImgEl) {
+        avatarImgEl.src = savedAvatar;
+        avatarImgEl.classList.remove('hidden');
+        if (avatarEl) avatarEl.classList.add('hidden');
+      }
+      if (dropAvatarImgEl) {
+        dropAvatarImgEl.src = savedAvatar;
+        dropAvatarImgEl.classList.remove('hidden');
+        if (dropInitialEl) dropInitialEl.classList.add('hidden');
+      }
+    } else {
+      if (avatarImgEl) avatarImgEl.classList.add('hidden');
+      if (avatarEl) avatarEl.classList.remove('hidden');
+      if (dropAvatarImgEl) dropAvatarImgEl.classList.add('hidden');
+      if (dropInitialEl) dropInitialEl.classList.remove('hidden');
+    }
+
+    // Check saved theme
+    const savedTheme = localStorage.getItem('mimigp_theme');
+    const isLight = savedTheme === 'light';
+    if (isLight) {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+    updateThemeUI(isLight);
+  }
+
+  function updateThemeUI(isLight) {
+    const labelEl = document.getElementById('ag-theme-label');
+    const dotEl = document.getElementById('ag-theme-dot');
+    if (labelEl) labelEl.textContent = isLight ? 'Passer en mode sombre' : 'Passer en mode clair';
+    if (dotEl) dotEl.className = isLight ? 'w-2 h-2 rounded-full bg-indigo-400' : 'w-2 h-2 rounded-full bg-amber-400';
+  }
+
+  // ─── USER PROFILE DROPDOWN & POP-IN BINDINGS ──────────────────────
+  const avatarBtn = document.getElementById('ag-user-avatar-btn');
+  const userDropdown = document.getElementById('ag-user-dropdown');
+  const changePhotoBtn = document.getElementById('ag-user-change-photo-btn');
+  const photoInput = document.getElementById('ag-user-photo-input');
+  const toggleThemeBtn = document.getElementById('ag-user-toggle-theme-btn');
+  const logoutBtn = document.getElementById('ag-user-logout-btn');
+
+  if (avatarBtn && userDropdown) {
+    avatarBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      userDropdown.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!userDropdown.contains(e.target) && !avatarBtn.contains(e.target)) {
+        userDropdown.classList.add('hidden');
+      }
+    });
+  }
+
+  if (changePhotoBtn && photoInput) {
+    changePhotoBtn.addEventListener('click', () => {
+      photoInput.click();
+    });
+
+    photoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64Img = event.target.result;
+          localStorage.setItem('mimigp_avatar', base64Img);
+          updateUserProfile();
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  if (toggleThemeBtn) {
+    toggleThemeBtn.addEventListener('click', () => {
+      const isLightCurrently = document.body.classList.contains('light-theme');
+      if (isLightCurrently) {
+        document.body.classList.remove('light-theme');
+        localStorage.setItem('mimigp_theme', 'dark');
+        updateThemeUI(false);
+      } else {
+        document.body.classList.add('light-theme');
+        localStorage.setItem('mimigp_theme', 'light');
+        updateThemeUI(true);
+      }
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      if (sb) {
+        try {
+          await sb.auth.signOut();
+        } catch (e) {
+          console.warn('Sign out:', e);
+        }
+      }
+      currentSession = null;
+      localStorage.removeItem('mimigp_avatar');
+      alert('Vous avez été déconnecté avec succès.');
+      window.location.reload();
+    });
   }
 
   async function loadData() {
