@@ -536,11 +536,13 @@ document.addEventListener('DOMContentLoaded', () => {
     userDisplayName.textContent = fullName;
     userDisplayPosition.textContent = position;
 
-    // Toujours charger la liste de gauche à jour
-    await loadClients();
-    await loadTodos();
-    await loadPersons();
-    await loadPinnedFiles();
+    // Toujours charger les données globales en parallèle
+    await Promise.all([
+      loadClients(),
+      loadTodos(),
+      loadPersons(),
+      loadPinnedFiles()
+    ]);
 
     // Réinitialiser les classes mobiles hidden/flex par défaut lors de la navigation
     if (leftSidebar) { leftSidebar.classList.add('hidden'); leftSidebar.classList.remove('flex'); }
@@ -747,11 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── AUTH : ÉCOUTEUR ────────────────────────────────────────────
   sb.auth.onAuthStateChange((event, session) => {
     currentSession = session;
-    if (event === 'SIGNED_IN') {
-      setTimeout(applyRoute, 500);
-    } else {
-      applyRoute();
-    }
+    applyRoute();
   });
 
   // ─── AUTH : FORMULAIRES ────────────────────────────────────────
@@ -1023,13 +1021,12 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
     }
     try {
-      await loadTodos();
-      const { data, error } = await sb
-        .from('messages')
-        .select('*, clients(*)')
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      globalMessages = data || [];
+      const [_, messagesRes] = await Promise.all([
+        loadTodos(),
+        sb.from('messages').select('*, clients(*)').order('created_at', { ascending: true })
+      ]);
+      if (messagesRes.error) throw messagesRes.error;
+      globalMessages = messagesRes.data || [];
       renderGlobalFeed();
       if (clientContactsWidget) {
         clientContactsWidget.classList.add('hidden');
@@ -3266,14 +3263,12 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
     }
     try {
-      await loadTodos();
-      const { data, error } = await sb
-        .from('messages')
-        .select('*')
-        .eq('client_id', activeClientId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      clientMessages = data || [];
+      const [_, messagesRes] = await Promise.all([
+        loadTodos(),
+        sb.from('messages').select('*').eq('client_id', activeClientId).order('created_at', { ascending: true })
+      ]);
+      if (messagesRes.error) throw messagesRes.error;
+      clientMessages = messagesRes.data || [];
       renderClientMessages();
       renderFilesList();
       if (clientContactsWidget) {
@@ -5150,6 +5145,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleRightSidebarBtn = document.getElementById('toggle-right-sidebar');
   const leftSidebar = document.getElementById('left-sidebar');
   const rightSidebar = document.getElementById('right-sidebar');
+  const mobileBackdrop = document.getElementById('mobile-backdrop');
+
+  function updateBackdropState() {
+    if (!mobileBackdrop) return;
+    const isLeftOpen = window.innerWidth < 768 && leftSidebar?.classList.contains('active');
+    const isRightOpen = window.innerWidth < 1024 && rightSidebar?.classList.contains('active');
+    if (isLeftOpen || isRightOpen) {
+      mobileBackdrop.classList.remove('hidden');
+    } else {
+      mobileBackdrop.classList.add('hidden');
+    }
+  }
 
   toggleLeftSidebarBtn?.addEventListener('click', (e) => {
     e.preventDefault();
@@ -5158,6 +5165,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.innerWidth < 768) {
         leftSidebar.classList.toggle('active');
         if (rightSidebar) rightSidebar.classList.remove('active');
+        updateBackdropState();
       } else {
         const isHidden = leftSidebar.classList.contains('hidden');
         leftSidebar.classList.toggle('hidden', !isHidden);
@@ -5173,6 +5181,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.innerWidth < 1024) {
         rightSidebar.classList.toggle('active');
         if (leftSidebar) leftSidebar.classList.remove('active');
+        updateBackdropState();
       } else {
         const isHidden = rightSidebar.classList.contains('hidden');
         rightSidebar.classList.toggle('hidden', !isHidden);
@@ -5180,6 +5189,12 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('right-sidebar-closed', !isHidden ? 'true' : 'false');
       }
     }
+  });
+
+  mobileBackdrop?.addEventListener('click', () => {
+    if (leftSidebar) leftSidebar.classList.remove('active');
+    if (rightSidebar) rightSidebar.classList.remove('active');
+    updateBackdropState();
   });
 
   // Fermer les panneaux quand on clique sur le reste du document sur mobile
@@ -5190,6 +5205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.innerWidth < 1024 && rightSidebar) {
       rightSidebar.classList.remove('active');
     }
+    updateBackdropState();
     closeLinkBubble();
   });
 

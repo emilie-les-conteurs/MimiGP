@@ -467,6 +467,11 @@ body.auth-body {
 }
 
 /* Styles réactifs pour le redimensionnement et la responsivité (Drawers mobiles fluides) */
+#mobile-backdrop {
+  cursor: pointer;
+  z-index: 45;
+}
+
 @media (max-width: 767px) {
   #left-sidebar {
     display: flex !important;
@@ -479,7 +484,7 @@ body.auth-body {
     height: calc(100dvh - 57px) !important;
     width: 270px !important;
     transform: translateX(-105%);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
   #left-sidebar.active {
     transform: translateX(0) !important;
@@ -498,7 +503,7 @@ body.auth-body {
     height: calc(100dvh - 57px) !important;
     width: 290px !important;
     transform: translateX(105%);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
   #right-sidebar.active {
     transform: translateX(0) !important;
