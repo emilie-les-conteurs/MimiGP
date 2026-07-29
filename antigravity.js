@@ -449,41 +449,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       const clientNotes = notes.filter(n => n.client_id === c.id || n.clientId === c.id);
       const clientDeadlines = clientNotes.filter(n => (n.is_deadline || (n.content && n.content.includes('/deadline'))) && !n.completed);
       const clientTodos = todos.filter(t => (t.client_id === c.id || t.clientId === c.id) && !t.completed && !t.done);
+      const clientPersons = persons.filter(p => p.client_id === c.id || p.clientId === c.id);
       const colorHex = c.color || '#6366f1';
-      const lastNote = clientNotes[0];
 
       return `
-        <div class="glass-panel p-5 rounded-2xl glow-hover flex flex-col justify-between space-y-4 border-t-4" style="border-top-color: ${colorHex}">
+        <div class="glass-panel p-5 rounded-2xl glow-hover flex flex-col justify-between space-y-6 transition-all shadow-md" style="border: 1.5px solid ${colorHex}40; border-top: 6px solid ${colorHex}; background: linear-gradient(135deg, ${colorHex}18 0%, ${colorHex}08 100%);">
           
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <span class="w-3.5 h-3.5 rounded-full shadow-md" style="background-color: ${colorHex}"></span>
-                <h3 class="font-black text-lg text-white tracking-tight">${escapeHtml(c.name)}</h3>
-              </div>
-              <div class="flex items-center gap-1.5">
-                <button data-edit-client="${c.id}" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition" title="Éditer la couleur/nom">
-                  <i data-lucide="palette" class="w-4 h-4 text-indigo-400"></i>
-                </button>
-                <button data-delete-client="${c.id}" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="Supprimer le client">
-                  <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>
-              </div>
+          <div class="flex items-center justify-between">
+            <h3 class="font-black text-xl text-white tracking-tight">${escapeHtml(c.name)}</h3>
+            
+            <div class="flex items-center gap-1">
+              <button data-edit-client="${c.id}" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition" title="Éditer la couleur/nom">
+                <i data-lucide="palette" class="w-4 h-4" style="color: ${colorHex}"></i>
+              </button>
+              <button data-delete-client="${c.id}" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-white/10 transition" title="Supprimer le client">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
             </div>
-
-            <p class="text-xs text-slate-300 line-clamp-2 leading-relaxed">
-              ${lastNote ? escapeHtml(cleanContent(lastNote.content)) : 'Aucune note publiée.'}
-            </p>
           </div>
 
-          <div class="flex items-center justify-between text-xs pt-3 border-t border-slate-800/80">
-            <div class="flex items-center gap-3 text-slate-300 font-medium text-[11px]">
-              <span><strong class="text-white font-bold">${clientNotes.length}</strong> notes</span>
-              <span><strong class="text-rose-400 font-bold">${clientDeadlines.length}</strong> deadlines</span>
-              <span><strong class="text-emerald-400 font-bold">${clientTodos.length}</strong> à faire</span>
+          <div class="flex items-center justify-between text-xs pt-3 border-t border-slate-700/40">
+            <div class="flex items-center gap-3 font-semibold text-[11px] text-slate-300">
+              <span><strong class="text-white font-extrabold">${clientNotes.length}</strong> notes</span>
+              <span><strong class="text-rose-400 font-extrabold">${clientDeadlines.length}</strong> deadlines</span>
+              <span><strong class="text-indigo-300 font-extrabold">${clientPersons.length}</strong> contacts</span>
             </div>
 
-            <button data-open-client="${c.id}" class="px-3.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white font-bold text-xs transition flex items-center gap-1">
+            <button data-open-client="${c.id}" class="px-3.5 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 shadow-sm" style="background-color: ${colorHex}25; color: ${colorHex} !important; border: 1px solid ${colorHex}60;">
               <span>Ouvrir</span>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
             </button>
