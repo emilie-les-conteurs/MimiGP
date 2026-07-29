@@ -468,7 +468,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const colorHex = c.color || '#6366f1';
 
       return `
-        <div class="glass-panel p-5 rounded-2xl glow-hover flex flex-col justify-between space-y-6 transition-all shadow-md" style="border: 1.5px solid ${colorHex}40; border-top: 6px solid ${colorHex}; background: linear-gradient(135deg, ${colorHex}18 0%, ${colorHex}08 100%);">
+        <div class="glass-panel ag-client-hub-card p-5 rounded-2xl glow-hover flex flex-col justify-between space-y-6 transition-all shadow-md" style="border: 1.5px solid ${colorHex}60 !important; border-top: 6px solid ${colorHex} !important; background: linear-gradient(135deg, ${colorHex}22 0%, ${colorHex}0c 100%) !important;">
           
           <div class="flex items-center justify-between">
             <h3 class="font-black text-xl text-white tracking-tight">${escapeHtml(c.name)}</h3>
@@ -487,10 +487,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="flex items-center gap-3 font-semibold text-[11px] text-slate-300">
               <span><strong class="text-white font-extrabold">${clientNotes.length}</strong> notes</span>
               <span><strong class="text-rose-400 font-extrabold">${clientDeadlines.length}</strong> deadlines</span>
-              <span><strong class="text-indigo-300 font-extrabold">${clientPersons.length}</strong> contacts</span>
+              <span><strong class="text-indigo-400 font-extrabold">${clientPersons.length}</strong> contacts</span>
             </div>
 
-            <button data-open-client="${c.id}" class="px-3.5 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 shadow-sm" style="background-color: ${colorHex}25; color: ${colorHex} !important; border: 1px solid ${colorHex}60;">
+            <button data-open-client="${c.id}" class="px-3.5 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 shadow-sm" style="background-color: ${colorHex}25 !important; color: ${colorHex} !important; border: 1px solid ${colorHex}60 !important;">
               <span>Ouvrir</span>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
             </button>

@@ -306,7 +306,7 @@ body.light-theme .bg-dark-800 {
 }
 
 /* Glass Panels, Cards & Modals */
-body.light-theme .glass-panel,
+body.light-theme .glass-panel:not(.ag-client-hub-card),
 body.light-theme .glass-modal,
 body.light-theme .command-menu-popup {
   background: #ffffff !important;
