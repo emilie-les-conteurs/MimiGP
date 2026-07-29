@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════════════════
 // MIMIGP V2 — ENGINE JS (VERSION ANTIGRAVITY)
-// Production Grade — Full Feature Parity & Data Sync (Supabase + LocalStorage)
+// Production Grade — Full Feature Parity, Clickable Dashboard, Color Theme Engine
 // ══════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -19,11 +19,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     } catch (e) {
-      console.warn('Supabase initialization fallback to localStorage:', e.message);
+      console.warn('Supabase init fallback to LocalStorage:', e.message);
     }
   }
 
-  // 2. Global State Management
+  // 2. Global App State
   let currentSession = null;
   let clients = [];
   let notes = [];
@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let activeClientId = null;
   let editingClientId = null;
+  let selectedClientColor = '#6366f1';
   let activeView = 'dashboard';
   let currentNoteColor = 'default';
   let activeFeedFilter = 'all';
@@ -41,17 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let currentTutorialStep = 0;
 
-  // Slash commands registry
-  const SLASH_COMMANDS = [
-    { cmd: '/deadline', label: '/deadline [YYYY-MM-DD]', desc: 'Créer une échéance datée', icon: 'clock', color: 'text-rose-400' },
-    { cmd: '/demain',   label: '/demain',               desc: 'Planifier pour la journée de demain', icon: 'calendar', color: 'text-amber-400' },
-    { cmd: '/todo',     label: '/todo [action]',        desc: 'Ajouter une tâche au Kanban', icon: 'check-square', color: 'text-emerald-400' },
-    { cmd: '/cl',       label: '/cl [client]',          desc: 'Associer la note à un client', icon: 'folder', color: 'text-indigo-400' },
-    { cmd: '/contact',  label: '/contact [nom]',        desc: 'Ajouter un contact', icon: 'user-plus', color: 'text-cyan-400' },
-    { cmd: '/planning', label: '/planning',             desc: 'Mettre au planning', icon: 'calendar-clock', color: 'text-purple-400' },
-  ];
-
-  // Helper UUID Generator
+  // UUID Generator
   function generateUUID() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
@@ -64,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // DATA LOADERS & DEEP SYNCHRONIZATION
+  // DATA SYNCHRONIZATION & RECOVERY
   // ══════════════════════════════════════════════════════════════════════════
 
   async function initAuth() {
@@ -147,12 +138,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const localPinned = JSON.parse(localStorage.getItem('mimigp_pinned_files') || '[]');
       pinnedFiles = mergeById(loadedPinned, localPinned);
 
-      // Load Note Background Colors Map
       noteBgs = JSON.parse(localStorage.getItem('mimi_note_bgs') || '{}');
 
       updateSyncStatus('Synchro Supabase OK', 'emerald');
     } catch (err) {
-      console.warn('Fallback standard LocalStorage:', err);
+      console.warn('Fallback LocalStorage:', err);
       updateSyncStatus('Mode Hors-ligne (Local)', 'slate');
     }
 
@@ -219,10 +209,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const colorHex = c.color || '#6366f1';
       const isActive = c.id === activeClientId && activeView === 'client-stream';
       return `
-        <button data-client-id="${c.id}" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${isActive ? 'bg-indigo-500/20 text-white border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}">
+        <button data-client-id="${c.id}" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition ${isActive ? 'bg-indigo-500/20 text-white border border-indigo-500/30 font-bold' : 'text-slate-300 hover:text-white hover:bg-slate-800/60'}">
           <div class="flex items-center gap-2.5 overflow-hidden">
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${colorHex}"></span>
-            <span class="truncate">${escapeHtml(c.name)}</span>
+            <span class="w-3 h-3 rounded-full shrink-0 shadow-sm" style="background-color: ${colorHex}"></span>
+            <span class="truncate font-medium">${escapeHtml(c.name)}</span>
           </div>
         </button>
       `;
@@ -235,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ─── DASHBOARD VIEW ────────────────────────────────────────────────
+  // ─── DASHBOARD VIEW (FULLY CLICKABLE) ───────────────────────────────
   function renderDashboard() {
     const statClients = document.getElementById('ag-stat-clients');
     const statDeadlines = document.getElementById('ag-stat-deadlines');
@@ -248,44 +238,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statClients) statClients.textContent = clients.length;
     if (statDeadlines) statDeadlines.textContent = activeDeadlines.length;
     if (statTodos) statTodos.textContent = pendingTodos.length;
-    if (statPinned) statPinned.textContent = pinnedFiles.length;
+    if (statPinned) statPinned.textContent = persons.length;
 
-    // Render Recent Feed
+    // Render Recent Feed with clickable cards
     const feedEl = document.getElementById('ag-dash-feed');
     if (feedEl) {
       if (!notes.length) {
-        feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-500 rounded-2xl">Aucune note enregistrée. Créez un client pour publier votre premier compte rendu.</div>`;
+        feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-400 rounded-2xl">Aucune note enregistrée pour le moment.</div>`;
       } else {
         feedEl.innerHTML = notes.slice(0, 6).map(n => renderNoteCard(n, true)).join('');
         bindNoteCardEvents(feedEl);
       }
     }
 
-    // Render Deadlines Widget
+    // Render Deadlines Widget with clickable entries
     const deadWidgetEl = document.getElementById('ag-dash-deadlines-widget');
     if (deadWidgetEl) {
       if (!activeDeadlines.length) {
-        deadWidgetEl.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">Aucune deadline programmée.</p>`;
+        deadWidgetEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Aucune deadline programmée.</p>`;
       } else {
         deadWidgetEl.innerHTML = activeDeadlines.slice(0, 5).map(d => {
           const clientObj = clients.find(c => c.id === d.client_id || c.id === d.clientId);
           const dateStr = d.date || extractDateFromContent(d.content) || 'À venir';
           return `
-            <div class="flex items-center justify-between p-2.5 bg-slate-800/60 border border-slate-700/60 rounded-xl text-xs">
-              <div class="flex items-center gap-2 overflow-hidden">
-                <span class="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+            <div data-goto-client="${d.client_id || d.clientId}" class="flex items-center justify-between p-3 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 rounded-xl text-xs cursor-pointer transition glow-hover">
+              <div class="flex items-center gap-2.5 overflow-hidden">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0"></span>
                 <div class="truncate">
-                  <div class="font-bold text-white truncate">${escapeHtml(cleanContent(d.content))}</div>
-                  <div class="text-[10px] text-slate-400">${clientObj ? escapeHtml(clientObj.name) : 'Client'}</div>
+                  <div class="font-bold text-white truncate text-sm">${escapeHtml(cleanContent(d.content))}</div>
+                  <div class="text-[11px] text-slate-400 font-medium">${clientObj ? escapeHtml(clientObj.name) : 'Client'}</div>
                 </div>
               </div>
-              <span class="px-2 py-0.5 text-[10px] font-extrabold bg-rose-500/20 text-rose-300 rounded-full shrink-0">${dateStr}</span>
+              <span class="px-2.5 py-0.5 text-[10px] font-extrabold bg-rose-500/20 text-rose-300 rounded-full shrink-0 border border-rose-500/30">${dateStr}</span>
             </div>
           `;
         }).join('');
+
+        deadWidgetEl.querySelectorAll('[data-goto-client]').forEach(el => {
+          el.addEventListener('click', () => {
+            if (el.dataset.gotoClient) openClientStream(el.dataset.gotoClient);
+          });
+        });
       }
     }
   }
+
+  // Bind Dashboard Metric Cards Click Events
+  document.querySelectorAll('[data-dash-link]').forEach(card => {
+    card.addEventListener('click', () => {
+      const view = card.dataset.dashLink;
+      if (view) switchView(view);
+    });
+  });
 
   // ─── HUB CLIENTS GRID ──────────────────────────────────────────────
   function renderClientGrid() {
@@ -302,7 +306,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="col-span-full glass-panel p-12 text-center rounded-3xl space-y-3">
           <i data-lucide="folder-plus" class="w-10 h-10 text-indigo-400 mx-auto"></i>
           <h3 class="font-bold text-white text-base">Aucun client trouvé</h3>
-          <p class="text-xs text-slate-400 max-w-sm mx-auto">Créez un nouveau client ou ajustez votre filtre de recherche.</p>
+          <p class="text-xs text-slate-400 max-w-sm mx-auto">Créez un nouveau client ou modifiez votre filtre de recherche.</p>
           <button id="ag-empty-add-client" class="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-500 transition">Nouveau Client</button>
         </div>
       `;
@@ -319,7 +323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const lastNote = clientNotes[0];
 
       return `
-        <div class="glass-panel p-5 rounded-2xl glow-hover flex flex-col justify-between space-y-4 border-t-2" style="border-top-color: ${colorHex}">
+        <div class="glass-panel p-5 rounded-2xl glow-hover flex flex-col justify-between space-y-4 border-t-4" style="border-top-color: ${colorHex}">
           
           <div class="space-y-2">
             <div class="flex items-center justify-between">
@@ -327,29 +331,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <span class="w-3.5 h-3.5 rounded-full shadow-md" style="background-color: ${colorHex}"></span>
                 <h3 class="font-black text-lg text-white tracking-tight">${escapeHtml(c.name)}</h3>
               </div>
-              <div class="flex items-center gap-1">
-                <button data-edit-client="${c.id}" class="p-1 text-slate-400 hover:text-white transition" title="Éditer le client">
-                  <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+              <div class="flex items-center gap-1.5">
+                <button data-edit-client="${c.id}" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition" title="Éditer le nom et la couleur">
+                  <i data-lucide="palette" class="w-4 h-4 text-indigo-400"></i>
                 </button>
-                <button data-delete-client="${c.id}" class="p-1 text-slate-400 hover:text-rose-400 transition" title="Supprimer le client">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <button data-delete-client="${c.id}" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="Supprimer le client">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
               </div>
             </div>
 
-            <p class="text-xs text-slate-400 line-clamp-2">
-              ${lastNote ? escapeHtml(cleanContent(lastNote.content)) : 'Aucune note publiée pour le moment.'}
+            <p class="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+              ${lastNote ? escapeHtml(cleanContent(lastNote.content)) : 'Aucune note publiée.'}
             </p>
           </div>
 
           <div class="flex items-center justify-between text-xs pt-3 border-t border-slate-800/80">
-            <div class="flex items-center gap-3 text-slate-400 font-medium text-[11px]">
-              <span><strong class="text-white">${clientNotes.length}</strong> notes</span>
-              <span><strong class="text-rose-400">${clientDeadlines.length}</strong> deadlines</span>
-              <span><strong class="text-emerald-400">${clientTodos.length}</strong> à faire</span>
+            <div class="flex items-center gap-3 text-slate-300 font-medium text-[11px]">
+              <span><strong class="text-white font-bold">${clientNotes.length}</strong> notes</span>
+              <span><strong class="text-rose-400 font-bold">${clientDeadlines.length}</strong> deadlines</span>
+              <span><strong class="text-emerald-400 font-bold">${clientTodos.length}</strong> à faire</span>
             </div>
 
-            <button data-open-client="${c.id}" class="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-400 hover:text-white font-bold text-xs transition flex items-center gap-1">
+            <button data-open-client="${c.id}" class="px-3.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white font-bold text-xs transition flex items-center gap-1">
               <span>Ouvrir</span>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
             </button>
@@ -359,7 +363,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     }).join('');
 
-    // Bind events
     gridEl.querySelectorAll('button[data-open-client]').forEach(btn => {
       btn.addEventListener('click', () => openClientStream(btn.dataset.openClient));
     });
@@ -371,7 +374,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Client Search listener
   const clientSearchInput = document.getElementById('ag-client-search');
   if (clientSearchInput) {
     clientSearchInput.addEventListener('input', renderClientGrid);
@@ -397,6 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (badgeEl) {
       badgeEl.style.borderColor = client.color || '#6366f1';
       badgeEl.style.color = client.color || '#6366f1';
+      badgeEl.style.backgroundColor = `${client.color || '#6366f1'}15`;
     }
     if (headerCard) {
       headerCard.style.borderLeftColor = client.color || '#6366f1';
@@ -408,7 +411,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       statsEl.textContent = `${clientNotes.length} note(s) • ${clientDeadlines.length} deadline(s) à venir`;
     }
 
-    // Render Stream Feed
     const feedEl = document.getElementById('ag-client-feed');
     if (feedEl) {
       let filtered = clientNotes;
@@ -424,7 +426,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       if (!filtered.length) {
-        feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-500 rounded-2xl">Aucune note ne correspond aux critères de filtre.</div>`;
+        feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-400 rounded-2xl">Aucune note dans cette vue.</div>`;
       } else {
         feedEl.innerHTML = filtered.map(n => renderNoteCard(n, false)).join('');
         bindNoteCardEvents(feedEl);
@@ -436,7 +438,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderClientPinnedFiles(clientId);
   }
 
-  // Stream Search Listener
+  // Stream Search Input
   const streamSearchInput = document.getElementById('ag-stream-search');
   if (streamSearchInput) {
     streamSearchInput.addEventListener('input', (e) => {
@@ -445,19 +447,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Stream Filter Tabs Listener
+  // Stream Filter Tabs
   document.querySelectorAll('#ag-feed-filter-tabs button').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#ag-feed-filter-tabs button').forEach(b => {
         b.className = 'px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition';
       });
-      btn.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30';
+      btn.className = 'px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
       activeFeedFilter = btn.dataset.filter;
       if (activeClientId) renderClientStream(activeClientId);
     });
   });
 
-  // Client Edit Button in Header
+  // Client Edit Button Header
   const clientEditBtn = document.getElementById('ag-client-edit-btn');
   if (clientEditBtn) {
     clientEditBtn.addEventListener('click', () => {
@@ -465,7 +467,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ─── NOTE CARD COMPONENT & ACTIONS ─────────────────────────────────
+  // ─── NOTE CARD COMPONENT & UX IMPROVEMENTS ─────────────────────────
   function renderNoteCard(n, showClientBadge = false) {
     const clientObj = clients.find(c => c.id === n.client_id || c.id === n.clientId);
     const isDeadline = n.is_deadline || (n.content && n.content.includes('/deadline'));
@@ -475,37 +477,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id);
 
     return `
-      <div data-note-id="${n.id}" class="glass-panel p-4 rounded-2xl space-y-3 ${colorClass} transition border relative group">
+      <div data-note-id="${n.id}" class="ag-note-card ${colorClass} space-y-3">
         
-        <div class="flex items-center justify-between text-xs border-b border-white/10 pb-2">
+        <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
           <div class="flex items-center gap-2">
             ${showClientBadge && clientObj ? `
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white border" style="background-color: ${clientObj.color || '#6366f1'}30; border-color: ${clientObj.color || '#6366f1'}60">
                 ${escapeHtml(clientObj.name)}
               </span>
             ` : ''}
-            <span class="text-[11px] text-slate-400 font-medium">${formatDate(n.created_at || n.date)}</span>
+            <span class="text-xs text-slate-400 font-semibold">${formatDate(n.created_at || n.date)}</span>
           </div>
 
           <div class="flex items-center gap-2">
             ${isDeadline ? `
-              <button data-toggle-deadline="${n.id}" class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}" title="Cliquer pour changer le statut">
-                <i data-lucide="${isCompleted ? 'check-circle-2' : 'clock'}" class="w-3 h-3"></i>
-                <span>${isCompleted ? 'Terminé' : (extractDateFromContent(n.content) || n.date || 'Échéance')}</span>
+              <button data-toggle-deadline="${n.id}" class="deadline-pill cursor-pointer transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}" title="Cliquer pour changer le statut de la deadline">
+                <i data-lucide="${isCompleted ? 'check-circle-2' : 'clock'}" class="w-3.5 h-3.5"></i>
+                <span>${isCompleted ? 'Deadline Validée' : (extractDateFromContent(n.content) || n.date || 'Échéance')}</span>
               </button>
             ` : ''}
 
-            <!-- Card Actions -->
             <button data-pin-note="${n.id}" class="p-1 text-slate-400 hover:text-amber-400 transition" title="${isPinned ? 'Désépingler' : 'Épingler'}">
-              <i data-lucide="pin" class="w-3.5 h-3.5 ${isPinned ? 'text-amber-400 fill-amber-400' : ''}"></i>
+              <i data-lucide="pin" class="w-4 h-4 ${isPinned ? 'text-amber-400 fill-amber-400' : ''}"></i>
             </button>
             <button data-delete-note="${n.id}" class="p-1 text-slate-400 hover:text-rose-400 transition" title="Supprimer la note">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           </div>
         </div>
 
-        <div class="text-xs text-slate-100 whitespace-pre-wrap leading-relaxed">
+        <div class="ag-note-card-content">
           ${renderFormattedContent(cleanContent(n.content))}
         </div>
 
@@ -515,8 +516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderFormattedContent(text) {
     if (!text) return '';
-    // Format @mentions
-    let formatted = escapeHtml(text).replace(/@([a-zA-Z0-9_À-ÿ\-]+)/g, '<span class="font-bold text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded-md border border-cyan-800/60">@$1</span>');
+    let formatted = escapeHtml(text).replace(/@([a-zA-Z0-9_À-ÿ\-]+)/g, '<span class="mention-pill">@$1</span>');
     return formatted;
   }
 
@@ -578,7 +578,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderAllViews();
   }
 
-  // ─── CONTEXT SIDEBAR FOR ACTIVE CLIENT ─────────────────────────────
+  // ─── CLIENT SIDEBAR WIDGETS ─────────────────────────────────────────
   function renderClientSidebarTodos(clientId) {
     const listEl = document.getElementById('ag-client-todos-list');
     const countEl = document.getElementById('ag-client-todos-count');
@@ -588,17 +588,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (countEl) countEl.textContent = clientTodos.filter(t => !t.completed && !t.done).length;
 
     if (!clientTodos.length) {
-      listEl.innerHTML = `<p class="text-[11px] text-slate-500 text-center py-2">Aucune tâche pour ce client.</p>`;
+      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucune tâche pour ce client.</p>`;
       return;
     }
 
     listEl.innerHTML = clientTodos.map(t => {
       const isDone = t.completed || t.done;
       return `
-        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
           <label class="flex items-center gap-2 cursor-pointer flex-1 overflow-hidden">
             <input type="checkbox" data-todo-id="${t.id}" ${isDone ? 'checked' : ''} class="ag-todo-checkbox rounded border-slate-700 text-indigo-600 focus:ring-0">
-            <span class="${isDone ? 'line-through text-slate-500' : 'text-slate-200'} truncate">${escapeHtml(t.content)}</span>
+            <span class="${isDone ? 'line-through text-slate-500' : 'text-slate-200'} truncate font-medium">${escapeHtml(t.content)}</span>
           </label>
           <button data-delete-todo="${t.id}" class="text-slate-500 hover:text-rose-400 p-1">
             <i data-lucide="x" class="w-3.5 h-3.5"></i>
@@ -642,7 +642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const clientPersons = persons.filter(p => p.client_id === clientId || p.clientId === clientId);
     if (!clientPersons.length) {
-      listEl.innerHTML = `<p class="text-[11px] text-slate-500 text-center py-2">Aucun contact rattaché.</p>`;
+      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucun contact rattaché.</p>`;
       return;
     }
 
@@ -682,12 +682,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pinned = clientNotes.filter(n => pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id));
 
     if (!pinned.length) {
-      listEl.innerHTML = `<p class="text-[11px] text-slate-500 text-center py-2">Aucun fichier ou note épinglé.</p>`;
+      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucun fichier ou note épinglé.</p>`;
       return;
     }
 
     listEl.innerHTML = pinned.map(n => `
-      <div class="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center justify-between">
+      <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center justify-between">
         <span class="truncate font-medium text-slate-200">${escapeHtml(cleanContent(n.content))}</span>
         <button data-pin-note="${n.id}" class="text-amber-400 p-1"><i data-lucide="pin" class="w-3.5 h-3.5 fill-amber-400"></i></button>
       </div>
@@ -719,7 +719,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (futureEl) futureEl.textContent = future.length;
 
     if (!deadlineNotes.length) {
-      container.innerHTML = `<div class="glass-panel p-10 text-center text-xs text-slate-500 rounded-3xl">Aucune échéance enregistrée. Tapez /deadline dans la zone de saisie pour créer une échéance.</div>`;
+      container.innerHTML = `<div class="glass-panel p-10 text-center text-xs text-slate-400 rounded-3xl">Aucune échéance enregistrée. Tapez /deadline dans la zone de saisie pour créer une échéance.</div>`;
       return;
     }
 
@@ -737,14 +737,14 @@ document.addEventListener('DOMContentLoaded', async () => {
               <div class="timeline-item space-y-1">
                 <div class="flex items-center justify-between text-xs">
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-white">${clientObj ? escapeHtml(clientObj.name) : 'Client'}</span>
+                    <span class="font-bold text-white text-sm">${clientObj ? escapeHtml(clientObj.name) : 'Client'}</span>
                     ${isCompleted ? '<span class="px-2 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 font-bold rounded-md">Terminé</span>' : ''}
                   </div>
-                  <span class="px-2 py-0.5 text-[10px] font-extrabold bg-rose-500/20 text-rose-400 rounded-full">
+                  <span class="px-2.5 py-0.5 text-[10px] font-extrabold bg-rose-500/20 text-rose-400 rounded-full border border-rose-500/30">
                     ${extractDateFromContent(d.content) || d.date || 'À venir'}
                   </span>
                 </div>
-                <p class="text-xs text-slate-300">${escapeHtml(cleanContent(d.content))}</p>
+                <p class="text-xs text-slate-300 leading-relaxed">${escapeHtml(cleanContent(d.content))}</p>
               </div>
             `;
           }).join('')}
@@ -763,7 +763,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const filterVal = clientFilter ? clientFilter.value : 'all';
 
-    // Populate client filter select
     if (clientFilter && clientFilter.options.length <= 1) {
       clients.forEach(c => {
         const opt = document.createElement('option');
@@ -785,11 +784,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (doneCount) doneCount.textContent = done.length;
 
     if (pendingList) {
-      pendingList.innerHTML = pending.length ? pending.map(t => renderKanbanCard(t, false)).join('') : '<p class="text-xs text-slate-500 text-center py-4">Aucune tâche en cours.</p>';
+      pendingList.innerHTML = pending.length ? pending.map(t => renderKanbanCard(t, false)).join('') : '<p class="text-xs text-slate-400 text-center py-4">Aucune tâche en cours.</p>';
       bindKanbanCardEvents(pendingList);
     }
     if (doneList) {
-      doneList.innerHTML = done.length ? done.map(t => renderKanbanCard(t, true)).join('') : '<p class="text-xs text-slate-500 text-center py-4">Aucune tâche terminée.</p>';
+      doneList.innerHTML = done.length ? done.map(t => renderKanbanCard(t, true)).join('') : '<p class="text-xs text-slate-400 text-center py-4">Aucune tâche terminée.</p>';
       bindKanbanCardEvents(doneList);
     }
   }
@@ -799,19 +798,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `
       <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-2 text-xs glow-hover">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
             ${clientObj ? escapeHtml(clientObj.name) : 'Global'}
           </span>
           <div class="flex items-center gap-1">
             <button data-toggle-kanban="${t.id}" class="text-slate-400 hover:text-emerald-400 p-1" title="${isDone ? 'Marquer à faire' : 'Marquer terminé'}">
-              <i data-lucide="${isDone ? 'rotate-ccw' : 'check-circle'}" class="w-3.5 h-3.5"></i>
+              <i data-lucide="${isDone ? 'rotate-ccw' : 'check-circle'}" class="w-4 h-4"></i>
             </button>
             <button data-delete-kanban="${t.id}" class="text-slate-400 hover:text-rose-400 p-1" title="Supprimer">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           </div>
         </div>
-        <p class="${isDone ? 'line-through text-slate-500' : 'text-slate-200'} font-medium">${escapeHtml(t.content)}</p>
+        <p class="${isDone ? 'line-through text-slate-500' : 'text-slate-200'} font-medium text-xs leading-relaxed">${escapeHtml(t.content)}</p>
       </div>
     `;
   }
@@ -851,13 +850,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     kanbanFilterSelect.addEventListener('change', renderKanbanView);
   }
 
-  // ─── CONTACTS DIRECTORY VIEW ───────────────────────────────────────
+  // ─── CONTACTS VIEW ─────────────────────────────────────────────────
   function renderContactsView() {
     const gridEl = document.getElementById('ag-contacts-grid');
     if (!gridEl) return;
 
     if (!persons.length) {
-      gridEl.innerHTML = `<div class="col-span-full glass-panel p-10 text-center text-xs text-slate-500 rounded-3xl">Aucun contact enregistré pour le moment. Cliquez sur "Nouveau Contact" pour en créer un.</div>`;
+      gridEl.innerHTML = `<div class="col-span-full glass-panel p-10 text-center text-xs text-slate-400 rounded-3xl">Aucun contact enregistré pour le moment. Cliquez sur "Nouveau Contact" pour en créer un.</div>`;
       return;
     }
 
@@ -872,7 +871,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </span>
           </div>
           <p class="text-xs text-slate-400">${escapeHtml(p.position || 'Interlocuteur Client')}</p>
-          ${p.email ? `<p class="text-[11px] text-indigo-400 flex items-center gap-1"><i data-lucide="mail" class="w-3 h-3"></i> ${escapeHtml(p.email)}</p>` : ''}
+          ${p.email ? `<p class="text-[11px] text-indigo-400 flex items-center gap-1"><i data-lucide="mail" class="w-3.5 h-3.5"></i> ${escapeHtml(p.email)}</p>` : ''}
         </div>
       `;
     }).join('');
@@ -942,7 +941,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshBtn.addEventListener('click', loadData);
   }
 
-  // Dash new note button trigger
   const dashNewNoteBtn = document.getElementById('ag-dash-new-note-btn');
   if (dashNewNoteBtn) {
     dashNewNoteBtn.addEventListener('click', () => {
@@ -954,19 +952,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Client Modal Logic
+  // ─── CLIENT COLOR CUSTOMIZATION & MODAL ENGINE ─────────────────────
   const createClientBtn = document.getElementById('ag-create-client-btn');
   const addClientQuick = document.getElementById('ag-add-client-quick');
 
   if (createClientBtn) createClientBtn.addEventListener('click', () => openAddClientModal());
   if (addClientQuick) addClientQuick.addEventListener('click', () => openAddClientModal());
 
+  // Bind Swatches in Client Modal
+  const colorSwatches = document.querySelectorAll('#ag-client-color-options .color-swatch-btn');
+  const customColorPicker = document.getElementById('ag-client-input-color-picker');
+  const hiddenColorField = document.getElementById('ag-client-selected-color');
+
+  colorSwatches.forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      colorSwatches.forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      selectedClientColor = swatch.dataset.color;
+      if (hiddenColorField) hiddenColorField.value = selectedClientColor;
+      if (customColorPicker) customColorPicker.value = selectedClientColor;
+    });
+  });
+
+  if (customColorPicker) {
+    customColorPicker.addEventListener('input', (e) => {
+      selectedClientColor = e.target.value;
+      if (hiddenColorField) hiddenColorField.value = selectedClientColor;
+      colorSwatches.forEach(s => s.classList.remove('active'));
+    });
+  }
+
   function openAddClientModal() {
     editingClientId = null;
+    selectedClientColor = '#6366f1';
     const titleEl = document.getElementById('ag-client-modal-title');
     const inputName = document.getElementById('ag-client-input-name');
     if (titleEl) titleEl.textContent = 'Nouveau Client';
     if (inputName) inputName.value = '';
+    if (hiddenColorField) hiddenColorField.value = selectedClientColor;
 
     const modal = document.getElementById('ag-client-modal');
     if (modal) modal.classList.remove('hidden');
@@ -977,10 +1000,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!client) return;
 
     editingClientId = id;
+    selectedClientColor = client.color || '#6366f1';
     const titleEl = document.getElementById('ag-client-modal-title');
     const inputName = document.getElementById('ag-client-input-name');
     if (titleEl) titleEl.textContent = 'Éditer le Client';
     if (inputName) inputName.value = client.name;
+    if (hiddenColorField) hiddenColorField.value = selectedClientColor;
+
+    colorSwatches.forEach(s => {
+      if (s.dataset.color === selectedClientColor) s.classList.add('active');
+      else s.classList.remove('active');
+    });
 
     const modal = document.getElementById('ag-client-modal');
     if (modal) modal.classList.remove('hidden');
@@ -1024,20 +1054,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       const inputName = document.getElementById('ag-client-input-name');
       if (!inputName || !inputName.value.trim()) return;
 
+      const finalColor = hiddenColorField ? hiddenColorField.value : selectedClientColor;
+
       if (editingClientId) {
         const client = clients.find(c => c.id === editingClientId);
         if (client) {
           client.name = inputName.value.trim();
+          client.color = finalColor;
           saveDataLocal();
           if (sb) {
-            await sb.from('clients').update({ name: client.name }).eq('id', client.id);
+            try {
+              await sb.from('clients').update({ name: client.name, color: client.color }).eq('id', client.id);
+            } catch (err) {
+              await sb.from('clients').update({ name: client.name }).eq('id', client.id);
+            }
           }
         }
       } else {
         const newClient = {
           id: generateUUID(),
           name: inputName.value.trim(),
-          color: '#6366f1',
+          color: finalColor,
           created_at: new Date().toISOString()
         };
 
@@ -1045,7 +1082,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveDataLocal();
 
         if (sb) {
-          await sb.from('clients').insert(newClient);
+          try {
+            await sb.from('clients').insert(newClient);
+          } catch (err) {
+            await sb.from('clients').insert({ id: newClient.id, name: newClient.name });
+          }
         }
 
         openClientStream(newClient.id);
@@ -1179,7 +1220,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const rawText = noteInput.value.trim();
 
-    // Check for /todo command alias
     if (rawText.startsWith('/todo ')) {
       const todoText = rawText.replace('/todo ', '').trim();
       const newTodo = {
@@ -1324,7 +1364,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let matches = [];
 
-    // Match Clients
     clients.forEach(c => {
       if (!query || c.name.toLowerCase().includes(query)) {
         matches.push({
@@ -1340,7 +1379,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // Match Navigation Views
     [
       { name: 'Tableau de Bord', view: 'dashboard', icon: 'layout-dashboard' },
       { name: 'Hub Clients', view: 'clients', icon: 'folder-kanban' },
@@ -1363,7 +1401,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     if (!matches.length) {
-      cmdResults.innerHTML = `<div class="p-4 text-center text-xs text-slate-500">Aucun résultat trouvé.</div>`;
+      cmdResults.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">Aucun résultat trouvé.</div>`;
       return;
     }
 
@@ -1394,11 +1432,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tutorialSteps = [
     {
       title: "1. Bienvenue sur MimiGP v2 (Antigravity)",
-      desc: "Découvrez notre réinterprétation moderne de votre portail client. Toutes vos données existantes (clients, notes, deadlines, todos et contacts) ont été entièrement récupérées et synchronisées !",
+      desc: "Découvrez notre réinterprétation moderne de votre portail client. Toutes vos données existantes ont été récupérées et synchronisées !",
       highlights: [
-        "Dashboard unifié avec statistiques en temps réel",
-        "Code couleur personnalisé par client",
-        "Barre de recherche rapide accessible avec ⌘K / Ctrl+K"
+        "Tableau de bord cliquable avec redirection instantanée",
+        "Palette de couleurs sur-mesure pour chaque client",
+        "Command Palette universelle avec ⌘K / Ctrl+K"
       ]
     },
     {
@@ -1412,7 +1450,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
     {
       title: "3. Deadlines, Kanban & Annuaire Contacts",
-      desc: "Organisez l'ensemble de vos projets avec des vues spécialisées :",
+      desc: "Organisez vos projets grâce aux vues spécialisées :",
       highlights: [
         "Timeline des Deadlines : suivi chronologique par urgence",
         "Kanban Unifié : gestion visuelle des actions (À faire / Terminé)",
@@ -1420,12 +1458,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       ]
     },
     {
-      title: "4. Synchronisation 100% Hybride",
-      desc: "Vous pouvez basculer librement entre la version V1 et la V2.",
+      title: "4. Changement de Couleur & Personalisation",
+      desc: "Personnalisez la couleur de chaque client d'un simple clic depuis le Hub Clients ou les paramètres.",
       highlights: [
-        "Connexion directe à votre base Supabase",
-        "Sauvegarde de secours automatique en LocalStorage",
-        "Bascule en 1 clic grâce aux boutons dans l'en-tête"
+        "Sélecteur de swatchs ou couleur HTML custom",
+        "Mise à jour en temps réel sur tous les composants",
+        "Sauvegarde permanente Supabase et LocalStorage"
       ]
     }
   ];
@@ -1549,7 +1587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Initialize Auth & Data
+  // Launch App
   await initAuth();
   await loadData();
 
