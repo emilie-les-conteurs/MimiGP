@@ -660,12 +660,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const clientObj = clients.find(c => c.id === n.client_id || c.id === n.clientId);
     const isDeadline = n.is_deadline || (n.content && n.content.includes('/deadline'));
     const isCompleted = n.completed || false;
-    const bgCol = noteBgs[n.id] || n.bg_color || n.color || 'default';
-    const colorClass = `note-bg-${bgCol}`;
     const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id);
 
     return `
-      <div data-note-id="${n.id}" class="ag-note-card ${colorClass} space-y-3">
+      <div data-note-id="${n.id}" class="ag-note-card space-y-3">
         
         <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
           <div class="flex items-center gap-2">

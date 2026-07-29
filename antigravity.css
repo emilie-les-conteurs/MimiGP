@@ -196,6 +196,7 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(30, 41, 59, 0.7);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 4px solid var(--accent-primary);
   border-radius: var(--radius-lg);
   padding: 1.25rem;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -203,25 +204,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 .ag-note-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.25);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
-
-.ag-note-card-content {
-  font-size: 0.9375rem; /* 15px */
-  line-height: 1.65;
-  color: #f1f5f9;
-  font-weight: 400;
-  word-break: break-word;
-}
-
-/* Note Card Themes / Background Accents */
-.note-bg-default { border-left: 4px solid #6366f1; background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.8)); }
-.note-bg-blue    { border-left: 4px solid #3b82f6; background: linear-gradient(135deg, rgba(30, 58, 138, 0.4), rgba(15, 23, 42, 0.8)); }
-.note-bg-green   { border-left: 4px solid #10b981; background: linear-gradient(135deg, rgba(6, 78, 59, 0.4), rgba(15, 23, 42, 0.8)); }
-.note-bg-yellow  { border-left: 4px solid #f59e0b; background: linear-gradient(135deg, rgba(113, 63, 18, 0.4), rgba(15, 23, 42, 0.8)); }
-.note-bg-pink    { border-left: 4px solid #ec4899; background: linear-gradient(135deg, rgba(131, 24, 67, 0.4), rgba(15, 23, 42, 0.8)); }
-.note-bg-purple  { border-left: 4px solid #8b5cf6; background: linear-gradient(135deg, rgba(88, 28, 135, 0.4), rgba(15, 23, 42, 0.8)); }
 
 /* Mention Tags & Slash Badges */
 .mention-pill {
