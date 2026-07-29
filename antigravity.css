@@ -267,43 +267,69 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ══════════════════════════════════════════════════════════════════ */
+/* DUAL DESIGN SYSTEM (DESIGN SYSTEM DÉDOUBLÉ SOMBRE / CLAIR)         */
 /* ══════════════════════════════════════════════════════════════════ */
-/* LIGHT THEME OVERRIDES                                              */
-/* ══════════════════════════════════════════════════════════════════ */
-body.light-theme,
-body.light-theme .bg-dark-900 {
+body.light-theme {
+  --bg-app: #f1f5f9;
+  --bg-sidebar: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --border-color: rgba(203, 213, 225, 0.8);
+  --border-color-light: rgba(226, 232, 240, 0.9);
+
+  --text-main: #0f172a;
+  --text-body: #334155;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+
   background-color: #f1f5f9 !important;
   color: #0f172a !important;
 }
 
+/* Backgrounds & Main Layout Containers */
+body.light-theme,
+body.light-theme .bg-dark-900,
+body.light-theme .bg-slate-950,
+body.light-theme main,
+body.light-theme section {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Header & Sidebar */
 body.light-theme header.glass-header,
 body.light-theme aside#ag-sidebar,
 body.light-theme .bg-dark-800 {
   background-color: #ffffff !important;
   border-color: #cbd5e1 !important;
-}
-
-body.light-theme .glass-panel,
-body.light-theme .glass-modal {
-  background: #ffffff !important;
-  border-color: #e2e8f0 !important;
   color: #0f172a !important;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
 }
 
+/* Glass Panels, Cards & Modals */
+body.light-theme .glass-panel,
+body.light-theme .glass-modal,
+body.light-theme .command-menu-popup {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Note Cards (Preserving Dynamic Client Border-Left Color) */
 body.light-theme .ag-note-card {
   background: #ffffff !important;
-  border-top: 1px solid #e2e8f0 !important;
-  border-right: 1px solid #e2e8f0 !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  border-top: 1px solid #cbd5e1 !important;
+  border-right: 1px solid #cbd5e1 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
   color: #0f172a !important;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 4px 15px rgba(15, 23, 42, 0.05) !important;
 }
 
 body.light-theme .ag-note-card-content {
   color: #1e293b !important;
 }
 
+/* Inputs, Textareas, Selects & Form Controls */
 body.light-theme input:not([type="color"]),
 body.light-theme textarea,
 body.light-theme select {
@@ -312,19 +338,63 @@ body.light-theme select {
   border-color: #cbd5e1 !important;
 }
 
+body.light-theme input::placeholder,
+body.light-theme textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* All Inner Sub-containers & Widgets */
+body.light-theme .bg-slate-900,
+body.light-theme .bg-slate-950,
+body.light-theme .bg-slate-900\/40,
+body.light-theme .bg-slate-900\/60,
+body.light-theme .bg-slate-900\/80,
+body.light-theme .bg-slate-950\/40,
+body.light-theme .bg-slate-950\/60,
+body.light-theme .bg-slate-800,
+body.light-theme .bg-slate-800\/60,
+body.light-theme .bg-slate-800\/80 {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Typography & Text Overrides */
 body.light-theme .text-white:not([style*="color"]) {
   color: #0f172a !important;
 }
 
+body.light-theme .text-slate-100,
+body.light-theme .text-slate-200 {
+  color: #1e293b !important;
+}
+
+body.light-theme .text-slate-300,
 body.light-theme .text-slate-400,
-body.light-theme .text-slate-300 {
+body.light-theme .text-slate-500 {
   color: #475569 !important;
 }
 
-body.light-theme .bg-slate-900,
-body.light-theme .bg-slate-950,
-body.light-theme .bg-slate-900\/60,
-body.light-theme .bg-slate-900\/80 {
-  background-color: #f8fafc !important;
-  border-color: #e2e8f0 !important;
+/* Hover States & Active Nav Links */
+body.light-theme .nav-link:hover,
+body.light-theme .nav-link.active {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+  color: #4f46e5 !important;
+}
+
+body.light-theme .command-item:hover,
+body.light-theme .command-item.selected {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+  color: #0f172a !important;
+}
+
+/* Custom Scrollbars in Light Mode */
+body.light-theme ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+body.light-theme ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+body.light-theme ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
