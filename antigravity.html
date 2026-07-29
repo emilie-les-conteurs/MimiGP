@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MimiGP v2 — Version Antigravity</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Custom CSS Design System -->
+  <link rel="stylesheet" href="antigravity.css">
+  <link rel="icon" type="image/jpeg" href="logo.jpg">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            dark: {
+              900: '#0b0f19',
+              800: '#0f172a',
+              700: '#1e293b',
+              600: '#334155',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-dark-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!--                   HEADER / NAVBAR PERMANENTE                       -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <header class="glass-header sticky top-0 z-40 px-4 lg:px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <!-- Mobile menu toggle -->
+      <button id="ag-mobile-menu-btn" class="lg:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+      </button>
+
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3 cursor-pointer" id="ag-brand-home">
+        <div class="relative group">
+          <div class="w-9 h-9 rounded-xl overflow-hidden border border-indigo-500/30 p-0.5 bg-slate-800 shadow-lg shadow-indigo-500/10">
+            <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover rounded-lg">
+          </div>
+          <span class="absolute -top-1 -right-1 flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+          </span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-lg tracking-tight text-white">MimiGP</span>
+            <span class="px-2 py-0.5 text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full">v2 Antigravity</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-medium">Workspace Client Évolué</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Search & Command Palette Trigger -->
+    <div class="hidden md:flex items-center flex-1 max-w-md mx-8">
+      <button id="ag-cmd-k-trigger" class="w-full flex items-center justify-between px-3.5 py-2 bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700/60 rounded-xl text-xs transition group">
+        <div class="flex items-center gap-2.5">
+          <i data-lucide="search" class="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition"></i>
+          <span>Rechercher client, note, deadline, contact...</span>
+        </div>
+        <kbd class="px-2 py-0.5 text-[10px] font-semibold bg-slate-900 text-slate-400 border border-slate-700 rounded-md">⌘K</kbd>
+      </button>
+    </div>
+
+    <!-- Right Quick Actions & Link Back -->
+    <div class="flex items-center gap-3">
+      <!-- Tutorial Trigger -->
+      <button id="ag-tutorial-open-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-xs font-semibold transition">
+        <i data-lucide="sparkles" class="w-4 h-4"></i>
+        <span class="hidden sm:inline">Guide & Tutoriel</span>
+      </button>
+
+      <!-- Switch back to Original v1 -->
+      <a href="index.html" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition" title="Basculer sur l'ancienne version">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+        <span class="hidden sm:inline">Version V1</span>
+      </a>
+
+      <!-- User Profile Avatar -->
+      <div id="ag-user-profile" class="flex items-center gap-2.5 pl-2 border-l border-slate-800">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-md" id="ag-user-avatar">
+          U
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!--                   LAYOUT AVEC SIDEBAR ET CONTENU                    -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- SIDEBAR NAV -->
+    <aside id="ag-sidebar" class="w-64 bg-dark-800 border-r border-slate-800/80 flex flex-col justify-between shrink-0 transition-all duration-300 z-30 fixed lg:relative inset-y-0 left-0 -translate-x-full lg:translate-x-0">
+      
+      <!-- Top Nav Links -->
+      <div class="p-4 space-y-6 overflow-y-auto">
+        
+        <!-- Main Navigation -->
+        <div>
+          <p class="px-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">Vues Principales</p>
+          <nav class="space-y-1" id="ag-main-nav">
+            <button data-view="dashboard" class="nav-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 transition active">
+              <i data-lucide="layout-dashboard" class="w-4 h-4 text-indigo-400"></i>
+              <span>Tableau de Bord</span>
+            </button>
+            <button data-view="clients" class="nav-link w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 transition">
+              <div class="flex items-center gap-3">
+                <i data-lucide="folder-kanban" class="w-4 h-4 text-cyan-400"></i>
+                <span>Hub Clients</span>
+              </div>
+              <span id="ag-sidebar-clients-count" class="px-2 py-0.5 text-[10px] font-bold bg-slate-700/60 text-slate-300 rounded-full">0</span>
+            </button>
+            <button data-view="deadlines" class="nav-link w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 transition">
+              <div class="flex items-center gap-3">
+                <i data-lucide="clock" class="w-4 h-4 text-rose-400"></i>
+                <span>Deadlines & Agenda</span>
+              </div>
+              <span id="ag-sidebar-deadlines-badge" class="px-2 py-0.5 text-[10px] font-bold bg-rose-500/20 text-rose-400 rounded-full">0</span>
+            </button>
+            <button data-view="kanban" class="nav-link w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 transition">
+              <div class="flex items-center gap-3">
+                <i data-lucide="check-square" class="w-4 h-4 text-emerald-400"></i>
+                <span>Tâches (Todos)</span>
+              </div>
+              <span id="ag-sidebar-todos-count" class="px-2 py-0.5 text-[10px] font-bold bg-slate-700/60 text-slate-300 rounded-full">0</span>
+            </button>
+            <button data-view="contacts" class="nav-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 transition">
+              <i data-lucide="users" class="w-4 h-4 text-amber-400"></i>
+              <span>Annuaire Contacts</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- Quick Access Client List -->
+        <div>
+          <div class="flex items-center justify-between px-3 mb-2">
+            <p class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Clients Récents</p>
+            <button id="ag-add-client-quick" class="text-xs text-indigo-400 hover:text-indigo-300 transition font-semibold" title="Ajouter un client">+ Nouveau</button>
+          </div>
+          <div id="ag-sidebar-client-list" class="space-y-1 max-h-48 overflow-y-auto">
+            <!-- Client items injected by JS -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Sync Status -->
+      <div class="p-4 border-t border-slate-800/80 bg-slate-900/40">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-[11px] font-medium" id="ag-sync-status">Supabase Synchro</span>
+          </div>
+          <button id="ag-refresh-btn" class="p-1 hover:text-white transition" title="Rafraîchir les données">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- MOBILE OVERLAY BACKDROP -->
+    <div id="ag-sidebar-overlay" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-20 hidden lg:hidden"></div>
+
+    <!-- MAIN VIEW AREA -->
+    <main class="flex-1 overflow-y-auto bg-dark-900 p-4 lg:p-8 space-y-6">
+
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <!-- VUE 1 : DASHBOARD EXÉCUTIF                                         -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <section id="ag-view-dashboard" class="space-y-6">
+        
+        <!-- Welcome Banner -->
+        <div class="relative overflow-hidden rounded-2xl glass-panel p-6 border border-slate-700/50">
+          <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-2xl font-black text-white tracking-tight">Bienvenue sur MimiGP <span class="gradient-text">v2</span></h2>
+              <p class="text-sm text-slate-400 mt-1 max-w-xl">
+                Votre hub de gestion client nouvelle génération. Suivez vos projets, vos deadlines et vos échanges avec une clarté optimale.
+              </p>
+            </div>
+            <div class="flex items-center gap-3">
+              <button id="ag-dash-new-note-btn" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 transition flex items-center gap-2">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span>Créer une Note / Deadline</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <div class="glass-panel p-5 rounded-2xl glow-hover flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold text-slate-400">Clients Actifs</p>
+              <h3 class="text-2xl font-black text-white mt-1" id="ag-stat-clients">0</h3>
+              <p class="text-[11px] text-cyan-400 mt-1 font-medium flex items-center gap-1">
+                <i data-lucide="folder" class="w-3 h-3"></i> Portfolio géré
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <i data-lucide="users" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <div class="glass-panel p-5 rounded-2xl glow-hover flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold text-slate-400">Deadlines Imminentes</p>
+              <h3 class="text-2xl font-black text-white mt-1" id="ag-stat-deadlines">0</h3>
+              <p class="text-[11px] text-rose-400 mt-1 font-medium flex items-center gap-1">
+                <i data-lucide="alert-circle" class="w-3 h-3"></i> Échéances clés
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+              <i data-lucide="clock" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <div class="glass-panel p-5 rounded-2xl glow-hover flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold text-slate-400">Tâches en Cours</p>
+              <h3 class="text-2xl font-black text-white mt-1" id="ag-stat-todos">0</h3>
+              <p class="text-[11px] text-emerald-400 mt-1 font-medium flex items-center gap-1">
+                <i data-lucide="check-circle-2" class="w-3 h-3"></i> Actions pending
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <i data-lucide="check-square" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <div class="glass-panel p-5 rounded-2xl glow-hover flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold text-slate-400">Fichiers / Notes Épinglés</p>
+              <h3 class="text-2xl font-black text-white mt-1" id="ag-stat-pinned">0</h3>
+              <p class="text-[11px] text-purple-400 mt-1 font-medium flex items-center gap-1">
+                <i data-lucide="pin" class="w-3 h-3"></i> Documents prioritaires
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+              <i data-lucide="bookmark" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Dashboard Two-Column Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Recent Activity Feed (2 Cols) -->
+          <div class="lg:col-span-2 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i>
+                Fil d'actualité récent
+              </h3>
+              <span class="text-xs text-slate-400 font-medium">Toutes les notes combinées</span>
+            </div>
+            <div id="ag-dash-feed" class="space-y-3">
+              <!-- Feed items dynamically rendered -->
+            </div>
+          </div>
+
+          <!-- Upcoming Deadlines Timeline Widget (1 Col) -->
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="calendar" class="w-4 h-4 text-rose-400"></i>
+                Prochaines Échéances
+              </h3>
+            </div>
+            <div class="glass-panel p-4 rounded-2xl space-y-3" id="ag-dash-deadlines-widget">
+              <!-- Deadlines list rendered here -->
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <!-- VUE 2 : HUB CLIENTS (Grille de Cartes Thématiques)                -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <section id="ag-view-clients" class="hidden space-y-6">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-white">Hub Clients</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Consultez et gérez vos espaces clients avec leurs palettes de couleurs dédiées.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <input type="text" id="ag-client-search" placeholder="Filtrer les clients..." class="px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition w-full sm:w-60">
+            <button id="ag-create-client-btn" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center gap-2 shrink-0">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>Ajouter un Client</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="ag-clients-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <!-- Client cards rendered here -->
+        </div>
+
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <!-- VUE 3 : ESPACE STREAM CLIENT ACTIF                                 -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <section id="ag-view-client-stream" class="hidden space-y-6">
+        
+        <!-- Active Client Header -->
+        <div class="glass-panel p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 border-l-4" id="ag-client-active-header">
+          <div class="flex items-center gap-4">
+            <button id="ag-back-to-clients" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition" title="Retour aux clients">
+              <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            </button>
+            <div>
+              <div class="flex items-center gap-3">
+                <h2 class="text-xl font-bold text-white" id="ag-client-active-name">Nom du Client</h2>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase" id="ag-client-active-badge">Actif</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1" id="ag-client-active-stats">0 note • 0 deadline à venir</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="ag-client-edit-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+              <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+              <span>Paramètres</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Stream Main Layout: Composer + Stream Feed + Context Sidebar -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Stream & Composer (2 Cols) -->
+          <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Modern Note Composer -->
+            <div class="glass-panel p-4 rounded-2xl space-y-3 relative border border-indigo-500/20" id="ag-composer">
+              
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-indigo-400"></i>
+                  Nouvelle Note / Compte Rendu
+                </span>
+                <span class="text-[10px] text-slate-500">Tapez <kbd class="px-1 py-0.5 bg-slate-800 text-slate-300 rounded font-mono">/</kbd> pour les raccourcis</span>
+              </div>
+
+              <!-- Textarea input -->
+              <div class="relative">
+                <textarea id="ag-note-input" rows="3" placeholder="Écrivez une note... Utilisez /deadline YYYY-MM-DD ou /demain pour créer une échéance" class="w-full bg-slate-950/40 text-slate-100 text-xs rounded-xl p-3 border border-slate-800 focus:outline-none focus:border-indigo-500/60 transition resize-none"></textarea>
+                
+                <!-- Slash Command Popup Menu -->
+                <div id="ag-slash-menu" class="command-menu-popup hidden">
+                  <div class="px-3 py-1.5 border-b border-slate-700/60 text-[10px] uppercase font-bold text-slate-400">Raccourcis Slash</div>
+                  <div class="command-item" data-cmd="/deadline">
+                    <i data-lucide="clock" class="w-4 h-4 text-rose-400"></i>
+                    <div>
+                      <div class="font-semibold text-white">/deadline [date]</div>
+                      <div class="text-[10px]">Créer une échéance datée</div>
+                    </div>
+                  </div>
+                  <div class="command-item" data-cmd="/demain">
+                    <i data-lucide="calendar" class="w-4 h-4 text-amber-400"></i>
+                    <div>
+                      <div class="font-semibold text-white">/demain</div>
+                      <div class="text-[10px]">Planifier pour demain</div>
+                    </div>
+                  </div>
+                  <div class="command-item" data-cmd="/todo">
+                    <i data-lucide="check-square" class="w-4 h-4 text-emerald-400"></i>
+                    <div>
+                      <div class="font-semibold text-white">/todo [action]</div>
+                      <div class="text-[10px]">Ajouter une tâche à faire</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Controls Toolbar -->
+              <div class="flex items-center justify-between pt-1">
+                <div class="flex items-center gap-2">
+                  
+                  <!-- Color Palette Selector -->
+                  <div class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800" id="ag-color-picker">
+                    <button data-color="default" class="w-5 h-5 rounded-full bg-slate-700 ring-2 ring-indigo-500 scale-110" title="Par défaut"></button>
+                    <button data-color="blue" class="w-5 h-5 rounded-full bg-blue-600 hover:scale-110 transition" title="Bleu"></button>
+                    <button data-color="green" class="w-5 h-5 rounded-full bg-emerald-600 hover:scale-110 transition" title="Vert"></button>
+                    <button data-color="yellow" class="w-5 h-5 rounded-full bg-amber-600 hover:scale-110 transition" title="Jaune"></button>
+                    <button data-color="pink" class="w-5 h-5 rounded-full bg-pink-600 hover:scale-110 transition" title="Rose"></button>
+                    <button data-color="purple" class="w-5 h-5 rounded-full bg-purple-600 hover:scale-110 transition" title="Violet"></button>
+                  </div>
+
+                  <!-- Optional Date Picker Input -->
+                  <input type="date" id="ag-note-date-picker" class="bg-slate-900 text-slate-300 text-xs px-2.5 py-1 rounded-xl border border-slate-800 focus:outline-none" title="Associer une date de deadline">
+
+                </div>
+
+                <button id="ag-post-note-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
+                  <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                  <span>Publier</span>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Feed Filter Tabs -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div class="flex items-center gap-2" id="ag-feed-filter-tabs">
+                <button data-filter="all" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Tout (0)</button>
+                <button data-filter="deadlines" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition">Deadlines (0)</button>
+                <button data-filter="files" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition">Fichiers (0)</button>
+              </div>
+              <input type="text" id="ag-stream-search" placeholder="Rechercher dans le fil..." class="px-3 py-1 bg-slate-800 border border-slate-700/60 rounded-xl text-xs text-white focus:outline-none w-44">
+            </div>
+
+            <!-- Notes Feed Container -->
+            <div id="ag-client-feed" class="space-y-4">
+              <!-- Feed items rendered here -->
+            </div>
+
+          </div>
+
+          <!-- Contextual Right Sidebar for Active Client (1 Col) -->
+          <div class="space-y-5">
+            
+            <!-- Quick Client Todos Widget -->
+            <div class="glass-panel p-4 rounded-2xl space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                  <i data-lucide="check-square" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  Tâches du client
+                </h4>
+                <span id="ag-client-todos-count" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-bold">0</span>
+              </div>
+              
+              <div class="flex gap-2">
+                <input type="text" id="ag-quick-todo-input" placeholder="Ajouter une tâche..." class="flex-1 bg-slate-900 text-xs px-2.5 py-1.5 rounded-xl border border-slate-800 focus:outline-none focus:border-emerald-500">
+                <button id="ag-quick-todo-add" class="px-2.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-500 transition">+</button>
+              </div>
+
+              <div id="ag-client-todos-list" class="space-y-2 max-h-48 overflow-y-auto">
+                <!-- Todo list items -->
+              </div>
+            </div>
+
+            <!-- Team / Contacts Widget -->
+            <div class="glass-panel p-4 rounded-2xl space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                  <i data-lucide="users" class="w-3.5 h-3.5 text-amber-400"></i>
+                  Contacts Rattachés
+                </h4>
+                <button id="ag-add-contact-btn" class="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold">+ Contact</button>
+              </div>
+              <div id="ag-client-contacts-list" class="space-y-2">
+                <!-- Contact cards -->
+              </div>
+            </div>
+
+            <!-- Pinned Files Widget -->
+            <div class="glass-panel p-4 rounded-2xl space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                  <i data-lucide="file-text" class="w-3.5 h-3.5 text-purple-400"></i>
+                  Fichiers Épinglés
+                </h4>
+              </div>
+              <div id="ag-client-files-list" class="space-y-2 text-xs">
+                <!-- Pinned files -->
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <!-- VUE 4 : DEADLINES & AGENDA TIMELINE                                -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <section id="ag-view-deadlines" class="hidden space-y-6">
+        
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-bold text-white">Deadlines & Planning Chronologique</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Toutes les échéances à venir classées par ordre temporel.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-6" id="ag-deadlines-timeline-container">
+            <!-- Timeline items rendered dynamically -->
+          </div>
+
+          <!-- Summary Card -->
+          <div class="glass-panel p-5 rounded-2xl h-fit space-y-4">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-indigo-400"></i>
+              Synthèse des Échéances
+            </h3>
+            <div class="space-y-3 text-xs">
+              <div class="flex justify-between items-center p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                <span class="text-rose-400 font-semibold">En Retard</span>
+                <span class="font-black text-rose-400" id="ag-dl-overdue-count">0</span>
+              </div>
+              <div class="flex justify-between items-center p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                <span class="text-amber-400 font-semibold">Aujourd'hui</span>
+                <span class="font-black text-amber-400" id="ag-dl-today-count">0</span>
+              </div>
+              <div class="flex justify-between items-center p-2.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                <span class="text-indigo-400 font-semibold">À venir</span>
+                <span class="font-black text-indigo-400" id="ag-dl-future-count">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <!-- VUE 5 : KANBAN DES TÂCHES (TODOS)                                  -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <section id="ag-view-kanban" class="hidden space-y-6">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-white">Tableau Kanban des Tâches</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Organisez vos actions par statut et par client.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <select id="ag-kanban-client-filter" class="bg-slate-800 text-white text-xs px-3 py-2 rounded-xl border border-slate-700">
+              <option value="all">Tous les clients</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Column 1: À Faire -->
+          <div class="glass-panel p-4 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                À Faire / En cours
+              </h3>
+              <span id="ag-kanban-pending-count" class="text-xs font-extrabold bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">0</span>
+            </div>
+            <div id="ag-kanban-pending-list" class="space-y-3 min-h-[200px]">
+              <!-- Pending todos -->
+            </div>
+          </div>
+
+          <!-- Column 2: Terminé -->
+          <div class="glass-panel p-4 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <h3 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                Terminé
+              </h3>
+              <span id="ag-kanban-done-count" class="text-xs font-extrabold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">0</span>
+            </div>
+            <div id="ag-kanban-done-list" class="space-y-3 min-h-[200px]">
+              <!-- Done todos -->
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <!-- VUE 6 : ANNUAIRE CONTACTS (`persons`)                             -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <section id="ag-view-contacts" class="hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-bold text-white">Annuaire des Contacts</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Tous les interlocuteurs enregistrés auprès des clients.</p>
+          </div>
+          <button id="ag-create-contact-main-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-2">
+            <i data-lucide="user-plus" class="w-4 h-4"></i>
+            <span>Nouveau Contact</span>
+          </button>
+        </div>
+
+        <div id="ag-contacts-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Contacts cards -->
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- COMMAND PALETTE MODAL (`Cmd + K`)                                  -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div id="ag-cmd-k-modal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-start justify-center pt-20 hidden">
+    <div class="glass-modal w-full max-w-xl rounded-2xl overflow-hidden animate-scale-up border border-slate-700/80">
+      
+      <div class="p-3 border-b border-slate-800 flex items-center gap-3">
+        <i data-lucide="search" class="w-5 h-5 text-indigo-400 ml-2"></i>
+        <input type="text" id="ag-cmd-k-input" placeholder="Tapez pour rechercher un client, une note ou exécuter une commande..." class="w-full bg-transparent text-white text-sm focus:outline-none placeholder-slate-500">
+        <kbd class="px-2 py-1 text-[10px] bg-slate-800 text-slate-400 rounded-md font-mono">ESC</kbd>
+      </div>
+
+      <div id="ag-cmd-k-results" class="max-h-80 overflow-y-auto p-2 space-y-1">
+        <!-- Results injected here -->
+      </div>
+
+      <div class="p-3 bg-slate-900/60 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+        <div class="flex items-center gap-3">
+          <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-slate-300">↑</kbd> <kbd class="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-slate-300">↓</kbd> Naviguer</span>
+          <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-slate-300">↵</kbd> Sélectionner</span>
+        </div>
+        <span>MimiGP v2 Command Palette</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL TUTORIEL & GUIDE PRISE EN MAIN                              -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div id="ag-tutorial-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-modal max-w-2xl w-full rounded-3xl p-6 sm:p-8 space-y-6 relative overflow-hidden animate-scale-up">
+      
+      <!-- Close button -->
+      <button id="ag-tutorial-close-btn" class="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <!-- Header -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl gradient-bg flex items-center justify-center text-white font-black shadow-lg">
+          v2
+        </div>
+        <div>
+          <h3 class="text-xl font-extrabold text-white">Guide de Prise en Main — MimiGP v2</h3>
+          <p class="text-xs text-slate-400">Découvrez l'interface repensée par Antigravity à "notre sauce".</p>
+        </div>
+      </div>
+
+      <!-- Slides Container -->
+      <div id="ag-tutorial-content" class="min-h-[260px] bg-slate-900/60 rounded-2xl p-5 border border-slate-800/80">
+        <!-- Content dynamically updated per step -->
+      </div>
+
+      <!-- Footer & Stepper Navigation -->
+      <div class="flex items-center justify-between border-t border-slate-800/80 pt-4">
+        <div class="flex items-center gap-1.5" id="ag-tutorial-dots">
+          <!-- Step dots -->
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="ag-tut-prev-btn" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 transition">Précédent</button>
+          <button id="ag-tut-next-btn" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/20">Suivant</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL AJOUT / ÉDITION CLIENT                                       -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div id="ag-client-modal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-white" id="ag-client-modal-title">Nouveau Client</h3>
+        <button id="ag-client-modal-close" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="ag-client-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Nom du Client / Entreprise</label>
+          <input type="text" id="ag-client-input-name" required placeholder="ex: AcroCorp, StartUp Solutions..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Couleur du thème client</label>
+          <div class="flex items-center gap-2" id="ag-client-color-options">
+            <!-- Palette colors -->
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="ag-client-modal-cancel" class="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-700">Annuler</button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-500">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL AJOUT / ÉDITION CONTACT                                      -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div id="ag-contact-modal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-white" id="ag-contact-modal-title">Nouveau Contact</h3>
+        <button id="ag-contact-modal-close" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="ag-contact-form" class="space-y-3 text-xs">
+        <input type="hidden" id="ag-contact-input-id">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Nom Complet</label>
+          <input type="text" id="ag-contact-input-name" required placeholder="ex: Jean Dupont" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Poste / Fonction</label>
+          <input type="text" id="ag-contact-input-position" placeholder="ex: Directeur Technique, Manager..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Adresse E-mail</label>
+          <input type="email" id="ag-contact-input-email" placeholder="nom@exemple.com" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Client Rattaché</label>
+          <select id="ag-contact-input-client" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+            <!-- Client options -->
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="ag-contact-modal-cancel" class="px-4 py-2 bg-slate-800 text-slate-300 font-semibold rounded-xl hover:bg-slate-700">Annuler</button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-500">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main JS Logic -->
+  <script src="config.js"></script>
+  <script src="antigravity.js"></script>
+
+</body>
+</html>
