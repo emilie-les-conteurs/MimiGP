@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateSyncStatus('Chargement...', 'amber');
 
     try {
-      // Load Clients
+      // Load Clients & Recover V1 Colors
       let loadedClients = [];
       if (sb) {
         const { data, error } = await sb.from('clients').select('*').order('name');
@@ -220,6 +220,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       const localClients = JSON.parse(localStorage.getItem('mimigp_clients') || '[]');
       clients = mergeById(loadedClients, localClients);
+
+      // Auto-recover V1 client colors (client_color_${id})
+      clients.forEach(c => {
+        const v1Color = localStorage.getItem(`client_color_${c.id}`);
+        if (v1Color) {
+          c.color = v1Color;
+        } else if (c.color) {
+          localStorage.setItem(`client_color_${c.id}`, c.color);
+        }
+      });
 
       // Load Messages / Notes
       let loadedNotes = [];
@@ -284,6 +294,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function saveDataLocal() {
+    clients.forEach(c => {
+      if (c.color) {
+        localStorage.setItem(`client_color_${c.id}`, c.color);
+      }
+    });
     localStorage.setItem('mimigp_clients', JSON.stringify(clients));
     localStorage.setItem('mimigp_global_feed', JSON.stringify(notes));
     localStorage.setItem('mimigp_todos', JSON.stringify(todos));
