@@ -415,9 +415,16 @@
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <button id="ag-client-edit-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+            <!-- Sélecteur direct de couleur client 1-Clic -->
+            <label class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer transition shadow-sm" title="Changer la couleur du client en 1 clic">
+              <input type="color" id="ag-header-client-color-picker" value="#6366f1" class="w-5 h-5 rounded-full cursor-pointer bg-transparent border-0 p-0">
+              <i data-lucide="palette" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <span>Couleur Client</span>
+            </label>
+
+            <button id="ag-client-edit-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition flex items-center gap-1.5" title="Modifier le nom ou la couleur">
               <i data-lucide="settings" class="w-3.5 h-3.5"></i>
-              <span>Paramètres</span>
+              <span>Modifier</span>
             </button>
           </div>
         </div>

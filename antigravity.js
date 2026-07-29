@@ -404,8 +404,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const badgeEl = document.getElementById('ag-client-active-badge');
     const statsEl = document.getElementById('ag-client-active-stats');
     const headerCard = document.getElementById('ag-client-active-header');
+    const headerColorPicker = document.getElementById('ag-header-client-color-picker');
 
     if (nameEl) nameEl.textContent = client.name;
+    if (headerColorPicker) {
+      headerColorPicker.value = client.color || '#6366f1';
+    }
     if (badgeEl) {
       badgeEl.style.borderColor = client.color || '#6366f1';
       badgeEl.style.color = client.color || '#6366f1';
@@ -446,6 +450,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderClientSidebarTodos(clientId);
     renderClientContacts(clientId);
     renderClientPinnedFiles(clientId);
+  }
+
+  // 1-Click Client Header Color Picker Direct Event Listener
+  const headerColorPickerEl = document.getElementById('ag-header-client-color-picker');
+  if (headerColorPickerEl) {
+    headerColorPickerEl.addEventListener('input', async (e) => {
+      if (!activeClientId) return;
+      const client = clients.find(c => c.id === activeClientId);
+      if (client) {
+        client.color = e.target.value;
+        saveDataLocal();
+        if (sb) {
+          try {
+            await sb.from('clients').update({ color: client.color }).eq('id', client.id);
+          } catch (err) {
+            console.warn('Supabase client color update fallback:', err);
+          }
+        }
+        renderAllViews();
+      }
+    });
   }
 
   // ─── UNIVERSAL QUICK COMPOSERS LOGIC (HOME & CLIENT) ───────────────
