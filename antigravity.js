@@ -346,9 +346,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderSidebarClients() {
     const listEl = document.getElementById('ag-sidebar-client-list');
     const countEl = document.getElementById('ag-sidebar-clients-count');
-    if (!listEl) return;
+    const deadlinesBadgeEl = document.getElementById('ag-sidebar-deadlines-badge');
+    const todosBadgeEl = document.getElementById('ag-sidebar-todos-count');
 
     if (countEl) countEl.textContent = clients.length;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const deadlineNotes = notes.filter(n => n.is_deadline || (n.content && n.content.includes('/deadline')));
+    const todayOrOverdueCount = deadlineNotes.filter(n => !n.completed && (n.date <= todayStr || !n.date)).length;
+    
+    if (deadlinesBadgeEl) deadlinesBadgeEl.textContent = todayOrOverdueCount;
+
+    const pendingTodos = todos.filter(t => !t.completed && !t.done);
+    const pendingDeadlineNotes = deadlineNotes.filter(n => !n.completed);
+    if (todosBadgeEl) todosBadgeEl.textContent = pendingTodos.length + pendingDeadlineNotes.length;
+
+    if (!listEl) return;
 
     listEl.innerHTML = clients.map(c => {
       const colorHex = c.color || '#6366f1';
@@ -1055,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ─── DEADLINES VIEW ────────────────────────────────────────────────
+  // ─── DEADLINES VIEW ────────────────────────────────────────────────
   function renderDeadlinesView() {
     const container = document.getElementById('ag-deadlines-timeline-container');
     if (!container) return;
@@ -1062,16 +1076,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const deadlineNotes = notes.filter(n => n.is_deadline || (n.content && n.content.includes('/deadline')));
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const overdue = deadlineNotes.filter(n => !n.completed && (n.date < todayStr));
-    const today = deadlineNotes.filter(n => !n.completed && (n.date === todayStr));
-    const future = deadlineNotes.filter(n => !n.completed && (n.date > todayStr || !n.date));
+    const overdue = deadlineNotes.filter(n => !n.completed && (n.date && n.date < todayStr));
+    const today = deadlineNotes.filter(n => !n.completed && (n.date === todayStr || !n.date));
+    const future = deadlineNotes.filter(n => !n.completed && (n.date > todayStr));
 
     const overdueEl = document.getElementById('ag-dl-overdue-count');
     const todayEl = document.getElementById('ag-dl-today-count');
     const futureEl = document.getElementById('ag-dl-future-count');
 
     if (overdueEl) overdueEl.textContent = overdue.length;
-    if (todayEl) todayEl.textContent = today.length;
+    if (todayEl) todayEl.textContent = today.length + overdue.length; // Retards intégrés à la journée
     if (futureEl) futureEl.textContent = future.length;
 
     if (!deadlineNotes.length) {
@@ -1089,15 +1103,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${deadlineNotes.map(d => {
             const clientObj = clients.find(c => c.id === d.client_id || c.id === d.clientId);
             const isCompleted = d.completed;
+            const dateVal = extractDateFromContent(d.content) || d.date || 'À venir';
+            const isOverdue = !isCompleted && d.date && d.date < todayStr;
             return `
               <div class="timeline-item space-y-1">
                 <div class="flex items-center justify-between text-xs">
                   <div class="flex items-center gap-2">
                     <span class="font-bold text-white text-sm">${clientObj ? escapeHtml(clientObj.name) : 'Client'}</span>
                     ${isCompleted ? '<span class="px-2 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 font-bold rounded-md">Terminé</span>' : ''}
+                    ${isOverdue ? '<span class="px-2 py-0.5 text-[9px] bg-rose-500/30 text-rose-300 font-bold rounded-md border border-rose-500/40">En retard (Prioritaire aujourd\'hui)</span>' : ''}
                   </div>
-                  <span class="px-2.5 py-0.5 text-[10px] font-extrabold bg-rose-500/20 text-rose-400 rounded-full border border-rose-500/30">
-                    ${extractDateFromContent(d.content) || d.date || 'À venir'}
+                  <span class="px-2.5 py-0.5 text-[10px] font-extrabold ${isOverdue ? 'bg-rose-500/30 text-rose-300 border-rose-500/50' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'} rounded-full border">
+                    ${dateVal}
                   </span>
                 </div>
                 <p class="text-xs text-slate-300 leading-relaxed">${escapeHtml(cleanContent(d.content))}</p>
@@ -1109,7 +1126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
   }
 
-  // ─── KANBAN VIEW ───────────────────────────────────────────────────
+  // ─── KANBAN VIEW (TODOS + DEADLINES) ───────────────────────────────
   function renderKanbanView() {
     const pendingList = document.getElementById('ag-kanban-pending-list');
     const doneList = document.getElementById('ag-kanban-done-list');
@@ -1128,13 +1145,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    let filteredTodos = todos;
+    // Combine Todos AND Deadline Notes for Kanban View
+    const deadlineNotes = notes.filter(n => n.is_deadline || (n.content && n.content.includes('/deadline'))).map(n => ({
+      id: n.id,
+      client_id: n.client_id || n.clientId,
+      clientId: n.client_id || n.clientId,
+      content: n.content,
+      completed: n.completed || false,
+      done: n.completed || false,
+      is_deadline: true,
+      date: n.date,
+      isNote: true
+    }));
+
+    let allItems = [...todos, ...deadlineNotes];
+
     if (filterVal !== 'all') {
-      filteredTodos = todos.filter(t => t.client_id === filterVal || t.clientId === filterVal);
+      allItems = allItems.filter(t => t.client_id === filterVal || t.clientId === filterVal);
     }
 
-    const pending = filteredTodos.filter(t => !t.completed && !t.done);
-    const done = filteredTodos.filter(t => t.completed || t.done);
+    const pending = allItems.filter(t => !t.completed && !t.done);
+    const done = allItems.filter(t => t.completed || t.done);
 
     if (pendingCount) pendingCount.textContent = pending.length;
     if (doneCount) doneCount.textContent = done.length;
@@ -1152,23 +1183,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderKanbanCard(t, isDone) {
     const clientObj = clients.find(c => c.id === t.client_id || c.id === t.clientId);
     const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
+    const isDeadlineItem = t.is_deadline || (t.content && t.content.includes('/deadline')) || Boolean(t.date);
+    const dateStr = t.date || extractDateFromContent(t.content) || 'Échéance';
+
     return `
       <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-2 text-xs glow-hover" style="border-left: 4px solid ${clientColor} !important;">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-2">
           <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
             <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${clientColor} !important;"></span>
             <span>${clientObj ? escapeHtml(clientObj.name) : 'Global'}</span>
           </span>
-          <div class="flex items-center gap-1">
-            <button data-toggle-kanban="${t.id}" class="text-slate-400 hover:text-emerald-400 p-1" title="${isDone ? 'Marquer à faire' : 'Marquer terminé'}">
+
+          <div class="flex items-center gap-1.5 shrink-0">
+            ${isDeadlineItem ? `
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1" title="Échéance datée">
+                <i data-lucide="clock" class="w-3 h-3 text-rose-400"></i>
+                <span>${dateStr}</span>
+              </span>
+            ` : ''}
+
+            <button data-toggle-kanban="${t.id}" data-is-note="${t.isNote ? 'true' : 'false'}" class="text-slate-400 hover:text-emerald-400 p-1 transition" title="${isDone ? 'Marquer à faire' : 'Marquer terminé'}">
               <i data-lucide="${isDone ? 'rotate-ccw' : 'check-circle'}" class="w-4 h-4"></i>
             </button>
-            <button data-delete-kanban="${t.id}" class="text-slate-400 hover:text-rose-400 p-1" title="Supprimer">
+            <button data-delete-kanban="${t.id}" data-is-note="${t.isNote ? 'true' : 'false'}" class="text-slate-400 hover:text-rose-400 p-1 transition" title="Supprimer">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           </div>
         </div>
-        <p class="${isDone ? 'line-through text-slate-500' : 'text-slate-200'} font-medium text-xs leading-relaxed">${escapeHtml(t.content)}</p>
+        <p class="${isDone ? 'line-through text-slate-500' : 'text-slate-200'} font-medium text-xs leading-relaxed">${escapeHtml(cleanContent(t.content))}</p>
       </div>
     `;
   }
@@ -1177,26 +1219,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     container.querySelectorAll('button[data-toggle-kanban]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.toggleKanban;
-        const target = todos.find(t => t.id === id);
-        if (target) {
-          target.completed = !target.completed;
-          target.done = target.completed;
-          saveDataLocal();
-          if (sb) {
-            await sb.from('todos').upsert({ id: target.id, completed: target.completed });
+        const isNote = btn.dataset.isNote === 'true';
+
+        if (isNote) {
+          const note = notes.find(n => n.id === id);
+          if (note) {
+            note.completed = !note.completed;
+            saveDataLocal();
+            if (sb) await sb.from('messages').update({ completed: note.completed }).eq('id', id);
           }
-          renderAllViews();
+        } else {
+          const target = todos.find(t => t.id === id);
+          if (target) {
+            target.completed = !target.completed;
+            target.done = target.completed;
+            saveDataLocal();
+            if (sb) await sb.from('todos').upsert({ id: target.id, completed: target.completed });
+          }
         }
+        renderAllViews();
       });
     });
 
     container.querySelectorAll('button[data-delete-kanban]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.deleteKanban;
-        todos = todos.filter(t => t.id !== id);
-        saveDataLocal();
-        if (sb) {
-          await sb.from('todos').delete().eq('id', id);
+        const isNote = btn.dataset.isNote === 'true';
+
+        if (isNote) {
+          notes = notes.filter(n => n.id !== id);
+          saveDataLocal();
+          if (sb) await sb.from('messages').delete().eq('id', id);
+        } else {
+          todos = todos.filter(t => t.id !== id);
+          saveDataLocal();
+          if (sb) await sb.from('todos').delete().eq('id', id);
         }
         renderAllViews();
       });
