@@ -1824,7 +1824,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     bindSlashItems(dashSlashMenu, dashInput, true);
     bindSlashItems(clientSlashMenu, clientInput, false);
+
+    bindSlashInputFiltering(dashInput, dashSlashMenu);
+    bindSlashInputFiltering(clientInput, clientSlashMenu);
+
     refreshLucideIcons();
+  }
+
+  function bindSlashInputFiltering(inputEl, menuEl) {
+    if (!inputEl || !menuEl) return;
+
+    inputEl.addEventListener('input', () => {
+      const val = inputEl.value;
+      const slashIndex = val.lastIndexOf('/');
+
+      if (slashIndex !== -1 && (slashIndex === 0 || /\s/.test(val[slashIndex - 1]))) {
+        const query = val.slice(slashIndex + 1).toLowerCase().trim();
+        menuEl.classList.remove('hidden');
+
+        let hasVisibleItems = false;
+        menuEl.querySelectorAll('.command-item').forEach(item => {
+          const cmd = (item.dataset.cmd || '').toLowerCase();
+          const text = item.textContent.toLowerCase();
+
+          if (!query || cmd.includes(query) || text.includes(query)) {
+            item.style.display = 'flex';
+            hasVisibleItems = true;
+          } else {
+            item.style.display = 'none';
+          }
+        });
+
+        if (!hasVisibleItems) {
+          menuEl.classList.add('hidden');
+        }
+      } else {
+        menuEl.classList.add('hidden');
+      }
+    });
   }
 
   function bindSlashItems(menuEl, inputEl, isDash) {
@@ -1840,7 +1877,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (cmd) {
-          inputEl.value = inputEl.value.replace(/\/$/, '') + cmd + ' ';
+          const val = inputEl.value;
+          const slashIndex = val.lastIndexOf('/');
+          if (slashIndex !== -1) {
+            inputEl.value = val.slice(0, slashIndex) + cmd + ' ';
+          } else {
+            inputEl.value = cmd + ' ';
+          }
           inputEl.focus();
           menuEl.classList.add('hidden');
         }

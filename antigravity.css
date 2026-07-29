@@ -166,11 +166,12 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 8px;
   z-index: 100;
   width: 320px;
+  max-height: 280px;
+  overflow-y: auto;
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-md);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
 }
 
 .command-item {
