@@ -304,6 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderKanbanView();
     renderContactsView();
     populateDashClientSelect();
+    renderSlashMenus();
 
     if (activeClientId) {
       renderClientStream(activeClientId);
@@ -745,6 +746,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // CORE NOTE POSTING ENGINE
   async function postNoteCore({ clientId, rawText, datePickerValue, color }) {
+    // Check if rawText contains /nomduclient or /cl nomduclient
+    let matchedClient = clients.find(c => {
+      const slug = c.name.toLowerCase().replace(/\s+/g, '');
+      const pattern = new RegExp(`/(?:cl\\s+)?${slug}\\b`, 'i');
+      return pattern.test(rawText) || rawText.toLowerCase().includes(`/${c.name.toLowerCase()}`);
+    });
+
+    if (matchedClient) {
+      clientId = matchedClient.id;
+    }
+
     if (rawText.startsWith('/todo ')) {
       const todoText = rawText.replace('/todo ', '').trim();
       const newTodo = {
@@ -1132,11 +1144,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderKanbanCard(t, isDone) {
     const clientObj = clients.find(c => c.id === t.client_id || c.id === t.clientId);
+    const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
     return `
-      <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-2 text-xs glow-hover">
+      <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-2 text-xs glow-hover" style="border-left: 4px solid ${clientColor} !important;">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
-            ${clientObj ? escapeHtml(clientObj.name) : 'Global'}
+          <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
+            <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${clientColor} !important;"></span>
+            <span>${clientObj ? escapeHtml(clientObj.name) : 'Global'}</span>
           </span>
           <div class="flex items-center gap-1">
             <button data-toggle-kanban="${t.id}" class="text-slate-400 hover:text-emerald-400 p-1" title="${isDone ? 'Marquer à faire' : 'Marquer terminé'}">
@@ -1199,12 +1213,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     gridEl.innerHTML = persons.map(p => {
       const clientObj = clients.find(c => c.id === p.client_id || c.id === p.clientId);
+      const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
       return `
-        <div class="glass-panel p-4 rounded-2xl space-y-2 glow-hover">
+        <div class="glass-panel p-4 rounded-2xl space-y-2 glow-hover" style="border-left: 4px solid ${clientColor} !important;">
           <div class="flex items-center justify-between">
             <h4 class="font-bold text-white text-sm">${escapeHtml(p.name || `${p.firstname || ''} ${p.lastname || ''}`)}</h4>
-            <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-bold border border-amber-500/20">
-              ${clientObj ? escapeHtml(clientObj.name) : 'Contact'}
+            <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
+              <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${clientColor} !important;"></span>
+              <span>${clientObj ? escapeHtml(clientObj.name) : 'Contact'}</span>
             </span>
           </div>
           <p class="text-xs text-slate-400">${escapeHtml(p.position || 'Interlocuteur Client')}</p>
@@ -1745,6 +1761,86 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshLucideIcons();
   }
 
+  // ─── DYNAMIC SLASH MENU RENDERER ──────────────────────────────────
+  function renderSlashMenus() {
+    const dashSlashMenu = document.getElementById('ag-dash-slash-menu');
+    const clientSlashMenu = document.getElementById('ag-slash-menu');
+
+    const defaultCmds = `
+      <div class="px-3 py-1.5 border-b border-slate-700/60 text-[10px] uppercase font-bold text-slate-400">Raccourcis Actions</div>
+      <div class="command-item" data-cmd="/todo">
+        <i data-lucide="check-square" class="w-4 h-4 text-emerald-400"></i>
+        <div>
+          <div class="font-semibold text-white">/todo [action]</div>
+          <div class="text-[10px]">Créer un pense-bête / tâche</div>
+        </div>
+      </div>
+      <div class="command-item" data-cmd="/deadline">
+        <i data-lucide="clock" class="w-4 h-4 text-rose-400"></i>
+        <div>
+          <div class="font-semibold text-white">/deadline [date]</div>
+          <div class="text-[10px]">Définir une échéance datée</div>
+        </div>
+      </div>
+      <div class="command-item" data-cmd="/demain">
+        <i data-lucide="calendar" class="w-4 h-4 text-amber-400"></i>
+        <div>
+          <div class="font-semibold text-white">/demain</div>
+          <div class="text-[10px]">Planifier pour demain</div>
+        </div>
+      </div>
+    `;
+
+    const clientCmds = clients.length ? `
+      <div class="px-3 py-1.5 border-b border-t border-slate-700/60 text-[10px] uppercase font-bold text-slate-400 mt-1">Redirection Clients (/nom)</div>
+      ${clients.map(c => {
+        const slug = c.name.toLowerCase().replace(/\s+/g, '');
+        return `
+          <div class="command-item flex items-center gap-2" data-cmd="/${slug}" data-client-id="${c.id}">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${c.color || '#6366f1'}"></span>
+            <div>
+              <div class="font-semibold text-white">/${escapeHtml(slug)}</div>
+              <div class="text-[10px] text-slate-400">Publier pour ${escapeHtml(c.name)}</div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    ` : '';
+
+    const fullHtml = defaultCmds + clientCmds;
+
+    if (dashSlashMenu) dashSlashMenu.innerHTML = fullHtml;
+    if (clientSlashMenu) clientSlashMenu.innerHTML = fullHtml;
+
+    const dashInput = document.getElementById('ag-dash-note-input');
+    const clientInput = document.getElementById('ag-note-input');
+
+    bindSlashItems(dashSlashMenu, dashInput, true);
+    bindSlashItems(clientSlashMenu, clientInput, false);
+    refreshLucideIcons();
+  }
+
+  function bindSlashItems(menuEl, inputEl, isDash) {
+    if (!menuEl || !inputEl) return;
+    menuEl.querySelectorAll('.command-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const cmd = item.dataset.cmd;
+        const targetClientId = item.dataset.clientId;
+
+        if (targetClientId && isDash) {
+          const dashClientSelect = document.getElementById('ag-dash-client-select');
+          if (dashClientSelect) dashClientSelect.value = targetClientId;
+        }
+
+        if (cmd) {
+          inputEl.value = inputEl.value.replace(/\/$/, '') + cmd + ' ';
+          inputEl.focus();
+          menuEl.classList.add('hidden');
+        }
+      });
+    });
+  }
+
   // HELPER UTILITIES
   function escapeHtml(str) {
     if (!str) return '';
@@ -1761,7 +1857,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function cleanContent(text) {
     if (!text) return '';
-    return text.replace(/\/deadline\s+\S+/gi, '').replace(/\/demain/gi, '').replace(/\/todo\s+/gi, '').replace(/\/cl\s+\S+/gi, '').trim();
+    let cleaned = text.replace(/\/deadline\s+\S+/gi, '').replace(/\/demain/gi, '').replace(/\/todo\s+/gi, '').replace(/\/cl\s+\S+/gi, '');
+    clients.forEach(c => {
+      const slug = c.name.toLowerCase().replace(/\s+/g, '');
+      const reg = new RegExp(`/${slug}\\b`, 'gi');
+      cleaned = cleaned.replace(reg, '');
+    });
+    return cleaned.trim();
   }
 
   function extractDateFromContent(text) {
