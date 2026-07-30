@@ -953,14 +953,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
     const isDeadline = Boolean(n.is_deadline || (n.content && n.content.includes('/deadline')));
     const noteDate = n.date || extractDateFromContent(n.content);
-    const isCompleted = n.completed || false;
+    const isCompleted = Boolean(n.completed || n.done);
     const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id);
 
     return `
-      <div data-note-id="${n.id}" class="ag-note-card space-y-3" style="border-left: 4px solid ${clientColor} !important;">
+      <div data-note-id="${n.id}" class="ag-note-card space-y-3 transition ${isCompleted ? 'opacity-65 bg-slate-900/40' : ''}" style="border-left: 4px solid ${clientColor} !important;">
         
         <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
           <div class="flex items-center gap-2">
+            <!-- Universal Completion Check Button -->
+            <button data-toggle-complete="${n.id}" class="p-1 rounded-lg border transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-emerald-400'}" title="${isCompleted ? 'Marquer comme non terminée' : 'Marquer la note comme terminée / validée'}">
+              <i data-lucide="${isCompleted ? 'check-circle-2' : 'circle'}" class="w-4 h-4"></i>
+            </button>
+
             ${clientObj ? `
               <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border cursor-pointer hover:opacity-90 transition flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
                 <span class="w-2 h-2 rounded-full" style="background-color: ${clientColor} !important;"></span>
@@ -972,15 +977,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           <div class="flex items-center gap-2">
             ${isDeadline ? `
-              <button data-toggle-deadline="${n.id}" class="deadline-pill cursor-pointer transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}" title="Deadline / Échéance (Cliquer pour changer le statut)">
-                <i data-lucide="${isCompleted ? 'check-circle-2' : 'alert-circle'}" class="w-3.5 h-3.5 text-rose-400"></i>
+              <button data-toggle-complete="${n.id}" class="deadline-pill cursor-pointer transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}" title="Échéance (Cliquer pour valider la note)">
+                <i data-lucide="${isCompleted ? 'check-circle-2' : 'alert-circle'}" class="w-3.5 h-3.5 ${isCompleted ? 'text-emerald-400' : 'text-rose-400'}"></i>
                 <span>${isCompleted ? 'Deadline Validée' : `🚨 Échéance : ${formatDate(noteDate || 'Échéance')}`}</span>
               </button>
             ` : (noteDate ? `
-              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/40 flex items-center gap-1.5 shadow-sm" title="Note datée (Organisation)">
-                <i data-lucide="calendar" class="w-3.5 h-3.5 text-sky-400"></i>
-                <span>📅 Prévu : ${formatDate(noteDate)}</span>
-              </span>
+              <button data-toggle-complete="${n.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'} flex items-center gap-1.5 shadow-sm cursor-pointer transition" title="Cliquer pour valider la note">
+                <i data-lucide="${isCompleted ? 'check-circle-2' : 'calendar'}" class="w-3.5 h-3.5 ${isCompleted ? 'text-emerald-400' : 'text-sky-400'}"></i>
+                <span>${isCompleted ? 'Prévu (Validé)' : `📅 Prévu : ${formatDate(noteDate)}`}</span>
+              </button>
             ` : '')}
 
             <button data-pin-note="${n.id}" class="p-1 text-slate-400 hover:text-amber-400 transition" title="${isPinned ? 'Désépingler' : 'Épingler'}">
@@ -992,7 +997,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         </div>
 
-        <div class="ag-note-card-content">
+        <div class="ag-note-card-content ${isCompleted ? 'line-through text-slate-400' : ''}">
           ${renderFormattedContent(cleanContent(n.content))}
         </div>
 
@@ -1013,8 +1018,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     container.querySelectorAll('button[data-pin-note]').forEach(btn => {
       btn.addEventListener('click', () => togglePinNote(btn.dataset.pinNote));
     });
-    container.querySelectorAll('button[data-toggle-deadline]').forEach(btn => {
-      btn.addEventListener('click', () => toggleDeadlineCompleted(btn.dataset.toggleDeadline));
+    container.querySelectorAll('button[data-toggle-complete], button[data-toggle-deadline]').forEach(btn => {
+      btn.addEventListener('click', () => toggleNoteCompleted(btn.dataset.toggleComplete || btn.dataset.toggleDeadline));
     });
     container.querySelectorAll('[data-goto-client]').forEach(el => {
       el.addEventListener('click', () => {
@@ -1059,18 +1064,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderAllViews();
   }
 
-  async function toggleDeadlineCompleted(id) {
+  async function toggleNoteCompleted(id) {
     const note = notes.find(n => n.id === id);
-    if (!note) return;
-
-    note.completed = !note.completed;
-    saveDataLocal();
-
-    if (sb) {
-      await sb.from('messages').update({ completed: note.completed }).eq('id', id);
+    if (note) {
+      note.completed = !note.completed;
+      saveDataLocal();
+      if (sb) {
+        await sb.from('messages').update({ completed: note.completed }).eq('id', id);
+      }
+      renderAllViews();
+      return;
     }
 
-    renderAllViews();
+    const todo = todos.find(t => t.id === id);
+    if (todo) {
+      todo.completed = !todo.completed;
+      todo.done = todo.completed;
+      saveDataLocal();
+      if (sb) {
+        await sb.from('todos').upsert({ id: todo.id, completed: todo.completed });
+      }
+      renderAllViews();
+    }
   }
 
   // ─── SIDEBAR WIDGETS ───────────────────────────────────────────────
