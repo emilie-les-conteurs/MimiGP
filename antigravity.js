@@ -276,6 +276,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     renderAllViews();
+    restoreViewStateFromHash();
   }
 
   function mergeById(primaryList, secondaryList) {
@@ -563,9 +564,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  function getClientNotes(clientId) {
+    if (!clientId) return [];
+    const clientObj = clients.find(c => String(c.id).trim() === String(clientId).trim());
+    const cName = clientObj ? clientObj.name.toLowerCase().trim() : '';
+
+    return notes.filter(n => {
+      if (!n) return false;
+      const nid = String(n.client_id || n.clientId || '').toLowerCase().trim();
+      const targetId = String(clientId).toLowerCase().trim();
+      if (nid && targetId && nid === targetId) return true;
+
+      const nClient = String(n.client || n.client_name || n.clientName || '').toLowerCase().trim();
+      if (cName && nClient && (nClient === cName || cName.includes(nClient) || nClient.includes(cName))) return true;
+
+      return false;
+    });
+  }
+
+  function getClientTodos(clientId) {
+    if (!clientId) return [];
+    const clientObj = clients.find(c => String(c.id).trim() === String(clientId).trim());
+    const cName = clientObj ? clientObj.name.toLowerCase().trim() : '';
+
+    return todos.filter(t => {
+      if (!t) return false;
+      const tid = String(t.client_id || t.clientId || '').toLowerCase().trim();
+      const targetId = String(clientId).toLowerCase().trim();
+      if (tid && targetId && tid === targetId) return true;
+
+      const tClient = String(t.client || t.client_name || t.clientName || '').toLowerCase().trim();
+      if (cName && tClient && (tClient === cName || cName.includes(tClient) || tClient.includes(cName))) return true;
+
+      return false;
+    });
+  }
+
   function getClientPersons(clientId) {
     if (!clientId) return [];
-    const clientObj = clients.find(c => String(c.id) === String(clientId));
+    const clientObj = clients.find(c => String(c.id).trim() === String(clientId).trim());
     const clientName = clientObj ? clientObj.name.toLowerCase().trim() : '';
 
     return persons.filter(p => {
@@ -609,9 +646,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     gridEl.innerHTML = filteredClients.map(c => {
-      const clientNotes = notes.filter(n => String(n.client_id || n.clientId) === String(c.id));
+      const clientNotes = getClientNotes(c.id);
       const clientDeadlines = clientNotes.filter(n => (n.is_deadline || (n.content && n.content.includes('/deadline'))) && !n.completed);
-      const clientTodos = todos.filter(t => (String(t.client_id || t.clientId) === String(c.id)) && !t.completed && !t.done);
+      const clientTodos = getClientTodos(c.id).filter(t => !t.completed && !t.done);
       const clientPersons = getClientPersons(c.id);
       const colorHex = c.color || '#6366f1';
 
@@ -638,9 +675,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span><strong class="text-indigo-400 font-extrabold">${clientPersons.length}</strong> contacts</span>
             </div>
 
-            <button data-open-client="${c.id}" class="px-3.5 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 shadow-sm" style="background-color: ${colorHex}25 !important; color: ${colorHex} !important; border: 1px solid ${colorHex}60 !important;">
+            <button data-open-client="${c.id}" class="px-3.5 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 shadow-sm cursor-pointer hover:opacity-90" style="background-color: ${colorHex}25 !important; color: ${colorHex} !important; border: 1px solid ${colorHex}60 !important;">
               <span>Ouvrir</span>
-              <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
             </button>
           </div>
 
@@ -666,13 +703,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ─── STREAM CLIENT ACTIF ───────────────────────────────────────────
   function openClientStream(clientId) {
+    if (!clientId) return;
     activeClientId = clientId;
+    try {
+      window.location.hash = `client=${clientId}`;
+      localStorage.setItem('mimigp_active_client_id', clientId);
+      localStorage.setItem('mimigp_active_view', 'client-stream');
+    } catch(e) {}
+
     switchView('client-stream');
     renderClientStream(clientId);
   }
 
   function renderClientStream(clientId) {
-    const client = clients.find(c => c.id === clientId);
+    if (!clientId) return;
+    const client = clients.find(c => String(c.id).trim() === String(clientId).trim());
     if (!client) return;
 
     const nameEl = document.getElementById('ag-client-active-name');
@@ -694,7 +739,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       headerCard.style.borderLeftColor = client.color || '#6366f1';
     }
 
-    const clientNotes = notes.filter(n => n.client_id === clientId || n.clientId === clientId);
+    const clientNotes = getClientNotes(clientId);
     const clientDeadlines = clientNotes.filter(n => (n.is_deadline || (n.content && n.content.includes('/deadline'))) && !n.completed);
     if (statsEl) {
       statsEl.textContent = `${clientNotes.length} note(s) • ${clientDeadlines.length} deadline(s) à venir`;
@@ -1709,6 +1754,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   function switchView(viewName) {
     activeView = viewName;
 
+    if (viewName !== 'client-stream') {
+      try {
+        window.location.hash = `view=${viewName}`;
+        localStorage.setItem('mimigp_active_view', viewName);
+      } catch(e) {}
+    }
+
     document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
     const target = document.getElementById(`ag-view-${viewName}`);
     if (target) target.classList.remove('hidden');
@@ -1723,6 +1775,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     renderAllViews();
   }
+
+  function restoreViewStateFromHash() {
+    const hash = (window.location.hash || '').replace(/^#/, '').trim();
+    if (hash.startsWith('client=')) {
+      const cid = hash.replace('client=', '').trim();
+      if (cid && clients.some(c => String(c.id).trim() === cid)) {
+        openClientStream(cid);
+        return true;
+      }
+    } else if (hash.startsWith('view=')) {
+      const v = hash.replace('view=', '').trim();
+      if (v && document.getElementById(`ag-view-${v}`)) {
+        switchView(v);
+        return true;
+      }
+    }
+
+    const savedClientId = localStorage.getItem('mimigp_active_client_id');
+    const savedView = localStorage.getItem('mimigp_active_view');
+
+    if (savedView === 'client-stream' && savedClientId && clients.some(c => String(c.id).trim() === savedClientId)) {
+      openClientStream(savedClientId);
+      return true;
+    } else if (savedView && document.getElementById(`ag-view-${savedView}`)) {
+      switchView(savedView);
+      return true;
+    }
+
+    return false;
+  }
+
+  window.addEventListener('hashchange', () => restoreViewStateFromHash());
 
   document.querySelectorAll('#ag-main-nav button[data-view]').forEach(btn => {
     btn.addEventListener('click', (e) => {
