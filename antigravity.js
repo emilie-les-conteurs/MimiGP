@@ -566,17 +566,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getClientNotes(clientId) {
     if (!clientId) return [];
-    const clientObj = clients.find(c => String(c.id).trim() === String(clientId).trim());
-    const cName = clientObj ? clientObj.name.toLowerCase().trim() : '';
+    const clientObj = clients.find(c => String(c.id).trim().toLowerCase() === String(clientId).trim().toLowerCase() || (c.name && String(c.name).trim().toLowerCase() === String(clientId).trim().toLowerCase()));
+    const cId = clientObj ? String(clientObj.id).trim() : String(clientId).trim();
+    const cName = clientObj ? clientObj.name.toLowerCase().trim() : String(clientId).toLowerCase().trim();
 
     return notes.filter(n => {
       if (!n) return false;
-      const nid = String(n.client_id || n.clientId || '').toLowerCase().trim();
-      const targetId = String(clientId).toLowerCase().trim();
-      if (nid && targetId && nid === targetId) return true;
+      const nId = String(n.client_id || n.clientId || '').trim();
 
+      // 1. Direct ID comparison
+      if (nId && (nId.toLowerCase() === cId.toLowerCase() || nId.toLowerCase() === String(clientId).toLowerCase())) return true;
+
+      // 2. Client name matching
       const nClient = String(n.client || n.client_name || n.clientName || '').toLowerCase().trim();
       if (cName && nClient && (nClient === cName || cName.includes(nClient) || nClient.includes(cName))) return true;
+
+      // 3. Match content tags
+      if (cName && n.content) {
+        const lowerContent = n.content.toLowerCase();
+        const cleanSlug = cName.replace(/\s+/g, '');
+        if (lowerContent.includes(`[${cName}]`) || lowerContent.includes(`/${cleanSlug}`) || lowerContent.includes(cName)) {
+          return true;
+        }
+      }
 
       return false;
     });
@@ -584,17 +596,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getClientTodos(clientId) {
     if (!clientId) return [];
-    const clientObj = clients.find(c => String(c.id).trim() === String(clientId).trim());
-    const cName = clientObj ? clientObj.name.toLowerCase().trim() : '';
+    const clientObj = clients.find(c => String(c.id).trim().toLowerCase() === String(clientId).trim().toLowerCase() || (c.name && String(c.name).trim().toLowerCase() === String(clientId).trim().toLowerCase()));
+    const cId = clientObj ? String(clientObj.id).trim() : String(clientId).trim();
+    const cName = clientObj ? clientObj.name.toLowerCase().trim() : String(clientId).toLowerCase().trim();
 
     return todos.filter(t => {
       if (!t) return false;
-      const tid = String(t.client_id || t.clientId || '').toLowerCase().trim();
-      const targetId = String(clientId).toLowerCase().trim();
-      if (tid && targetId && tid === targetId) return true;
+      const tId = String(t.client_id || t.clientId || '').trim();
+
+      if (tId && (tId.toLowerCase() === cId.toLowerCase() || tId.toLowerCase() === String(clientId).toLowerCase())) return true;
 
       const tClient = String(t.client || t.client_name || t.clientName || '').toLowerCase().trim();
       if (cName && tClient && (tClient === cName || cName.includes(tClient) || tClient.includes(cName))) return true;
+
+      if (cName && t.content && t.content.toLowerCase().includes(cName)) return true;
 
       return false;
     });
@@ -602,20 +617,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getClientPersons(clientId) {
     if (!clientId) return [];
-    const clientObj = clients.find(c => String(c.id).trim() === String(clientId).trim());
-    const clientName = clientObj ? clientObj.name.toLowerCase().trim() : '';
+    const clientObj = clients.find(c => String(c.id).trim().toLowerCase() === String(clientId).trim().toLowerCase() || (c.name && String(c.name).trim().toLowerCase() === String(clientId).trim().toLowerCase()));
+    const cId = clientObj ? String(clientObj.id).trim() : String(clientId).trim();
+    const cName = clientObj ? clientObj.name.toLowerCase().trim() : String(clientId).toLowerCase().trim();
 
     return persons.filter(p => {
       if (!p) return false;
-      const pid = String(p.client_id || p.clientId || '').toLowerCase().trim();
-      const cid = String(clientId || '').toLowerCase().trim();
+      const pId = String(p.client_id || p.clientId || '').trim();
 
-      // Match by ID
-      if (pid && cid && pid === cid) return true;
+      // 1. Direct ID comparison
+      if (pId && (pId.toLowerCase() === cId.toLowerCase() || pId.toLowerCase() === String(clientId).toLowerCase())) return true;
 
-      // Match by Client Name
+      // 2. Match by Client Name
       const pClient = String(p.client || p.client_name || p.clientName || '').toLowerCase().trim();
-      if (clientName && pClient && (pClient === clientName || clientName.includes(pClient) || pClient.includes(clientName))) return true;
+      if (cName && pClient && (pClient === cName || cName.includes(pClient) || pClient.includes(cName))) return true;
 
       return false;
     });
@@ -717,8 +732,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderClientStream(clientId) {
     if (!clientId) return;
-    const client = clients.find(c => String(c.id).trim() === String(clientId).trim());
-    if (!client) return;
+    let client = clients.find(c => String(c.id).trim().toLowerCase() === String(clientId).trim().toLowerCase() || (c.name && String(c.name).trim().toLowerCase() === String(clientId).trim().toLowerCase()));
+    
+    if (!client) {
+      client = {
+        id: clientId,
+        name: clients.find(c => c.id === clientId)?.name || 'Client',
+        color: '#6366f1'
+      };
+    }
 
     const nameEl = document.getElementById('ag-client-active-name');
     const badgeEl = document.getElementById('ag-client-active-badge');
