@@ -837,7 +837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
     const isDeadline = n.is_deadline || (n.content && n.content.includes('/deadline'));
     const isCompleted = n.completed || false;
-    const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id);
+    const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id);
 
     return `
       <div data-note-id="${n.id}" class="ag-note-card space-y-3" style="border-left: 4px solid ${clientColor} !important;">
@@ -915,19 +915,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function togglePinNote(id) {
-    const idx = pinnedFiles.findIndex(p => p.msg_id === id || p.id === id);
+    const idx = pinnedFiles.findIndex(p => p.msg_id === id || p.id === id || p.note_id === id || p.msgId === id || p.noteId === id);
     let isNowPinned = false;
 
     if (idx > -1) {
       pinnedFiles.splice(idx, 1);
     } else {
-      pinnedFiles.push({ id: generateUUID(), msg_id: id, is_pinned: true });
+      pinnedFiles.push({ id: id, msg_id: id, note_id: id, is_pinned: true });
       isNowPinned = true;
     }
     saveDataLocal();
 
     if (sb) {
-      await sb.from('pinned_files').upsert({ msg_id: id, is_pinned: isNowPinned });
+      try {
+        await sb.from('pinned_files').upsert({ id: id, msg_id: id, is_pinned: isNowPinned });
+      } catch (err) {
+        console.warn('Pinned sync issue:', err);
+      }
     }
 
     renderAllViews();
@@ -1048,22 +1052,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!listEl) return;
 
     const clientNotes = notes.filter(n => n.client_id === clientId || n.clientId === clientId);
-    const pinned = clientNotes.filter(n => pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id));
+    const pinned = clientNotes.filter(n => pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id));
 
     if (!pinned.length) {
-      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucun fichier ou note épinglé.</p>`;
+      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucune note ou fichier épinglé.</p>`;
       return;
     }
 
     listEl.innerHTML = pinned.map(n => `
-      <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center justify-between">
-        <span class="truncate font-medium text-slate-200">${escapeHtml(cleanContent(n.content))}</span>
-        <button data-pin-note="${n.id}" class="text-amber-400 p-1"><i data-lucide="pin" class="w-3.5 h-3.5 fill-amber-400"></i></button>
+      <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center justify-between gap-2">
+        <span class="truncate font-medium text-slate-200 flex-1" title="${escapeHtml(cleanContent(n.content))}">${escapeHtml(cleanContent(n.content))}</span>
+        <button data-pin-note="${n.id}" class="text-amber-400 hover:text-rose-400 p-1 shrink-0 transition" title="Désépingler">
+          <i data-lucide="pin" class="w-3.5 h-3.5 fill-amber-400"></i>
+        </button>
       </div>
     `).join('');
 
     listEl.querySelectorAll('button[data-pin-note]').forEach(btn => {
       btn.addEventListener('click', () => togglePinNote(btn.dataset.pinNote));
+    });
+  }
+
+  const addFileBtn = document.getElementById('ag-add-file-btn');
+  if (addFileBtn) {
+    addFileBtn.addEventListener('click', async () => {
+      if (!activeClientId) return;
+      const title = prompt('Nom de la note ou du fichier à épingler pour ce client :');
+      if (!title || !title.trim()) return;
+
+      const fileUrl = prompt('URL ou lien optionnel :') || '';
+
+      const newNote = {
+        id: generateUUID(),
+        client_id: activeClientId,
+        clientId: activeClientId,
+        content: `📌 ${title.trim()} ${fileUrl ? '\n' + fileUrl.trim() : ''}`,
+        created_at: new Date().toISOString()
+      };
+
+      notes.unshift(newNote);
+      pinnedFiles.push({ id: newNote.id, msg_id: newNote.id, note_id: newNote.id, is_pinned: true });
+      saveDataLocal();
+
+      if (sb) {
+        await sb.from('messages').insert(newNote);
+        try {
+          await sb.from('pinned_files').upsert({ id: newNote.id, msg_id: newNote.id, is_pinned: true });
+        } catch(e) {}
+      }
+
+      renderAllViews();
     });
   }
 
