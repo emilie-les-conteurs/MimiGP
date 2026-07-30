@@ -398,13 +398,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statTodos) statTodos.textContent = pendingTodos.length;
     if (statPinned) statPinned.textContent = persons.length;
 
-    // Render Recent Feed
+  function sortNotesWithPinnedFirst(list) {
+    return [...list].sort((a, b) => {
+      const aPinned = pinnedFiles.some(pf => pf.msg_id === a.id || pf.id === a.id || pf.note_id === a.id || pf.msgId === a.id || pf.noteId === a.id);
+      const bPinned = pinnedFiles.some(pf => pf.msg_id === b.id || pf.id === b.id || pf.note_id === b.id || pf.msgId === b.id || pf.noteId === b.id);
+
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+
+      const dateA = new Date(a.created_at || a.date || 0);
+      const dateB = new Date(b.created_at || b.date || 0);
+      return dateB - dateA;
+    });
+  }
+
+  // ─── DASHBOARD VIEW ────────────────────────────────────────────────
+  function renderDashboard() {
+    const statClients = document.getElementById('ag-stat-clients');
+    const statDeadlines = document.getElementById('ag-stat-deadlines');
+    const statTodos = document.getElementById('ag-stat-todos');
+    const statPinned = document.getElementById('ag-stat-pinned');
+
+    const activeDeadlines = notes.filter(n => (n.is_deadline || (n.content && n.content.includes('/deadline'))) && !n.completed);
+    const pendingTodos = todos.filter(t => !t.completed && !t.done);
+
+    if (statClients) statClients.textContent = clients.length;
+    if (statDeadlines) statDeadlines.textContent = activeDeadlines.length;
+    if (statTodos) statTodos.textContent = pendingTodos.length;
+    if (statPinned) statPinned.textContent = persons.length;
+
+    // Render Recent Feed (Pinned Notes sorted FIRST)
     const feedEl = document.getElementById('ag-dash-feed');
     if (feedEl) {
       if (!notes.length) {
         feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-400 rounded-2xl">Aucune note enregistrée. Utilisez la barre de Saisie Rapide ci-dessus pour publier !</div>`;
       } else {
-        feedEl.innerHTML = notes.slice(0, 6).map(n => renderNoteCard(n, true)).join('');
+        const sortedNotes = sortNotesWithPinnedFirst(notes);
+        feedEl.innerHTML = sortedNotes.slice(0, 8).map(n => renderNoteCard(n, true)).join('');
         bindNoteCardEvents(feedEl);
       }
     }
@@ -439,6 +469,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       }
     }
+
+    renderTeamPlanningWidget();
+  }
 
     renderTeamPlanningWidget();
   }
@@ -700,7 +733,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!filtered.length) {
         feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-400 rounded-2xl">Aucune note dans cette vue.</div>`;
       } else {
-        feedEl.innerHTML = filtered.map(n => renderNoteCard(n, false)).join('');
+        const sortedFiltered = sortNotesWithPinnedFirst(filtered);
+        feedEl.innerHTML = sortedFiltered.map(n => renderNoteCard(n, false)).join('');
         bindNoteCardEvents(feedEl);
       }
     }
@@ -960,7 +994,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id);
 
     return `
-      <div data-note-id="${n.id}" class="ag-note-card space-y-3 transition ${isCompleted ? 'opacity-65 bg-slate-900/40' : ''}" style="border-left: 4px solid ${clientColor} !important;">
+      <div data-note-id="${n.id}" class="ag-note-card space-y-3 transition ${isPinned ? 'ring-1 ring-amber-500/40 bg-amber-500/5 shadow-amber-500/5' : ''} ${isCompleted ? 'opacity-65 bg-slate-900/40' : ''}" style="border-left: 4px solid ${isPinned ? '#f59e0b' : clientColor} !important;">
         
         <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
           <div class="flex items-center gap-2">
@@ -968,6 +1002,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button data-toggle-complete="${n.id}" class="p-1 rounded-lg border transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-emerald-400'}" title="${isCompleted ? 'Marquer comme non terminée' : 'Marquer la note comme terminée / validée'}">
               <i data-lucide="${isCompleted ? 'check-circle-2' : 'circle'}" class="w-4 h-4"></i>
             </button>
+
+            ${isPinned ? `
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shadow-xs" title="Note épinglée en haut du fil">
+                <i data-lucide="pin" class="w-3 h-3 text-amber-400 fill-amber-400"></i>
+                Épinglé
+              </span>
+            ` : ''}
 
             ${clientObj ? `
               <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border cursor-pointer hover:opacity-90 transition flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
