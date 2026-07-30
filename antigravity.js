@@ -784,18 +784,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       if (!filtered.length) {
-        feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-400 rounded-2xl">Aucune note dans cette vue.</div>`;
+        feedEl.innerHTML = `<div class="glass-panel p-8 text-center text-xs text-slate-400 rounded-2xl">Aucune note dans cette vue pour ce client.</div>`;
       } else {
         const sortedFiltered = sortNotesWithPinnedFirst(filtered);
-        feedEl.innerHTML = sortedFiltered.map(n => renderNoteCard(n, false)).join('');
+        feedEl.innerHTML = sortedFiltered.map(n => {
+          try {
+            return renderNoteCard(n, false);
+          } catch(err) {
+            console.error('Error rendering note card:', err, n);
+            return `<div class="p-3 bg-slate-900 border border-slate-800 text-xs rounded-xl text-slate-200">${escapeHtml(n?.content || '')}</div>`;
+          }
+        }).join('');
         bindNoteCardEvents(feedEl);
       }
     }
 
-    renderClientSidebarTodos(clientId);
-    renderClientPinnedNotes(clientId);
-    renderClientContacts(clientId);
-    renderClientPinnedFiles(clientId);
+    try { renderClientSidebarTodos(clientId); } catch(e) { console.error(e); }
+    try { renderClientPinnedNotes(clientId); } catch(e) { console.error(e); }
+    try { renderClientContacts(clientId); } catch(e) { console.error(e); }
+    try { renderClientPinnedFiles(clientId); } catch(e) { console.error(e); }
+    refreshLucideIcons();
   }
 
   // 1-Click Client Header Color Picker Direct Event Listener
@@ -1039,67 +1047,73 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ─── NOTE CARD COMPONENT & UX IMPROVEMENTS ─────────────────────────
   function renderNoteCard(n, showClientBadge = true) {
-    const clientObj = clients.find(c => c.id === n.client_id || c.id === n.clientId);
-    const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
-    const isDeadline = Boolean(n.is_deadline || (n.content && n.content.includes('/deadline')));
-    const noteDate = n.date || extractDateFromContent(n.content);
-    const isCompleted = Boolean(n.completed || n.done);
-    const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id);
+    if (!n) return '';
+    try {
+      const clientObj = clients.find(c => String(c.id).trim() === String(n.client_id || n.clientId).trim() || (c.name && String(c.name).trim().toLowerCase() === String(n.client || n.client_name || n.clientName || '').trim().toLowerCase()));
+      const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
+      const isDeadline = Boolean(n.is_deadline || (n.content && n.content.includes('/deadline')));
+      const noteDate = n.date || extractDateFromContent(n.content);
+      const isCompleted = Boolean(n.completed || n.done);
+      const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id);
 
-    return `
-      <div data-note-id="${n.id}" class="ag-note-card space-y-3 transition ${isPinned ? 'ring-1 ring-amber-500/40 bg-amber-500/5 shadow-amber-500/5' : ''} ${isCompleted ? 'opacity-65 bg-slate-900/40' : ''}" style="border-left: 4px solid ${isPinned ? '#f59e0b' : clientColor} !important;">
-        
-        <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
-          <div class="flex items-center gap-2">
-            <!-- Universal Completion Check Button -->
-            <button data-toggle-complete="${n.id}" class="p-1 rounded-lg border transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-emerald-400'}" title="${isCompleted ? 'Marquer comme non terminée' : 'Marquer la note comme terminée / validée'}">
-              <i data-lucide="${isCompleted ? 'check-circle-2' : 'circle'}" class="w-4 h-4"></i>
-            </button>
+      return `
+        <div data-note-id="${n.id}" class="ag-note-card space-y-3 transition ${isPinned ? 'ring-1 ring-amber-500/40 bg-amber-500/5 shadow-amber-500/5' : ''} ${isCompleted ? 'opacity-65 bg-slate-900/40' : ''}" style="border-left: 4px solid ${isPinned ? '#f59e0b' : clientColor} !important;">
+          
+          <div class="flex items-center justify-between text-xs border-b border-slate-700/60 pb-2.5">
+            <div class="flex items-center gap-2">
+              <!-- Universal Completion Check Button -->
+              <button data-toggle-complete="${n.id}" class="p-1 rounded-lg border transition cursor-pointer ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-emerald-400'}" title="${isCompleted ? 'Marquer comme non terminée' : 'Marquer la note comme terminée / validée'}">
+                <i data-lucide="${isCompleted ? 'check-circle-2' : 'circle'}" class="w-4 h-4"></i>
+              </button>
 
-            ${isPinned ? `
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shadow-xs" title="Note épinglée en haut du fil">
-                <i data-lucide="pin" class="w-3 h-3 text-amber-400 fill-amber-400"></i>
-                Épinglé
-              </span>
-            ` : ''}
+              ${isPinned ? `
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shadow-xs" title="Note épinglée en haut du fil">
+                  <i data-lucide="pin" class="w-3 h-3 text-amber-400 fill-amber-400"></i>
+                  Épinglé
+                </span>
+              ` : ''}
 
-            ${clientObj ? `
-              <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border cursor-pointer hover:opacity-90 transition flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
-                <span class="w-2 h-2 rounded-full" style="background-color: ${clientColor} !important;"></span>
-                <span>${escapeHtml(clientObj.name)}</span>
-              </span>
-            ` : '<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-400">Global</span>'}
-            <span class="text-xs text-slate-400 font-semibold">${formatDate(n.created_at || noteDate)}</span>
+              ${(showClientBadge && clientObj) ? `
+                <span data-goto-client="${clientObj.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border cursor-pointer hover:opacity-90 transition flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
+                  <span class="w-2 h-2 rounded-full" style="background-color: ${clientColor} !important;"></span>
+                  <span>${escapeHtml(clientObj.name)}</span>
+                </span>
+              ` : ''}
+              <span class="text-xs text-slate-400 font-semibold">${formatDate(n.created_at || noteDate)}</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              ${isDeadline ? `
+                <button data-toggle-complete="${n.id}" class="deadline-pill cursor-pointer transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}" title="Échéance (Cliquer pour valider la note)">
+                  <i data-lucide="${isCompleted ? 'check-circle-2' : 'alert-circle'}" class="w-3.5 h-3.5 ${isCompleted ? 'text-emerald-400' : 'text-rose-400'}"></i>
+                  <span>${isCompleted ? 'Deadline Validée' : `🚨 Échéance : ${formatDate(noteDate || 'À venir')}`}</span>
+                </button>
+              ` : (noteDate ? `
+                <button data-toggle-complete="${n.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'} flex items-center gap-1.5 shadow-sm cursor-pointer transition" title="Cliquer pour valider la note">
+                  <i data-lucide="${isCompleted ? 'check-circle-2' : 'calendar'}" class="w-3.5 h-3.5 ${isCompleted ? 'text-emerald-400' : 'text-sky-400'}"></i>
+                  <span>${isCompleted ? 'Prévu (Validé)' : `📅 Prévu : ${formatDate(noteDate)}`}</span>
+                </button>
+              ` : '')}
+
+              <button data-pin-note="${n.id}" class="p-1 text-slate-400 hover:text-amber-400 transition cursor-pointer" title="${isPinned ? 'Désépingler' : 'Épingler'}">
+                <i data-lucide="pin" class="w-4 h-4 ${isPinned ? 'text-amber-400 fill-amber-400' : ''}"></i>
+              </button>
+              <button data-delete-note="${n.id}" class="p-1 text-slate-400 hover:text-rose-400 transition cursor-pointer" title="Supprimer la note">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
           </div>
 
-          <div class="flex items-center gap-2">
-            ${isDeadline ? `
-              <button data-toggle-complete="${n.id}" class="deadline-pill cursor-pointer transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}" title="Échéance (Cliquer pour valider la note)">
-                <i data-lucide="${isCompleted ? 'check-circle-2' : 'alert-circle'}" class="w-3.5 h-3.5 ${isCompleted ? 'text-emerald-400' : 'text-rose-400'}"></i>
-                <span>${isCompleted ? 'Deadline Validée' : `🚨 Échéance : ${formatDate(noteDate || 'Échéance')}`}</span>
-              </button>
-            ` : (noteDate ? `
-              <button data-toggle-complete="${n.id}" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'} flex items-center gap-1.5 shadow-sm cursor-pointer transition" title="Cliquer pour valider la note">
-                <i data-lucide="${isCompleted ? 'check-circle-2' : 'calendar'}" class="w-3.5 h-3.5 ${isCompleted ? 'text-emerald-400' : 'text-sky-400'}"></i>
-                <span>${isCompleted ? 'Prévu (Validé)' : `📅 Prévu : ${formatDate(noteDate)}`}</span>
-              </button>
-            ` : '')}
-
-            <button data-pin-note="${n.id}" class="p-1 text-slate-400 hover:text-amber-400 transition" title="${isPinned ? 'Désépingler' : 'Épingler'}">
-              <i data-lucide="pin" class="w-4 h-4 ${isPinned ? 'text-amber-400 fill-amber-400' : ''}"></i>
-            </button>
-            <button data-delete-note="${n.id}" class="p-1 text-slate-400 hover:text-rose-400 transition" title="Supprimer la note">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
+          <div class="ag-note-card-content ${isCompleted ? 'line-through text-slate-400' : ''}">
+            ${renderFormattedContent(cleanContent(n.content))}
           </div>
-        </div>
 
-        <div class="ag-note-card-content ${isCompleted ? 'line-through text-slate-400' : ''}">
-          ${renderFormattedContent(cleanContent(n.content))}
         </div>
-
-      </div>
-    `;
+      `;
+    } catch (err) {
+      console.error('Error rendering note card:', err, n);
+      return `<div class="p-3 bg-slate-900 border border-slate-800 text-xs rounded-xl text-slate-200">${escapeHtml(n?.content || '')}</div>`;
+    }
   }
 
   function renderFormattedContent(text) {
@@ -2604,7 +2618,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!dateStr) return '';
     try {
       const d = new Date(dateStr);
-      return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
     } catch (e) {
       return dateStr;
     }
