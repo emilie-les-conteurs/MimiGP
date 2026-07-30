@@ -439,6 +439,122 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       }
     }
+
+    renderTeamPlanningWidget();
+  }
+
+  let activeTeamPersonFilter = 'all';
+
+  function renderTeamPlanningWidget() {
+    const filtersEl = document.getElementById('ag-team-person-filters');
+    const todayListEl = document.getElementById('ag-team-today-list');
+    const tomorrowListEl = document.getElementById('ag-team-tomorrow-list');
+    const todayCountEl = document.getElementById('ag-team-today-count');
+    const tomorrowCountEl = document.getElementById('ag-team-tomorrow-count');
+
+    if (!todayListEl || !tomorrowListEl) return;
+
+    // Collect team members
+    let teamMembers = persons.map(p => ({
+      name: p.name || `${p.firstname || ''} ${p.lastname || ''}`.trim() || 'Contact',
+      id: p.id
+    })).filter(p => p.name);
+
+    if (!teamMembers.length) {
+      teamMembers = [
+        { name: 'Julie', id: 'm1' },
+        { name: 'Thomas', id: 'm2' },
+        { name: 'Équipe', id: 'm3' }
+      ];
+    }
+
+    // Render Filter Pills
+    if (filtersEl) {
+      filtersEl.innerHTML = `
+        <button data-team-filter="all" class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${activeTeamPersonFilter === 'all' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
+          Tous
+        </button>
+        ${teamMembers.map(m => `
+          <button data-team-filter="${escapeHtml(m.name)}" class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${activeTeamPersonFilter.toLowerCase() === m.name.toLowerCase() ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 flex items-center gap-1'}">
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+            @${escapeHtml(m.name)}
+          </button>
+        `).join('')}
+      `;
+
+      filtersEl.querySelectorAll('[data-team-filter]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeTeamPersonFilter = btn.dataset.teamFilter;
+          renderTeamPlanningWidget();
+        });
+      });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const tm = new Date();
+    tm.setDate(tm.getDate() + 1);
+    const tomorrowStr = tm.toISOString().split('T')[0];
+
+    // Combine notes + todos + deadlines
+    const allItems = [
+      ...notes.map(n => ({
+        id: n.id,
+        content: n.content,
+        date: n.date || (n.created_at ? n.created_at.split('T')[0] : todayStr),
+        client_id: n.client_id || n.clientId,
+        type: 'note',
+        is_deadline: n.is_deadline || (n.content && n.content.includes('/deadline')),
+        completed: n.completed || false
+      })),
+      ...todos.map(t => ({
+        id: t.id,
+        content: t.content,
+        date: t.dueDate || t.due_date || (t.created_at ? t.created_at.split('T')[0] : todayStr),
+        client_id: t.client_id || t.clientId,
+        type: 'todo',
+        is_deadline: false,
+        completed: t.completed || t.done || false
+      }))
+    ];
+
+    // Filter by person if selected
+    const filterByPerson = (item) => {
+      if (activeTeamPersonFilter === 'all') return true;
+      const target = activeTeamPersonFilter.toLowerCase();
+      return item.content && item.content.toLowerCase().includes(`@${target}`);
+    };
+
+    const todayItems = allItems.filter(i => (i.date === todayStr || (!i.date && i.content.includes('@'))) && filterByPerson(i));
+    const tomorrowItems = allItems.filter(i => i.date === tomorrowStr && filterByPerson(i));
+
+    if (todayCountEl) todayCountEl.textContent = todayItems.length;
+    if (tomorrowCountEl) tomorrowCountEl.textContent = tomorrowItems.length;
+
+    const renderPlanningList = (items, targetEl, emptyMsg) => {
+      if (!items.length) {
+        targetEl.innerHTML = `<p class="text-[11px] text-slate-500 py-3 text-center">${emptyMsg}</p>`;
+        return;
+      }
+
+      targetEl.innerHTML = items.map(item => {
+        const clientObj = clients.find(c => c.id === item.client_id);
+        const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
+        return `
+          <div class="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs flex items-center justify-between gap-2 hover:border-indigo-500/40 transition">
+            <div class="flex items-center gap-2 overflow-hidden flex-1">
+              ${clientObj ? `
+                <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${clientColor}"></span>
+              ` : '<span class="w-2 h-2 rounded-full shrink-0 bg-indigo-500"></span>'}
+              <span class="truncate font-medium text-slate-200">${renderFormattedContent(cleanContent(item.content))}</span>
+            </div>
+            ${clientObj ? `<span class="px-2 py-0.5 text-[9px] font-bold rounded-md bg-slate-900 text-slate-400 shrink-0">${escapeHtml(clientObj.name)}</span>` : ''}
+          </div>
+        `;
+      }).join('');
+    };
+
+    renderPlanningList(todayItems, todayListEl, activeTeamPersonFilter === 'all' ? 'Aucune tâche ou note d\'équipe aujourd\'hui' : `Aucune tâche pour @${activeTeamPersonFilter} aujourd'hui`);
+    renderPlanningList(tomorrowItems, tomorrowListEl, activeTeamPersonFilter === 'all' ? 'Aucune tâche ou note d\'équipe demain' : `Aucune tâche pour @${activeTeamPersonFilter} demain`);
   }
 
   // Dashboard Metric Cards Redirection
@@ -1913,6 +2029,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
     `;
 
+    const teamCmds = `
+      <div class="px-3 py-1.5 border-b border-t border-slate-700/60 text-[10px] uppercase font-bold text-slate-400 mt-1">Mention Collègues / Équipe (@nom)</div>
+      ${(persons.length ? persons : [{ name: 'Julie' }, { name: 'Thomas' }, { name: 'Équipe' }]).map(p => {
+        const pName = p.name || `${p.firstname || ''} ${p.lastname || ''}`.trim();
+        return `
+          <div class="command-item flex items-center gap-2" data-cmd="@${escapeHtml(pName)}">
+            <i data-lucide="user" class="w-3.5 h-3.5 text-indigo-400"></i>
+            <div>
+              <div class="font-semibold text-white">@${escapeHtml(pName)}</div>
+              <div class="text-[10px] text-slate-400">Planning de ${escapeHtml(pName)}</div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    `;
+
     const clientCmds = clients.length ? `
       <div class="px-3 py-1.5 border-b border-t border-slate-700/60 text-[10px] uppercase font-bold text-slate-400 mt-1">Redirection Clients (/nom)</div>
       ${clients.map(c => {
@@ -1929,7 +2061,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }).join('')}
     ` : '';
 
-    const fullHtml = defaultCmds + clientCmds;
+    const fullHtml = defaultCmds + teamCmds + clientCmds;
 
     if (dashSlashMenu) dashSlashMenu.innerHTML = fullHtml;
     if (clientSlashMenu) clientSlashMenu.innerHTML = fullHtml;
