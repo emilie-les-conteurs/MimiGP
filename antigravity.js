@@ -795,7 +795,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const isDeadline = rawText.includes('/deadline') || rawText.includes('/demain') || Boolean(datePickerValue);
+    const isDeadline = rawText.includes('/deadline');
     let dateVal = datePickerValue || extractDateFromContent(rawText);
 
     if (rawText.includes('/demain')) {
@@ -835,7 +835,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderNoteCard(n, showClientBadge = true) {
     const clientObj = clients.find(c => c.id === n.client_id || c.id === n.clientId);
     const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
-    const isDeadline = n.is_deadline || (n.content && n.content.includes('/deadline'));
+    const isDeadline = Boolean(n.is_deadline || (n.content && n.content.includes('/deadline')));
+    const noteDate = n.date || extractDateFromContent(n.content);
     const isCompleted = n.completed || false;
     const isPinned = pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id);
 
@@ -850,16 +851,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <span>${escapeHtml(clientObj.name)}</span>
               </span>
             ` : '<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-400">Global</span>'}
-            <span class="text-xs text-slate-400 font-semibold">${formatDate(n.created_at || n.date)}</span>
+            <span class="text-xs text-slate-400 font-semibold">${formatDate(n.created_at || noteDate)}</span>
           </div>
 
           <div class="flex items-center gap-2">
             ${isDeadline ? `
-              <button data-toggle-deadline="${n.id}" class="deadline-pill cursor-pointer transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}" title="Cliquer pour changer le statut de la deadline">
-                <i data-lucide="${isCompleted ? 'check-circle-2' : 'clock'}" class="w-3.5 h-3.5"></i>
-                <span>${isCompleted ? 'Deadline Validée' : (extractDateFromContent(n.content) || n.date || 'Échéance')}</span>
+              <button data-toggle-deadline="${n.id}" class="deadline-pill cursor-pointer transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}" title="Deadline / Échéance (Cliquer pour changer le statut)">
+                <i data-lucide="${isCompleted ? 'check-circle-2' : 'alert-circle'}" class="w-3.5 h-3.5 text-rose-400"></i>
+                <span>${isCompleted ? 'Deadline Validée' : `🚨 Échéance : ${formatDate(noteDate || 'Échéance')}`}</span>
               </button>
-            ` : ''}
+            ` : (noteDate ? `
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/40 flex items-center gap-1.5 shadow-sm" title="Note datée (Organisation)">
+                <i data-lucide="calendar" class="w-3.5 h-3.5 text-sky-400"></i>
+                <span>📅 Prévu : ${formatDate(noteDate)}</span>
+              </span>
+            ` : '')}
 
             <button data-pin-note="${n.id}" class="p-1 text-slate-400 hover:text-amber-400 transition" title="${isPinned ? 'Désépingler' : 'Épingler'}">
               <i data-lucide="pin" class="w-4 h-4 ${isPinned ? 'text-amber-400 fill-amber-400' : ''}"></i>
