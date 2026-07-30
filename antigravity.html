@@ -783,12 +783,28 @@
       <!-- VUE 6 : ANNUAIRE CONTACTS (`persons`)                             -->
       <!-- ══════════════════════════════════════════════════════════════════ -->
       <section id="ag-view-contacts" class="hidden space-y-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
-            <h2 class="text-xl font-bold text-white">Annuaire des Contacts</h2>
-            <p class="text-xs text-slate-400 mt-0.5">Tous les interlocuteurs enregistrés auprès des clients.</p>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <i data-lucide="users" class="w-6 h-6 text-indigo-400"></i>
+              Annuaire des Contacts
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Distinction claire entre votre équipe interne et vos interlocuteurs clients.</p>
           </div>
-          <button id="ag-create-contact-main-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-2">
+
+          <div class="flex items-center gap-2" id="ag-contact-filter-tabs">
+            <button data-contact-filter="all" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Tous</button>
+            <button data-contact-filter="internal" class="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition flex items-center gap-1.5">
+              <i data-lucide="building-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+              🏢 Équipe Interne
+            </button>
+            <button data-contact-filter="client" class="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition flex items-center gap-1.5">
+              <i data-lucide="user" class="w-3.5 h-3.5 text-purple-400"></i>
+              👤 Contacts Clients
+            </button>
+          </div>
+
+          <button id="ag-create-contact-main-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-2 shrink-0">
             <i data-lucide="user-plus" class="w-4 h-4"></i>
             <span>Nouveau Contact</span>
           </button>
@@ -931,19 +947,26 @@
       <form id="ag-contact-form" class="space-y-3 text-xs">
         <input type="hidden" id="ag-contact-input-id">
         <div>
+          <label class="block font-semibold text-slate-300 mb-1">Catégorie de Contact</label>
+          <select id="ag-contact-input-type" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500 font-bold">
+            <option value="internal">🏢 Équipe Interne / Collaborateur</option>
+            <option value="client">👤 Contact Client Externe</option>
+          </select>
+        </div>
+        <div>
           <label class="block font-semibold text-slate-300 mb-1">Nom Complet</label>
-          <input type="text" id="ag-contact-input-name" required placeholder="ex: Jean Dupont" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+          <input type="text" id="ag-contact-input-name" required placeholder="ex: Léa Bernard, Thomas Moreau..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
         </div>
         <div>
           <label class="block font-semibold text-slate-300 mb-1">Poste / Fonction</label>
-          <input type="text" id="ag-contact-input-position" placeholder="ex: Directeur Technique, Manager..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+          <input type="text" id="ag-contact-input-position" placeholder="ex: Rédactrice, Chef de Projet, Directeur..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
         </div>
         <div>
           <label class="block font-semibold text-slate-300 mb-1">Adresse E-mail</label>
           <input type="email" id="ag-contact-input-email" placeholder="nom@exemple.com" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
         </div>
         <div>
-          <label class="block font-semibold text-slate-300 mb-1">Client Rattaché</label>
+          <label class="block font-semibold text-slate-300 mb-1">Client Rattaché (Optionnel si Interne)</label>
           <select id="ag-contact-input-client" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
             <!-- Client options -->
           </select>
@@ -1001,8 +1024,8 @@
   </div>
 
   <!-- Main JS Logic -->
-  <script src="config.js?v=rollback_ee7298c"></script>
-  <script src="antigravity.js?v=rollback_ee7298c"></script>
+  <script src="config.js?v=contact_distinction_1147"></script>
+  <script src="antigravity.js?v=contact_distinction_1147"></script>
 
 </body>
 </html>

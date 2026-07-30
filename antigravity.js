@@ -1487,32 +1487,79 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ─── CONTACTS VIEW ─────────────────────────────────────────────────
+  let activeContactFilter = 'all';
+
   function renderContactsView() {
     const gridEl = document.getElementById('ag-contacts-grid');
+    const tabsContainer = document.getElementById('ag-contact-filter-tabs');
     if (!gridEl) return;
 
-    if (!persons.length) {
-      gridEl.innerHTML = `<div class="col-span-full glass-panel p-10 text-center text-xs text-slate-400 rounded-3xl">Aucun contact enregistré pour le moment. Cliquez sur "Nouveau Contact" pour en créer un.</div>`;
+    if (tabsContainer) {
+      tabsContainer.querySelectorAll('button[data-contact-filter]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeContactFilter = btn.dataset.contactFilter;
+          tabsContainer.querySelectorAll('button').forEach(b => {
+            b.className = 'px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition flex items-center gap-1.5';
+          });
+          btn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 shadow-sm';
+          renderContactsView();
+        });
+      });
+    }
+
+    let filteredPersons = persons;
+    if (activeContactFilter === 'internal') {
+      filteredPersons = persons.filter(p => p.type === 'internal' || !p.type);
+    } else if (activeContactFilter === 'client') {
+      filteredPersons = persons.filter(p => p.type === 'client');
+    }
+
+    if (!filteredPersons.length) {
+      gridEl.innerHTML = `<div class="col-span-full glass-panel p-10 text-center text-xs text-slate-400 rounded-3xl">Aucun contact trouvé dans cette catégorie. Cliquez sur "Nouveau Contact" pour en ajouter un.</div>`;
       return;
     }
 
-    gridEl.innerHTML = persons.map(p => {
+    gridEl.innerHTML = filteredPersons.map(p => {
+      const isInternal = p.type === 'internal' || !p.type;
       const clientObj = clients.find(c => c.id === p.client_id || c.id === p.clientId);
-      const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
+      const clientColor = clientObj ? (clientObj.color || '#6366f1') : (isInternal ? '#6366f1' : '#a855f7');
+
       return `
-        <div class="glass-panel p-4 rounded-2xl space-y-2 glow-hover" style="border-left: 4px solid ${clientColor} !important;">
+        <div class="glass-panel p-4 rounded-2xl space-y-3 glow-hover transition shadow-sm" style="border-left: 4px solid ${clientColor} !important;">
           <div class="flex items-center justify-between">
-            <h4 class="font-bold text-white text-sm">${escapeHtml(p.name || `${p.firstname || ''} ${p.lastname || ''}`)}</h4>
-            <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-sm" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}80 !important;">
-              <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${clientColor} !important;"></span>
-              <span>${clientObj ? escapeHtml(clientObj.name) : 'Contact'}</span>
-            </span>
+            <h4 class="font-bold text-white text-sm flex items-center gap-2">
+              <i data-lucide="${isInternal ? 'building-2' : 'user'}" class="w-4 h-4 ${isInternal ? 'text-indigo-400' : 'text-purple-400'}"></i>
+              ${escapeHtml(p.name || `${p.firstname || ''} ${p.lastname || ''}`)}
+            </h4>
+
+            <button data-toggle-contact-type="${p.id}" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full border cursor-pointer hover:opacity-90 transition flex items-center gap-1 shadow-xs ${isInternal ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' : 'bg-purple-500/20 text-purple-300 border-purple-500/40'}" title="Cliquer pour changer la catégorie">
+              <span>${isInternal ? '🏢 Équipe Interne' : '👤 Contact Client'}</span>
+            </button>
           </div>
-          <p class="text-xs text-slate-400">${escapeHtml(p.position || 'Interlocuteur Client')}</p>
-          ${p.email ? `<p class="text-[11px] text-indigo-400 flex items-center gap-1"><i data-lucide="mail" class="w-3 h-3"></i> ${escapeHtml(p.email)}</p>` : ''}
+
+          <p class="text-xs text-slate-400 font-medium">${escapeHtml(p.position || (isInternal ? 'Collaborateur' : 'Interlocuteur Client'))}</p>
+          
+          <div class="flex items-center justify-between text-[11px] pt-1 border-t border-slate-800">
+            ${p.email ? `<a href="mailto:${p.email}" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold"><i data-lucide="mail" class="w-3 h-3"></i> ${escapeHtml(p.email)}</a>` : '<span></span>'}
+            ${clientObj ? `<span class="text-slate-400 font-semibold" style="color: ${clientColor}">${escapeHtml(clientObj.name)}</span>` : ''}
+          </div>
         </div>
       `;
     }).join('');
+
+    gridEl.querySelectorAll('button[data-toggle-contact-type]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.toggleContactType;
+        const target = persons.find(p => p.id === id);
+        if (target) {
+          target.type = target.type === 'client' ? 'internal' : 'client';
+          saveDataLocal();
+          renderAllViews();
+        }
+      });
+    });
+
+    if (window.lucide) window.lucide.createIcons();
   }
 
   // ══════════════════════════════════════════════════════════════════════════
