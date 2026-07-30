@@ -1486,6 +1486,94 @@ document.addEventListener('DOMContentLoaded', async () => {
     kanbanFilterSelect.addEventListener('change', renderKanbanView);
   }
 
+  function renderClientContacts(clientId) {
+    const listEl = document.getElementById('ag-client-contacts-list');
+    if (!listEl) return;
+
+    if (!clientId) {
+      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucun client sélectionné.</p>`;
+      return;
+    }
+
+    const clientPersons = persons.filter(p => {
+      if (!p) return false;
+      const pid = String(p.client_id || p.clientId || '');
+      const cid = String(clientId || '');
+      return pid === cid && pid !== '';
+    });
+
+    if (!clientPersons.length) {
+      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucun contact rattaché à ce client.</p>`;
+      return;
+    }
+
+    listEl.innerHTML = clientPersons.map(p => `
+      <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center justify-between shadow-xs">
+        <div>
+          <div class="font-bold text-white flex items-center gap-1.5">
+            <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded ${p.type === 'internal' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-purple-500/20 text-purple-300'}">
+              ${p.type === 'internal' ? '🏢 Interne' : '👤 Client'}
+            </span>
+            ${escapeHtml(p.name || `${p.firstname || ''} ${p.lastname || ''}`)}
+          </div>
+          <div class="text-[10px] text-slate-400 ml-1 mt-0.5">${escapeHtml(p.position || 'Contact Client')}</div>
+        </div>
+        <div class="flex items-center gap-1">
+          ${p.email ? `<a href="mailto:${p.email}" class="text-indigo-400 hover:text-indigo-300 p-1" title="Envoyer e-mail"><i data-lucide="mail" class="w-3.5 h-3.5"></i></a>` : ''}
+          <button data-delete-person="${p.id}" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Supprimer ce contact">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('button[data-delete-person]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.deletePerson;
+        const target = persons.find(p => String(p.id) === String(id));
+        const nameStr = target ? target.name : 'ce contact';
+        if (confirm(`Voulez-vous vraiment supprimer ${nameStr} ?`)) {
+          persons = persons.filter(p => String(p.id) !== String(id));
+          saveDataLocal();
+          if (sb) {
+            await sb.from('persons').delete().eq('id', id);
+          }
+          renderAllViews();
+        }
+      });
+    });
+
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderClientPinnedNotes(clientId) {
+    const listEl = document.getElementById('ag-client-pinned-notes-list');
+    const countEl = document.getElementById('ag-client-pinned-notes-count');
+    if (!listEl) return;
+
+    const pinnedNotes = notes.filter(n => (n.client_id === clientId || n.clientId === clientId) && n.pinned);
+
+    if (countEl) countEl.textContent = pinnedNotes.length;
+
+    if (!pinnedNotes.length) {
+      listEl.innerHTML = `<p class="text-[11px] text-slate-500 italic text-center py-2">Aucune note épinglée.</p>`;
+      return;
+    }
+
+    listEl.innerHTML = pinnedNotes.map(n => `
+      <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
+        <div class="flex items-center justify-between text-[10px] text-amber-300 font-semibold">
+          <span class="flex items-center gap-1"><i data-lucide="pin" class="w-3 h-3 text-amber-400"></i> Épinglé</span>
+          <span>${formatDateDisplay(n.date || n.created_at)}</span>
+        </div>
+        <div class="text-slate-200">${escapeHtml(n.content)}</div>
+      </div>
+    `).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+  }
+
   // ─── CONTACTS VIEW ─────────────────────────────────────────────────
   let activeContactFilter = 'all';
 
@@ -1521,15 +1609,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     gridEl.innerHTML = filteredPersons.map(p => {
       const isInternal = p.type === 'internal' || !p.type;
-      const clientObj = clients.find(c => c.id === p.client_id || c.id === p.clientId);
+      const clientObj = clients.find(c => String(c.id) === String(p.client_id || p.clientId));
       const clientColor = clientObj ? (clientObj.color || '#6366f1') : (isInternal ? '#6366f1' : '#a855f7');
 
       return `
         <div class="glass-panel p-4 rounded-2xl space-y-3 glow-hover transition shadow-sm" style="border-left: 4px solid ${clientColor} !important;">
-          <div class="flex items-center justify-between">
-            <h4 class="font-bold text-white text-sm flex items-center gap-2">
-              <i data-lucide="${isInternal ? 'building-2' : 'user'}" class="w-4 h-4 ${isInternal ? 'text-indigo-400' : 'text-purple-400'}"></i>
-              ${escapeHtml(p.name || `${p.firstname || ''} ${p.lastname || ''}`)}
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="font-bold text-white text-sm flex items-center gap-2 truncate">
+              <i data-lucide="${isInternal ? 'building-2' : 'user'}" class="w-4 h-4 shrink-0 ${isInternal ? 'text-indigo-400' : 'text-purple-400'}"></i>
+              <span class="truncate">${escapeHtml(p.name || `${p.firstname || ''} ${p.lastname || ''}`)}</span>
             </h4>
 
             <button data-toggle-contact-type="${p.id}" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full border cursor-pointer hover:opacity-90 transition flex items-center gap-1 shadow-xs ${isInternal ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' : 'bg-purple-500/20 text-purple-300 border-purple-500/40'}" title="Cliquer pour changer la catégorie">
@@ -1539,9 +1627,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           <p class="text-xs text-slate-400 font-medium">${escapeHtml(p.position || (isInternal ? 'Collaborateur' : 'Interlocuteur Client'))}</p>
           
-          <div class="flex items-center justify-between text-[11px] pt-1 border-t border-slate-800">
-            ${p.email ? `<a href="mailto:${p.email}" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold"><i data-lucide="mail" class="w-3 h-3"></i> ${escapeHtml(p.email)}</a>` : '<span></span>'}
-            ${clientObj ? `<span class="text-slate-400 font-semibold" style="color: ${clientColor}">${escapeHtml(clientObj.name)}</span>` : ''}
+          <div class="flex items-center justify-between text-[11px] pt-2 border-t border-slate-800/80">
+            ${p.email ? `<a href="mailto:${p.email}" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold truncate"><i data-lucide="mail" class="w-3 h-3 shrink-0"></i> ${escapeHtml(p.email)}</a>` : '<span></span>'}
+            
+            <div class="flex items-center gap-2 shrink-0">
+              ${clientObj ? `<span class="text-slate-300 font-extrabold px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[10px]" style="color: ${clientColor} !important;">${escapeHtml(clientObj.name)}</span>` : '<span class="text-slate-500 text-[10px] italic">Non rattaché</span>'}
+              
+              <button data-delete-person="${p.id}" class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition cursor-pointer" title="Supprimer ce contact">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -1550,10 +1645,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     gridEl.querySelectorAll('button[data-toggle-contact-type]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.toggleContactType;
-        const target = persons.find(p => p.id === id);
+        const target = persons.find(p => String(p.id) === String(id));
         if (target) {
           target.type = target.type === 'client' ? 'internal' : 'client';
           saveDataLocal();
+          renderAllViews();
+        }
+      });
+    });
+
+    gridEl.querySelectorAll('button[data-delete-person]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.deletePerson;
+        const target = persons.find(p => String(p.id) === String(id));
+        const nameStr = target ? target.name : 'ce contact';
+        if (confirm(`Voulez-vous vraiment supprimer ${nameStr} ?`)) {
+          persons = persons.filter(p => String(p.id) !== String(id));
+          saveDataLocal();
+          if (sb) {
+            await sb.from('persons').delete().eq('id', id);
+          }
           renderAllViews();
         }
       });
