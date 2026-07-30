@@ -584,9 +584,13 @@
             <!-- Feed Filter Tabs -->
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
               <div class="flex items-center gap-2" id="ag-feed-filter-tabs">
-                <button data-filter="all" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Tout (0)</button>
-                <button data-filter="deadlines" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition">Deadlines (0)</button>
-                <button data-filter="files" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition">Fichiers (0)</button>
+                <button data-filter="all" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Tout</button>
+                <button data-filter="pinned" class="px-3 py-1.5 rounded-xl text-xs font-medium text-amber-400 hover:bg-slate-800 transition flex items-center gap-1">
+                  <i data-lucide="pin" class="w-3 h-3 text-amber-400 fill-amber-400"></i>
+                  Épinglées
+                </button>
+                <button data-filter="deadlines" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition">Deadlines</button>
+                <button data-filter="files" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition">Fichiers</button>
               </div>
               <input type="text" id="ag-stream-search" placeholder="Rechercher dans le fil..." class="px-3 py-1 bg-slate-800 border border-slate-700/60 rounded-xl text-xs text-white focus:outline-none w-44">
             </div>
@@ -621,11 +625,25 @@
               </div>
             </div>
 
+            <!-- Notes Épinglées Widget (Dédié aux notes avec la punaise) -->
+            <div class="glass-panel p-4 rounded-2xl space-y-3 border border-amber-500/20">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h4 class="text-xs font-bold text-amber-300 flex items-center gap-2">
+                  <i data-lucide="pin" class="w-3.5 h-3.5 text-amber-400 fill-amber-400"></i>
+                  Notes Épinglées du Client
+                </h4>
+                <span id="ag-client-pinned-notes-count" class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">0</span>
+              </div>
+              <div id="ag-client-pinned-notes-list" class="space-y-2 text-xs">
+                <!-- Pinned notes rendered here -->
+              </div>
+            </div>
+
             <!-- Team / Contacts Widget -->
             <div class="glass-panel p-4 rounded-2xl space-y-3">
               <div class="flex items-center justify-between border-b border-slate-800 pb-2">
                 <h4 class="text-xs font-bold text-white flex items-center gap-2">
-                  <i data-lucide="users" class="w-3.5 h-3.5 text-amber-400"></i>
+                  <i data-lucide="users" class="w-3.5 h-3.5 text-indigo-400"></i>
                   Contacts Rattachés
                 </h4>
                 <button id="ag-add-contact-btn" class="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold">+ Contact</button>
@@ -635,17 +653,17 @@
               </div>
             </div>
 
-            <!-- Pinned Files Widget -->
+            <!-- Fichiers & Documents Widget (Séparé des notes épinglées) -->
             <div class="glass-panel p-4 rounded-2xl space-y-3">
               <div class="flex items-center justify-between border-b border-slate-800 pb-2">
                 <h4 class="text-xs font-bold text-white flex items-center gap-2">
                   <i data-lucide="file-text" class="w-3.5 h-3.5 text-purple-400"></i>
-                  Notes / Fichiers Épinglés
+                  Fichiers & Documents
                 </h4>
-                <button id="ag-add-file-btn" class="text-[10px] text-purple-400 hover:text-purple-300 font-bold">+ Épingler Note</button>
+                <button id="ag-add-file-btn" class="text-[10px] text-purple-400 hover:text-purple-300 font-bold">+ Ajouter Fichier</button>
               </div>
               <div id="ag-client-files-list" class="space-y-2 text-xs">
-                <!-- Pinned files -->
+                <!-- Files rendered here -->
               </div>
             </div>
 
@@ -926,8 +944,8 @@
   </div>
 
   <!-- Main JS Logic -->
-  <script src="config.js?v=unified_validation_1100"></script>
-  <script src="antigravity.js?v=unified_validation_1100"></script>
+  <script src="config.js?v=pinned_notes_client_1102"></script>
+  <script src="antigravity.js?v=pinned_notes_client_1102"></script>
 
 </body>
 </html>

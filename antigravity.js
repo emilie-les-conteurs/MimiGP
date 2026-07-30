@@ -689,6 +689,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         filtered = clientNotes.filter(n => n.is_deadline || (n.content && n.content.includes('/deadline')));
       } else if (activeFeedFilter === 'files') {
         filtered = clientNotes.filter(n => n.file_url || n.fileUrl || (n.content && n.content.includes('/file')));
+      } else if (activeFeedFilter === 'pinned') {
+        filtered = clientNotes.filter(n => pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id));
       }
 
       if (streamSearchQuery) {
@@ -704,6 +706,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     renderClientSidebarTodos(clientId);
+    renderClientPinnedNotes(clientId);
     renderClientContacts(clientId);
     renderClientPinnedFiles(clientId);
   }
@@ -1184,20 +1187,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function renderClientPinnedFiles(clientId) {
-    const listEl = document.getElementById('ag-client-files-list');
+  function renderClientPinnedNotes(clientId) {
+    const listEl = document.getElementById('ag-client-pinned-notes-list');
+    const countEl = document.getElementById('ag-client-pinned-notes-count');
     if (!listEl) return;
 
     const clientNotes = notes.filter(n => n.client_id === clientId || n.clientId === clientId);
     const pinned = clientNotes.filter(n => pinnedFiles.some(pf => pf.msg_id === n.id || pf.id === n.id || pf.note_id === n.id || pf.msgId === n.id || pf.noteId === n.id));
 
+    if (countEl) countEl.textContent = pinned.length;
+
     if (!pinned.length) {
-      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucune note ou fichier épinglé.</p>`;
+      listEl.innerHTML = `<p class="text-[11px] text-slate-500 text-center py-2">Aucune note épinglée avec 📌.</p>`;
       return;
     }
 
     listEl.innerHTML = pinned.map(n => `
-      <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center justify-between gap-2">
+      <div class="p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/30 text-xs flex items-center justify-between gap-2 shadow-sm">
         <span class="truncate font-medium text-slate-200 flex-1" title="${escapeHtml(cleanContent(n.content))}">${escapeHtml(cleanContent(n.content))}</span>
         <button data-pin-note="${n.id}" class="text-amber-400 hover:text-rose-400 p-1 shrink-0 transition" title="Désépingler">
           <i data-lucide="pin" class="w-3.5 h-3.5 fill-amber-400"></i>
@@ -1208,6 +1214,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     listEl.querySelectorAll('button[data-pin-note]').forEach(btn => {
       btn.addEventListener('click', () => togglePinNote(btn.dataset.pinNote));
     });
+  }
+
+  function renderClientPinnedFiles(clientId) {
+    const listEl = document.getElementById('ag-client-files-list');
+    if (!listEl) return;
+
+    const clientNotes = notes.filter(n => n.client_id === clientId || n.clientId === clientId);
+    const files = clientNotes.filter(n => n.file_url || n.fileUrl || (n.content && n.content.includes('/file')));
+
+    if (!files.length) {
+      listEl.innerHTML = `<p class="text-[11px] text-slate-500 text-center py-2">Aucun fichier joint.</p>`;
+      return;
+    }
+
+    listEl.innerHTML = files.map(n => `
+      <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center justify-between gap-2">
+        <span class="truncate font-medium text-purple-300 flex-1" title="${escapeHtml(cleanContent(n.content))}">${escapeHtml(cleanContent(n.content))}</span>
+        <i data-lucide="file" class="w-3.5 h-3.5 text-purple-400 shrink-0"></i>
+      </div>
+    `).join('');
   }
 
   const addFileBtn = document.getElementById('ag-add-file-btn');
