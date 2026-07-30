@@ -563,6 +563,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  function getClientPersons(clientId) {
+    if (!clientId) return [];
+    const clientObj = clients.find(c => String(c.id) === String(clientId));
+    const clientName = clientObj ? clientObj.name.toLowerCase().trim() : '';
+
+    return persons.filter(p => {
+      if (!p) return false;
+      const pid = String(p.client_id || p.clientId || '').toLowerCase().trim();
+      const cid = String(clientId || '').toLowerCase().trim();
+
+      // Match by ID
+      if (pid && cid && pid === cid) return true;
+
+      // Match by Client Name
+      const pClient = String(p.client || p.client_name || p.clientName || '').toLowerCase().trim();
+      if (clientName && pClient && (pClient === clientName || clientName.includes(pClient) || pClient.includes(clientName))) return true;
+
+      return false;
+    });
+  }
+
   // ─── HUB CLIENTS GRID ──────────────────────────────────────────────
   function renderClientGrid() {
     const gridEl = document.getElementById('ag-clients-grid');
@@ -588,10 +609,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     gridEl.innerHTML = filteredClients.map(c => {
-      const clientNotes = notes.filter(n => n.client_id === c.id || n.clientId === c.id);
+      const clientNotes = notes.filter(n => String(n.client_id || n.clientId) === String(c.id));
       const clientDeadlines = clientNotes.filter(n => (n.is_deadline || (n.content && n.content.includes('/deadline'))) && !n.completed);
-      const clientTodos = todos.filter(t => (t.client_id === c.id || t.clientId === c.id) && !t.completed && !t.done);
-      const clientPersons = persons.filter(p => p.client_id === c.id || p.clientId === c.id);
+      const clientTodos = todos.filter(t => (String(t.client_id || t.clientId) === String(c.id)) && !t.completed && !t.done);
+      const clientPersons = getClientPersons(c.id);
       const colorHex = c.color || '#6366f1';
 
       return `
@@ -1495,21 +1516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const clientObj = clients.find(c => String(c.id) === String(clientId));
-    const clientName = clientObj ? clientObj.name.toLowerCase().trim() : '';
-
-    const clientPersons = persons.filter(p => {
-      if (!p) return false;
-      const pid = String(p.client_id || p.clientId || '').toLowerCase().trim();
-      const cid = String(clientId || '').toLowerCase().trim();
-      if (pid && cid && pid === cid) return true;
-
-      // Match by client name if person object has client, client_name, or clientName property
-      const pClient = String(p.client || p.client_name || p.clientName || '').toLowerCase().trim();
-      if (clientName && pClient && (pClient === clientName || clientName.includes(pClient) || pClient.includes(clientName))) return true;
-
-      return false;
-    });
+    const clientPersons = getClientPersons(clientId);
 
     if (!clientPersons.length) {
       listEl.innerHTML = `
