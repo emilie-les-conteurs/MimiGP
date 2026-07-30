@@ -476,52 +476,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTeamPlanningWidget();
   }
 
-  let activeTeamPersonFilter = 'all';
-
   function renderTeamPlanningWidget() {
-    const filtersEl = document.getElementById('ag-team-person-filters');
     const todayListEl = document.getElementById('ag-team-today-list');
     const tomorrowListEl = document.getElementById('ag-team-tomorrow-list');
     const todayCountEl = document.getElementById('ag-team-today-count');
     const tomorrowCountEl = document.getElementById('ag-team-tomorrow-count');
 
     if (!todayListEl || !tomorrowListEl) return;
-
-    // Collect team members
-    let teamMembers = persons.map(p => ({
-      name: p.name || `${p.firstname || ''} ${p.lastname || ''}`.trim() || 'Contact',
-      id: p.id
-    })).filter(p => p.name);
-
-    if (!teamMembers.length) {
-      teamMembers = [
-        { name: 'Julie', id: 'm1' },
-        { name: 'Thomas', id: 'm2' },
-        { name: 'Équipe', id: 'm3' }
-      ];
-    }
-
-    // Render Filter Pills
-    if (filtersEl) {
-      filtersEl.innerHTML = `
-        <button data-team-filter="all" class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${activeTeamPersonFilter === 'all' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
-          Tous
-        </button>
-        ${teamMembers.map(m => `
-          <button data-team-filter="${escapeHtml(m.name)}" class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${activeTeamPersonFilter.toLowerCase() === m.name.toLowerCase() ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 flex items-center gap-1'}">
-            <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-            @${escapeHtml(m.name)}
-          </button>
-        `).join('')}
-      `;
-
-      filtersEl.querySelectorAll('[data-team-filter]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          activeTeamPersonFilter = btn.dataset.teamFilter;
-          renderTeamPlanningWidget();
-        });
-      });
-    }
 
     const todayStr = new Date().toISOString().split('T')[0];
     const tm = new Date();
@@ -550,15 +511,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }))
     ];
 
-    // Filter by person if selected
-    const filterByPerson = (item) => {
-      if (activeTeamPersonFilter === 'all') return true;
-      const target = activeTeamPersonFilter.toLowerCase();
-      return item.content && item.content.toLowerCase().includes(`@${target}`);
-    };
-
-    const todayItems = allItems.filter(i => (i.date === todayStr || (!i.date && i.content.includes('@'))) && filterByPerson(i));
-    const tomorrowItems = allItems.filter(i => i.date === tomorrowStr && filterByPerson(i));
+    const todayItems = allItems.filter(i => i.date === todayStr || (!i.date && i.content.includes('@')));
+    const tomorrowItems = allItems.filter(i => i.date === tomorrowStr);
 
     if (todayCountEl) todayCountEl.textContent = todayItems.length;
     if (tomorrowCountEl) tomorrowCountEl.textContent = tomorrowItems.length;
@@ -572,22 +526,34 @@ document.addEventListener('DOMContentLoaded', async () => {
       targetEl.innerHTML = items.map(item => {
         const clientObj = clients.find(c => c.id === item.client_id);
         const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
+
+        // Extract person mention if available
+        const match = item.content ? item.content.match(/@([a-zA-Z0-9_À-ÿ\-]+)/) : null;
+        const personName = match ? match[1] : 'Équipe';
+
         return `
-          <div class="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs flex items-center justify-between gap-2 hover:border-indigo-500/40 transition">
+          <div class="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs flex items-center justify-between gap-2 hover:border-indigo-500/40 transition shadow-xs">
             <div class="flex items-center gap-2 overflow-hidden flex-1">
-              ${clientObj ? `
-                <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${clientColor}"></span>
-              ` : '<span class="w-2 h-2 rounded-full shrink-0 bg-indigo-500"></span>'}
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1 shrink-0" title="Collègue / Membre attribué">
+                <i data-lucide="user" class="w-3 h-3 text-indigo-400"></i>
+                @${escapeHtml(personName)}
+              </span>
+
               <span class="truncate font-medium text-slate-200">${renderFormattedContent(cleanContent(item.content))}</span>
             </div>
-            ${clientObj ? `<span class="px-2 py-0.5 text-[9px] font-bold rounded-md bg-slate-900 text-slate-400 shrink-0">${escapeHtml(clientObj.name)}</span>` : ''}
+
+            ${clientObj ? `
+              <span class="px-2 py-0.5 text-[10px] font-bold rounded-full border shrink-0" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}60 !important;">
+                ${escapeHtml(clientObj.name)}
+              </span>
+            ` : ''}
           </div>
         `;
       }).join('');
     };
 
-    renderPlanningList(todayItems, todayListEl, activeTeamPersonFilter === 'all' ? 'Aucune tâche ou note d\'équipe aujourd\'hui' : `Aucune tâche pour @${activeTeamPersonFilter} aujourd'hui`);
-    renderPlanningList(tomorrowItems, tomorrowListEl, activeTeamPersonFilter === 'all' ? 'Aucune tâche ou note d\'équipe demain' : `Aucune tâche pour @${activeTeamPersonFilter} demain`);
+    renderPlanningList(todayItems, todayListEl, 'Aucune tâche ou note d\'équipe aujourd\'hui');
+    renderPlanningList(tomorrowItems, tomorrowListEl, 'Aucune tâche ou note d\'équipe demain');
   }
 
   // Dashboard Metric Cards Redirection
