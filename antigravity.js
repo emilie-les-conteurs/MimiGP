@@ -1495,15 +1495,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const clientObj = clients.find(c => String(c.id) === String(clientId));
+    const clientName = clientObj ? clientObj.name.toLowerCase().trim() : '';
+
     const clientPersons = persons.filter(p => {
       if (!p) return false;
-      const pid = String(p.client_id || p.clientId || '');
-      const cid = String(clientId || '');
-      return pid === cid && pid !== '';
+      const pid = String(p.client_id || p.clientId || '').toLowerCase().trim();
+      const cid = String(clientId || '').toLowerCase().trim();
+      if (pid && cid && pid === cid) return true;
+
+      // Match by client name if person object has client, client_name, or clientName property
+      const pClient = String(p.client || p.client_name || p.clientName || '').toLowerCase().trim();
+      if (clientName && pClient && (pClient === clientName || clientName.includes(pClient) || pClient.includes(clientName))) return true;
+
+      return false;
     });
 
     if (!clientPersons.length) {
-      listEl.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">Aucun contact rattaché à ce client.</p>`;
+      listEl.innerHTML = `
+        <div class="text-center py-3 space-y-2 bg-slate-900/40 rounded-xl border border-slate-800 p-3">
+          <p class="text-[11px] text-slate-400">Aucun contact rattaché à ce client.</p>
+          <button type="button" class="ag-add-contact-trigger px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1 mx-auto cursor-pointer">
+            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+            <span>+ Ajouter un contact</span>
+          </button>
+        </div>
+      `;
+      listEl.querySelectorAll('.ag-add-contact-trigger').forEach(btn => {
+        btn.addEventListener('click', () => openAddContactModal());
+      });
+      if (window.lucide) window.lucide.createIcons();
       return;
     }
 
@@ -1520,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div class="flex items-center gap-1">
           ${p.email ? `<a href="mailto:${p.email}" class="text-indigo-400 hover:text-indigo-300 p-1" title="Envoyer e-mail"><i data-lucide="mail" class="w-3.5 h-3.5"></i></a>` : ''}
-          <button data-delete-person="${p.id}" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Supprimer ce contact">
+          <button data-delete-person="${p.id}" class="text-slate-500 hover:text-rose-400 p-1 transition cursor-pointer" title="Supprimer ce contact">
             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
           </button>
         </div>
@@ -1620,7 +1641,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span class="truncate">${escapeHtml(p.name || `${p.firstname || ''} ${p.lastname || ''}`)}</span>
             </h4>
 
-            <button data-toggle-contact-type="${p.id}" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full border cursor-pointer hover:opacity-90 transition flex items-center gap-1 shadow-xs ${isInternal ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' : 'bg-purple-500/20 text-purple-300 border-purple-500/40'}" title="Cliquer pour changer la catégorie">
+            <button data-toggle-contact-type="${p.id}" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full border cursor-pointer hover:opacity-90 transition flex items-center gap-1 shadow-xs shrink-0 ${isInternal ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' : 'bg-purple-500/20 text-purple-300 border-purple-500/40'}" title="Cliquer pour changer la catégorie">
               <span>${isInternal ? '🏢 Équipe Interne' : '👤 Contact Client'}</span>
             </button>
           </div>
@@ -1697,8 +1718,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   document.querySelectorAll('#ag-main-nav button[data-view]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      switchView(btn.dataset.view);
+    btn.addEventListener('click', (e) => {
+      const view = btn.dataset.view;
+      if (view) switchView(view);
       closeMobileSidebar();
     });
   });
@@ -1915,6 +1937,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function openAddContactModal() {
     const modal = document.getElementById('ag-contact-modal');
+    const typeSelect = document.getElementById('ag-contact-input-type');
     const clientSelect = document.getElementById('ag-contact-input-client');
     const inputName = document.getElementById('ag-contact-input-name');
     const inputPos = document.getElementById('ag-contact-input-position');
@@ -1923,9 +1946,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (inputName) inputName.value = '';
     if (inputPos) inputPos.value = '';
     if (inputEmail) inputEmail.value = '';
+    if (typeSelect) typeSelect.value = activeClientId ? 'client' : 'internal';
 
     if (clientSelect) {
-      clientSelect.innerHTML = clients.map(c => `<option value="${c.id}" ${c.id === activeClientId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+      clientSelect.innerHTML = `
+        <option value="">-- Aucun client (Équipe Interne) --</option>
+        ${clients.map(c => `<option value="${c.id}" ${String(c.id) === String(activeClientId) ? 'selected' : ''}>🏢 ${escapeHtml(c.name)}</option>`).join('')}
+      `;
     }
 
     if (modal) modal.classList.remove('hidden');
@@ -1945,6 +1972,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (contactForm) {
     contactForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const typeSelect = document.getElementById('ag-contact-input-type');
       const inputName = document.getElementById('ag-contact-input-name');
       const inputPos = document.getElementById('ag-contact-input-position');
       const inputEmail = document.getElementById('ag-contact-input-email');
@@ -1952,10 +1980,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (!inputName || !inputName.value.trim()) return;
 
+      const chosenClientId = (clientSelect && clientSelect.value) ? clientSelect.value : (activeClientId || null);
+      const chosenClientObj = clients.find(c => String(c.id) === String(chosenClientId));
+
       const newPerson = {
         id: generateUUID(),
-        client_id: clientSelect ? clientSelect.value : activeClientId,
-        clientId: clientSelect ? clientSelect.value : activeClientId,
+        type: typeSelect ? typeSelect.value : (chosenClientId ? 'client' : 'internal'),
+        client_id: chosenClientId,
+        clientId: chosenClientId,
+        client: chosenClientObj ? chosenClientObj.name : '',
+        client_name: chosenClientObj ? chosenClientObj.name : '',
         name: inputName.value.trim(),
         position: inputPos ? inputPos.value.trim() : '',
         email: inputEmail ? inputEmail.value.trim() : '',
