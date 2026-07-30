@@ -1085,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const futureEl = document.getElementById('ag-dl-future-count');
 
     if (overdueEl) overdueEl.textContent = overdue.length;
-    if (todayEl) todayEl.textContent = today.length + overdue.length; // Retards intégrés à la journée
+    if (todayEl) todayEl.textContent = today.length; // Distinct pour aujourd'hui
     if (futureEl) futureEl.textContent = future.length;
 
     if (!deadlineNotes.length) {
@@ -1105,15 +1105,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isCompleted = d.completed;
             const dateVal = extractDateFromContent(d.content) || d.date || 'À venir';
             const isOverdue = !isCompleted && d.date && d.date < todayStr;
+            const isToday = !isCompleted && (d.date === todayStr || !d.date);
+
+            let statusBadge = '';
+            if (isCompleted) {
+              statusBadge = '<span class="px-2 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 font-bold rounded-md border border-emerald-500/30">Terminé</span>';
+            } else if (isOverdue) {
+              statusBadge = '<span class="px-2 py-0.5 text-[9px] bg-rose-500/20 text-rose-400 font-extrabold rounded-md border border-rose-500/30">En retard</span>';
+            } else if (isToday) {
+              statusBadge = '<span class="px-2 py-0.5 text-[9px] bg-amber-500/20 text-amber-400 font-extrabold rounded-md border border-amber-500/30">Aujourd\'hui</span>';
+            }
+
             return `
               <div class="timeline-item space-y-1">
                 <div class="flex items-center justify-between text-xs">
                   <div class="flex items-center gap-2">
                     <span class="font-bold text-white text-sm">${clientObj ? escapeHtml(clientObj.name) : 'Client'}</span>
-                    ${isCompleted ? '<span class="px-2 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 font-bold rounded-md">Terminé</span>' : ''}
-                    ${isOverdue ? '<span class="px-2 py-0.5 text-[9px] bg-rose-500/30 text-rose-300 font-bold rounded-md border border-rose-500/40">En retard (Prioritaire aujourd\'hui)</span>' : ''}
+                    ${statusBadge}
                   </div>
-                  <span class="px-2.5 py-0.5 text-[10px] font-extrabold ${isOverdue ? 'bg-rose-500/30 text-rose-300 border-rose-500/50' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'} rounded-full border">
+                  <span class="px-2.5 py-0.5 text-[10px] font-extrabold ${isOverdue ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : isToday ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-slate-800 text-slate-300 border-slate-700'} rounded-full border">
                     ${dateVal}
                   </span>
                 </div>
@@ -1185,6 +1195,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
     const isDeadlineItem = t.is_deadline || (t.content && t.content.includes('/deadline')) || Boolean(t.date);
     const dateStr = t.date || extractDateFromContent(t.content) || 'Échéance';
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const isOverdue = t.date && t.date < todayStr;
+    const isToday = t.date === todayStr;
 
     return `
       <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-2 text-xs glow-hover" style="border-left: 4px solid ${clientColor} !important;">
@@ -1196,9 +1210,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           <div class="flex items-center gap-1.5 shrink-0">
             ${isDeadlineItem ? `
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1" title="Échéance datée">
-                <i data-lucide="clock" class="w-3 h-3 text-rose-400"></i>
-                <span>${dateStr}</span>
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold ${isOverdue ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' : (isToday ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40')} border flex items-center gap-1" title="Échéance datée">
+                <i data-lucide="clock" class="w-3 h-3"></i>
+                <span>${isOverdue ? 'En retard (' + dateStr + ')' : (isToday ? 'Aujourd\'hui' : dateStr)}</span>
               </span>
             ` : ''}
 
