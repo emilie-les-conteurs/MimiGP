@@ -265,6 +265,13 @@
             <!-- Slash Popup Menu for Dash Composer -->
             <div id="ag-dash-slash-menu" class="command-menu-popup hidden">
               <div class="px-3 py-1.5 border-b border-slate-700/60 text-[10px] uppercase font-bold text-slate-400">Raccourcis Slash</div>
+              <div class="command-item" data-cmd="/planning">
+                <i data-lucide="calendar-plus" class="w-4 h-4 text-indigo-400"></i>
+                <div>
+                  <div class="font-semibold text-white">/planning @collègue [date] [tâche]</div>
+                  <div class="text-[10px]">Affecter une tâche au planning d'un collègue</div>
+                </div>
+              </div>
               <div class="command-item" data-cmd="/todo">
                 <i data-lucide="check-square" class="w-4 h-4 text-emerald-400"></i>
                 <div>
@@ -294,6 +301,11 @@
             
             <!-- Quick Preset Badges -->
             <div class="flex flex-wrap items-center gap-2">
+              <button type="button" id="ag-dash-preset-planning" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1">
+                <i data-lucide="calendar-plus" class="w-3.5 h-3.5 text-indigo-400"></i>
+                <span>+ Planning Équipe</span>
+              </button>
+
               <button type="button" id="ag-dash-preset-todo" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-1">
                 <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
                 <span>+ Pense-bête</span>
@@ -380,19 +392,24 @@
 
         <!-- Team Schedule / Planning Collègues (Aujourd'hui & Demain) -->
         <div class="glass-panel p-5 rounded-2xl border border-indigo-500/30 space-y-4 shadow-xl">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
             <div class="flex items-center gap-3">
               <div class="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
-                <i data-lucide="users" class="w-5 h-5"></i>
+                <i data-lucide="calendar-plus" class="w-5 h-5"></i>
               </div>
               <div>
                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
                   Planning Équipe & Collègues
                   <span class="px-2.5 py-0.5 rounded-full text-[10px] bg-indigo-500/20 text-indigo-300 font-extrabold border border-indigo-500/40">Aujourd'hui & Demain</span>
                 </h3>
-                <p class="text-[11px] text-slate-400">Tâches et mémos attribués à vos collègues avec pastille de prénom</p>
+                <p class="text-[11px] text-slate-400">Planning explicitement attribué aux collègues (@collègue) avec date et client</p>
               </div>
             </div>
+
+            <button id="ag-add-planning-btn" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 shrink-0">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>+ Ajouter au Planning</span>
+            </button>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -939,9 +956,53 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL AJOUT INFORMATIONS PLANNING ÉQUIPE                           -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div id="ag-planning-modal" class="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 space-y-4 shadow-2xl border border-indigo-500/40">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="calendar-plus" class="w-5 h-5 text-indigo-400"></i>
+          Ajouter une Info au Planning Équipe
+        </h3>
+        <button id="ag-planning-modal-close" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="ag-planning-form" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Collègue Assigné (@Prénom)</label>
+          <input type="text" id="ag-planning-input-person" required placeholder="ex: @lea, @thomas, @julie..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500 font-semibold">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Client Rattaché</label>
+          <select id="ag-planning-input-client" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500 font-semibold">
+            <!-- Client list options filled dynamically -->
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Date d'Échéance / Planning</label>
+          <input type="date" id="ag-planning-input-date" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500 font-semibold">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Description de la Tâche / Instruction</label>
+          <textarea id="ag-planning-input-content" rows="3" required placeholder="ex: Rédiger le contenu pour le client Grand Est..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="ag-planning-modal-cancel" class="px-4 py-2 bg-slate-800 text-slate-300 font-semibold rounded-xl hover:bg-slate-700">Annuler</button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition flex items-center gap-1.5">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>Enregistrer dans le Planning</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Main JS Logic -->
-  <script src="config.js?v=team_planning_simple_1106"></script>
-  <script src="antigravity.js?v=team_planning_simple_1106"></script>
+  <script src="config.js?v=explicit_planning_1110"></script>
+  <script src="antigravity.js?v=explicit_planning_1110"></script>
 
 </body>
 </html>

@@ -489,71 +489,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     tm.setDate(tm.getDate() + 1);
     const tomorrowStr = tm.toISOString().split('T')[0];
 
-    // Combine notes + todos + deadlines
-    const allItems = [
-      ...notes.map(n => ({
-        id: n.id,
-        content: n.content,
-        date: n.date || (n.created_at ? n.created_at.split('T')[0] : todayStr),
-        client_id: n.client_id || n.clientId,
-        type: 'note',
-        is_deadline: n.is_deadline || (n.content && n.content.includes('/deadline')),
-        completed: n.completed || false
-      })),
-      ...todos.map(t => ({
-        id: t.id,
-        content: t.content,
-        date: t.dueDate || t.due_date || (t.created_at ? t.created_at.split('T')[0] : todayStr),
-        client_id: t.client_id || t.clientId,
-        type: 'todo',
-        is_deadline: false,
-        completed: t.completed || t.done || false
-      }))
-    ];
+    // Strictly filter items created explicitly for team planning (/planning, is_planning: true)
+    const planningNotes = notes.filter(n => n.is_planning || (n.content && (n.content.includes('/planning') || n.content.includes('@'))));
 
-    const todayItems = allItems.filter(i => i.date === todayStr || (!i.date && i.content.includes('@')));
-    const tomorrowItems = allItems.filter(i => i.date === tomorrowStr);
+    const todayItems = planningNotes.filter(n => {
+      const nDate = n.date || extractDateFromContent(n.content) || (n.created_at ? n.created_at.split('T')[0] : todayStr);
+      return nDate === todayStr || (!n.date && n.content.includes('/planning'));
+    });
+
+    const tomorrowItems = planningNotes.filter(n => {
+      const nDate = n.date || extractDateFromContent(n.content);
+      return nDate === tomorrowStr;
+    });
 
     if (todayCountEl) todayCountEl.textContent = todayItems.length;
     if (tomorrowCountEl) tomorrowCountEl.textContent = tomorrowItems.length;
 
     const renderPlanningList = (items, targetEl, emptyMsg) => {
       if (!items.length) {
-        targetEl.innerHTML = `<p class="text-[11px] text-slate-500 py-3 text-center">${emptyMsg}</p>`;
+        targetEl.innerHTML = `<p class="text-[11px] text-slate-500 py-4 text-center border border-dashed border-slate-800 rounded-xl">${emptyMsg}</p>`;
         return;
       }
 
       targetEl.innerHTML = items.map(item => {
-        const clientObj = clients.find(c => c.id === item.client_id);
+        const clientObj = clients.find(c => c.id === item.client_id || c.id === item.clientId);
         const clientColor = clientObj ? (clientObj.color || '#6366f1') : '#6366f1';
+        const isCompleted = Boolean(item.completed || item.done);
 
         // Extract person mention if available
         const match = item.content ? item.content.match(/@([a-zA-Z0-9_À-ÿ\-]+)/) : null;
         const personName = match ? match[1] : 'Équipe';
 
+        // Clean content (strip /planning keyword)
+        let displayContent = cleanContent(item.content).replace(/\/planning\s*/g, '').replace(/@([a-zA-Z0-9_À-ÿ\-]+)\s*/g, '');
+
         return `
-          <div class="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs flex items-center justify-between gap-2 hover:border-indigo-500/40 transition shadow-xs">
-            <div class="flex items-center gap-2 overflow-hidden flex-1">
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1 shrink-0" title="Collègue / Membre attribué">
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs flex items-center justify-between gap-2 hover:border-indigo-500/40 transition shadow-xs ${isCompleted ? 'opacity-60 bg-slate-950/60' : ''}">
+            <div class="flex items-center gap-2.5 overflow-hidden flex-1">
+              <!-- Checkbox completion button -->
+              <button data-toggle-complete="${item.id}" class="p-1 rounded-lg border transition ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-emerald-400'}" title="${isCompleted ? 'Marquer comme non terminée' : 'Valider cette tâche'}">
+                <i data-lucide="${isCompleted ? 'check-circle-2' : 'circle'}" class="w-4 h-4"></i>
+              </button>
+
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1 shrink-0" title="Assigné à ${escapeHtml(personName)}">
                 <i data-lucide="user" class="w-3 h-3 text-indigo-400"></i>
                 @${escapeHtml(personName)}
               </span>
 
-              <span class="truncate font-medium text-slate-200">${renderFormattedContent(cleanContent(item.content))}</span>
+              <span class="truncate font-semibold text-slate-100 ${isCompleted ? 'line-through text-slate-400' : ''}">${renderFormattedContent(displayContent.trim() || cleanContent(item.content))}</span>
             </div>
 
             ${clientObj ? `
-              <span class="px-2 py-0.5 text-[10px] font-bold rounded-full border shrink-0" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}60 !important;">
+              <span class="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full border shrink-0 shadow-xs" style="background-color: ${clientColor}20; color: ${clientColor} !important; border-color: ${clientColor}60 !important;">
                 ${escapeHtml(clientObj.name)}
               </span>
             ` : ''}
           </div>
         `;
       }).join('');
+
+      bindNoteCardEvents(targetEl);
     };
 
-    renderPlanningList(todayItems, todayListEl, 'Aucune tâche ou note d\'équipe aujourd\'hui');
-    renderPlanningList(tomorrowItems, tomorrowListEl, 'Aucune tâche ou note d\'équipe demain');
+    renderPlanningList(todayItems, todayListEl, 'Aucune tâche d\'équipe planifiée pour aujourd\'hui');
+    renderPlanningList(tomorrowItems, tomorrowListEl, 'Aucune tâche d\'équipe planifiée pour demain');
   }
 
   // Dashboard Metric Cards Redirection
@@ -1810,6 +1809,84 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (sb) {
         await sb.from('persons').insert(newPerson);
+      }
+
+      renderAllViews();
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MODAL PLANNING ÉQUIPE (Création d'Informations Planning avec Variables)
+  // ══════════════════════════════════════════════════════════════════════════
+  const addPlanningBtn = document.getElementById('ag-add-planning-btn');
+  const presetPlanningBtn = document.getElementById('ag-dash-preset-planning');
+
+  if (addPlanningBtn) addPlanningBtn.addEventListener('click', () => openAddPlanningModal());
+  if (presetPlanningBtn) presetPlanningBtn.addEventListener('click', () => openAddPlanningModal());
+
+  function openAddPlanningModal() {
+    const modal = document.getElementById('ag-planning-modal');
+    const inputPerson = document.getElementById('ag-planning-input-person');
+    const clientSelect = document.getElementById('ag-planning-input-client');
+    const inputDate = document.getElementById('ag-planning-input-date');
+    const inputContent = document.getElementById('ag-planning-input-content');
+
+    if (inputPerson) inputPerson.value = '';
+    if (inputContent) inputContent.value = '';
+    if (inputDate) inputDate.value = new Date().toISOString().split('T')[0];
+
+    if (clientSelect) {
+      clientSelect.innerHTML = clients.map(c => `<option value="${c.id}" ${c.id === activeClientId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+    }
+
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  const planningModalClose = document.getElementById('ag-planning-modal-close');
+  const planningModalCancel = document.getElementById('ag-planning-modal-cancel');
+  if (planningModalClose) planningModalClose.addEventListener('click', closePlanningModal);
+  if (planningModalCancel) planningModalCancel.addEventListener('click', closePlanningModal);
+
+  function closePlanningModal() {
+    const modal = document.getElementById('ag-planning-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  const planningForm = document.getElementById('ag-planning-form');
+  if (planningForm) {
+    planningForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const inputPerson = document.getElementById('ag-planning-input-person');
+      const clientSelect = document.getElementById('ag-planning-input-client');
+      const inputDate = document.getElementById('ag-planning-input-date');
+      const inputContent = document.getElementById('ag-planning-input-content');
+
+      if (!inputPerson || !inputPerson.value.trim() || !inputContent || !inputContent.value.trim()) return;
+
+      let person = inputPerson.value.trim();
+      if (!person.startsWith('@')) person = `@${person}`;
+
+      const selectedClientId = clientSelect ? clientSelect.value : activeClientId;
+      const targetDate = inputDate ? inputDate.value : new Date().toISOString().split('T')[0];
+      const taskText = inputContent.value.trim();
+
+      const newPlanningNote = {
+        id: generateUUID(),
+        client_id: selectedClientId,
+        clientId: selectedClientId,
+        content: `/planning ${person} ${taskText}`,
+        date: targetDate,
+        is_planning: true,
+        completed: false,
+        created_at: new Date().toISOString()
+      };
+
+      notes.unshift(newPlanningNote);
+      saveDataLocal();
+      closePlanningModal();
+
+      if (sb) {
+        await sb.from('messages').insert(newPlanningNote);
       }
 
       renderAllViews();
