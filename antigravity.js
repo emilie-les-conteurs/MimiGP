@@ -231,14 +231,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
 
-      // Load Messages / Notes
+      // Load Messages / Notes from all tables & legacy LocalStorage keys
       let loadedNotes = [];
       if (sb) {
-        const { data, error } = await sb.from('messages').select('*').order('created_at', { ascending: false });
-        if (!error && data) loadedNotes = data;
+        try {
+          const res1 = await sb.from('messages').select('*').order('created_at', { ascending: false });
+          if (!res1.error && res1.data) loadedNotes = res1.data;
+        } catch(e) {}
+
+        try {
+          const res2 = await sb.from('notes').select('*').order('created_at', { ascending: false });
+          if (!res2.error && res2.data) {
+            loadedNotes = mergeById(loadedNotes, res2.data);
+          }
+        } catch(e) {}
       }
-      const localNotes = JSON.parse(localStorage.getItem('mimigp_global_feed') || '[]');
-      notes = mergeById(loadedNotes, localNotes);
+
+      const legacyNoteKeys = ['mimigp_global_feed', 'global_feed', 'mimi_notes', 'mimi_messages', 'notes', 'messages', 'client_notes', 'antigravity_notes'];
+      let localNotes = [];
+      legacyNoteKeys.forEach(key => {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+          if (Array.isArray(parsed) && parsed.length) {
+            localNotes = mergeById(localNotes, parsed);
+          }
+        } catch(e) {}
+      });
+
+      notes = mergeById(loadedNotes, localNotes).map(n => {
+        if (!n) return null;
+        return {
+          ...n,
+          id: n.id || generateUUID(),
+          client_id: n.client_id || n.clientId || n.client_name || n.clientName || n.client || '',
+          clientId: n.client_id || n.clientId || n.client_name || n.clientName || n.client || '',
+          content: n.content || n.text || n.message || n.note || n.body || '',
+          created_at: n.created_at || n.date || n.timestamp || new Date().toISOString()
+        };
+      }).filter(Boolean);
 
       // Load Todos
       let loadedTodos = [];
@@ -581,11 +611,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const nClient = String(n.client || n.client_name || n.clientName || '').toLowerCase().trim();
       if (cName && nClient && (nClient === cName || cName.includes(nClient) || nClient.includes(cName))) return true;
 
-      // 3. Match content tags
+      // 3. Match content tags or client name in content
       if (cName && n.content) {
         const lowerContent = n.content.toLowerCase();
         const cleanSlug = cName.replace(/\s+/g, '');
         if (lowerContent.includes(`[${cName}]`) || lowerContent.includes(`/${cleanSlug}`) || lowerContent.includes(cName)) {
+          return true;
+        }
+
+        // Significant words matching (e.g. "Damgan", "Bernard")
+        const words = cName.split(/\s+/).filter(w => w.length >= 4);
+        if (words.length && words.some(w => lowerContent.includes(w))) {
           return true;
         }
       }
@@ -1022,10 +1058,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       dateVal = new Date().toISOString().split('T')[0];
     }
 
+    const clientObj = clients.find(c => String(c.id).trim() === String(clientId).trim());
+
     const newNote = {
       id: generateUUID(),
       client_id: clientId,
       clientId: clientId,
+      client: clientObj ? clientObj.name : '',
+      client_name: clientObj ? clientObj.name : '',
+      clientName: clientObj ? clientObj.name : '',
       content: rawText,
       color: color || 'default',
       bg_color: color || 'default',
